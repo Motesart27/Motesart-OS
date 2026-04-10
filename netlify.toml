@@ -1,0 +1,15 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Proxy API calls to Railway backend (must come BEFORE the catch-all)
+[[redirects]]
+  from = "/api/*"
+  to = "https://deployable-python-codebase-som-production.up.railway.app/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
