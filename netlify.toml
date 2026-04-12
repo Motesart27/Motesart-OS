@@ -2,12 +2,8 @@
   command = "npm run build"
   publish = "dist"
 
-# Proxy API calls to Railway backend (must come BEFORE the catch-all)
-[[redirects]]
-  from = "/api/*"
-  to = "https://deployable-python-codebase-som-production.up.railway.app/:splat"
-  status = 200
-  force = true
+# Netlify functions handle /api/* directly — no Railway proxy
+# SOM Railway backend is called directly from the frontend via VITE_API_URL
 
 [[redirects]]
   from = "/*"
