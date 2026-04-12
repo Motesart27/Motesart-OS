@@ -2,8 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Motesart OS" />
+    <meta name="theme-color" content="#c9a84c" />
     <title>Motesart OS</title>
+    <!-- Apple home screen icon -->
+    <link rel="apple-touch-icon" href="/icons/icon-512.png" />
+    <link rel="manifest" href="/manifest.json" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -13,8 +20,96 @@
       ::-webkit-scrollbar { width: 4px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+      /* ── Mobile responsive overrides ── */
+      @media (max-width: 768px) {
+        /* Safe area for notch/home bar */
+        #root { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+
+        /* Sidebar becomes bottom nav on mobile */
+        .os-sidebar {
+          width: 100% !important;
+          height: 60px !important;
+          flex-direction: row !important;
+          border-right: none !important;
+          border-top: 1px solid rgba(255,255,255,0.07) !important;
+          position: fixed !important;
+          bottom: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          z-index: 100 !important;
+          overflow-x: auto !important;
+          overflow-y: hidden !important;
+          padding-bottom: env(safe-area-inset-bottom) !important;
+        }
+
+        /* Hide sidebar header and toggle on mobile */
+        .os-sidebar > *:first-child,
+        .os-sidebar > *:nth-child(2) { display: none !important; }
+
+        /* Business nav items — horizontal scroll */
+        .os-sidebar > *:nth-child(3) {
+          flex-direction: row !important;
+          padding: 4px 8px !important;
+          flex: 1 !important;
+          overflow-x: auto !important;
+          align-items: center !important;
+        }
+
+        .os-sidebar > *:nth-child(3) button {
+          margin-bottom: 0 !important;
+          margin-right: 4px !important;
+          flex-shrink: 0 !important;
+          min-width: 48px !important;
+          padding: 8px 12px !important;
+        }
+
+        /* Bottom actions — row */
+        .os-sidebar > *:last-child {
+          flex-direction: row !important;
+          border-top: none !important;
+          border-left: 1px solid rgba(255,255,255,0.07) !important;
+          padding: 4px 8px !important;
+          gap: 4px !important;
+          align-items: center !important;
+        }
+
+        /* Main content — add padding for bottom nav */
+        .os-main { padding-bottom: calc(60px + env(safe-area-inset-bottom)) !important; }
+
+        /* Content area padding */
+        .os-content-area { padding: 14px !important; }
+
+        /* PA Agent pill above bottom nav */
+        .os-pa-pill {
+          bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+          right: 14px !important;
+        }
+
+        /* Cards full width on mobile */
+        .os-stat-card { min-width: 0 !important; }
+
+        /* Topbar compact */
+        .os-topbar-title { font-size: 13px !important; }
+
+        /* Tables — horizontal scroll */
+        table { font-size: 11px !important; }
+
+        /* Agent chat panel — full screen on mobile */
+        [style*="position: fixed"][style*="width: 380px"],
+        [style*="position: fixed"][style*="width: 340px"],
+        [style*="position: fixed"][style*="width: 360px"] {
+          width: 100% !important;
+          left: 0 !important;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .os-content-area { padding: 10px !important; }
+        .os-pa-pill { bottom: calc(68px + env(safe-area-inset-bottom)) !important; right: 10px !important; }
+      }
     </style>
-      <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   </head>
   <body>
     <div id="root"></div>
