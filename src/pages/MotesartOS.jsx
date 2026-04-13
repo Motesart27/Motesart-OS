@@ -26,6 +26,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import MyaDispatchPanel from "../components/MyaDispatchPanel";
 
 // ─── PA Agent system prompt ───────────────────────────────────────────────────
 const PA_SYSTEM = `You are the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
@@ -2453,6 +2454,7 @@ export default function MotesartOS() {
   const [activeTab, setActiveTab] = useState("overview");
   const [approvedIds, setApprovedIds] = useState([]);
   const [chatOpen, setChatOpen] = useState(false);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
   const [topTab, setTopTab] = useState("overview");
 
@@ -2469,7 +2471,7 @@ export default function MotesartOS() {
   return (
     <div className="os-root" style={{ display: "flex", height: "100vh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
 
-      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} />
+      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setDispatchOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} />
 
       <div className="os-main" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
@@ -2695,7 +2697,7 @@ export default function MotesartOS() {
 
       {/* Floating PA Agent pill button */}
       {!chatOpen && (
-        <button onClick={() => setChatOpen(true)} className="os-pa-pill" style={{
+        <button onClick={() => setDispatchOpen(true)} className="os-pa-pill" style={{
           position: "fixed", bottom: 24, right: 24, zIndex: 150,
           background: `linear-gradient(135deg, ${T.goldDim}, rgba(201,168,76,0.18))`,
           border: `1px solid ${T.borderHi}`,
@@ -2810,6 +2812,8 @@ export default function MotesartOS() {
           }
         }
       `}</style>
+
+      <MyaDispatchPanel open={dispatchOpen} onClose={() => setDispatchOpen(false)} />
     </div>
   );
 }
