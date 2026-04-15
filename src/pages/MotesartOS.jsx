@@ -425,7 +425,14 @@ const BUSINESSES = [
   {
     id: "e7a", name: "E7A", full: "Elarte7 Agency",
     color: T.gold, dim: T.goldDim, icon: "◈", notifications: 3,
+    appUrl: null,
     brief: "Gate 2 content approval needed Thursday. ASCAP registration is a hard block on Soft Spot launch. Avery Phase 2 scope definition overdue.",
+    todos: [
+      { id: "e1", text: "Register ASCAP for Soft Spot", done: false },
+      { id: "e2", text: "Gate 2 content approval by Thursday", done: false },
+      { id: "e3", text: "Define Avery Phase 2 scope", done: false },
+      { id: "e4", text: "Build Airtable core 5 tables", done: false },
+    ],
     artists: [
       {
         id: "vr", name: "Velvet Room", stage: "Pre-Release", mode: "Build", color: "#c95a84",
@@ -454,19 +461,38 @@ const BUSINESSES = [
   {
     id: "som", name: "SOM", full: "School of Motesart",
     color: T.blue, dim: T.blueDim, icon: "◎", notifications: 1, exec: "SOM",
+    appUrl: "https://school-of-motesart.netlify.app",
+    converterUrl: "https://motesart-converter.netlify.app",
     brief: "Motesart Converter architecture is the active build priority. Platform infrastructure being built in parallel. Curriculum layer comes after Converter is stable. Next Claude Code session needed.",
+    todos: [
+      { id: "s1", text: "Schedule Converter build session", done: false },
+      { id: "s2", text: "Define curriculum layer structure", done: false },
+      { id: "s3", text: "Platform infrastructure audit", done: false },
+    ],
     artists: [],
   },
   {
     id: "fm", name: "FinanceMind", full: "FinanceMind",
     color: T.green, dim: T.greenDim, icon: "△", notifications: 2, exec: "FM",
+    appUrl: "https://web-production-f6963.up.railway.app",
     brief: "Sunday finance review pending. Credit monitoring active and trending up. No spend over $20 without approval. Connect all business accounts when FinanceMind integration is ready.",
+    todos: [
+      { id: "f1", text: "Complete Sunday finance review", done: false },
+      { id: "f2", text: "Book Southwest flights — Chicago Jun 12 + Jun 15", done: false },
+      { id: "f3", text: "Fund vacation stash — currently $0", done: false },
+    ],
     artists: [],
   },
   {
     id: "book", name: "Book", full: "Motes Family Book",
     color: T.amber, dim: T.amberDim, icon: "◇", notifications: 1, exec: "BOOK",
+    appUrl: "https://motesart-book-manager.netlify.app",
     brief: "Dr. Roscoe Motes has completed the manuscript. Platform and site structure not yet built. Publishing path not yet decided. Needs scoping session.",
+    todos: [
+      { id: "b1", text: "File U.S. Copyright registration", done: false },
+      { id: "b2", text: "Purchase ISBN", done: false },
+      { id: "b3", text: "Scope publishing platform", done: false },
+    ],
     artists: [],
   },
 ];
@@ -520,9 +546,11 @@ const DEMO_NOTIFICATIONS = [
 ];
 
 const DEMO_APPROVALS = [
-  { id: 1, biz: "E7A", artist: "Velvet Room", type: "Visual",   item: "Post 1 -- Mood Visual cover frame" },
-  { id: 2, biz: "E7A", artist: "Velvet Room", type: "Caption",  item: "Post 2 -- Primary Reel caption draft" },
-  { id: 3, biz: "E7A", artist: "Velvet Room", type: "Strategy", item: "Platform lead: Instagram confirmed?" },
+  { id: 1, biz: "e7a", artist: "Velvet Room", type: "Visual",   item: "Post 1 -- Mood Visual cover frame" },
+  { id: 2, biz: "e7a", artist: "Velvet Room", type: "Caption",  item: "Post 2 -- Primary Reel caption draft" },
+  { id: 3, biz: "e7a", artist: "Velvet Room", type: "Strategy", item: "Platform lead: Instagram confirmed?" },
+  { id: 4, biz: "som", artist: "SOM",         type: "Build",    item: "Motesart Converter architecture review" },
+  { id: 5, biz: "book", artist: "Book",       type: "Content",  item: "Chapter 4 Husband-Hood — complete missing case study" },
 ];
 
 const LEVEL_C = {
@@ -1585,14 +1613,29 @@ function PersonalMainView({ onScheduleTask, onOpenFM, onAskFM }) {
     return ev.start?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) || "";
   };
 
+  const [calOpen, setCalOpen] = useState(false);
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
 
       {/* ── Finance Snapshot ── */}
       <FinanceSnapshotCard onAskFM={onAskFM} />
 
-      {/* ── Live Calendar ── */}
-      <LiveCalendar events={calEvents} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+      {/* ── Live Calendar — collapsible ── */}
+      <div>
+        <div onClick={() => setCalOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: T.card, border: `1px solid ${T.border}`, borderRadius: calOpen ? "12px 12px 0 0" : 12, cursor: "pointer", marginBottom: calOpen ? 0 : 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Calendar — April 2026</span>
+            <span style={{ fontSize: 9, color: T.muted }}>{calEvents.length} events</span>
+          </div>
+          <span style={{ fontSize: 10, color: T.muted, transform: calOpen ? "rotate(90deg)" : "rotate(0)", transition: "transform 0.2s" }}>▸</span>
+        </div>
+        {calOpen && (
+          <div style={{ borderRadius: "0 0 12px 12px", overflow: "hidden", border: `1px solid ${T.border}`, borderTop: "none" }}>
+            <LiveCalendar events={calEvents} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+          </div>
+        )}
+      </div>
 
       {/* ── Today's Events ── */}
       {calStatus === "loading" ? (
@@ -1672,41 +1715,147 @@ const JEAN_PURPLE = "#C084FC";
 const JEAN_DIM = "rgba(192,132,252,0.1)";
 
 function JeanMainView({ onScheduleTask }) {
+  const [cycleCount, setCycleCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("jean_cycle_count") || "0"); } catch { return 0; }
+  });
+  const [cycleStartDate, setCycleStartDate] = useState(() => {
+    try { return localStorage.getItem("jean_cycle_start") || null; } catch { return null; }
+  });
+  const [notes, setNotes] = useState(() => {
+    try { return localStorage.getItem("jean_notes") || ""; } catch { return ""; }
+  });
+
+  const totalCycles = 24;
+  const pct = Math.round((cycleCount / totalCycles) * 100);
+  const remaining = totalCycles - cycleCount;
+  const RED_ZONE_START = 20;
+  const isRedZone = cycleCount >= RED_ZONE_START;
+  const isComplete = cycleCount >= totalCycles;
+
+  const incrementCycle = () => {
+    const next = Math.min(cycleCount + 1, totalCycles);
+    setCycleCount(next);
+    if (!cycleStartDate) {
+      const now = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      setCycleStartDate(now);
+      try { localStorage.setItem("jean_cycle_start", now); } catch {}
+    }
+    try { localStorage.setItem("jean_cycle_count", next.toString()); } catch {}
+  };
+
+  const resetCycle = () => {
+    setCycleCount(0);
+    setCycleStartDate(null);
+    try { localStorage.removeItem("jean_cycle_count"); localStorage.removeItem("jean_cycle_start"); } catch {}
+  };
+
+  const saveNotes = (val) => {
+    setNotes(val);
+    try { localStorage.setItem("jean_notes", val); } catch {}
+  };
+
+  const nextClassDate = () => {
+    const now = new Date();
+    const day = now.getDay();
+    const daysUntilTue = day <= 2 ? 2 - day : 9 - day;
+    const next = new Date(now.getTime() + daysUntilTue * 86400000);
+    return next.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  };
+
   return (
-    <div style={{ display: "grid", gap: 18 }}>
+    <div style={{ display: "grid", gap: 14 }}>
+
       {/* Header */}
-      <div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: T.white, letterSpacing: "-0.02em" }}>JEAN</div>
-        <div style={{ fontSize: 11, color: T.muted }}>Class every Tuesday 6-9PM</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: JEAN_PURPLE }} />
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: T.white, letterSpacing: "-0.02em" }}>JEAN</div>
+          <div style={{ fontSize: 11, color: T.muted }}>Class every Tuesday 6–9PM · Next: {nextClassDate()}</div>
+        </div>
+      </div>
+
+      {/* Cycle Tracker Card */}
+      <div style={{
+        background: isRedZone ? "rgba(192,48,48,0.08)" : isComplete ? T.greenDim : JEAN_DIM,
+        border: `1px solid ${isRedZone ? T.red + "40" : isComplete ? T.green + "40" : JEAN_PURPLE + "30"}`,
+        borderRadius: 14, padding: 16,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 9, color: isRedZone ? T.red : JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>
+              {isComplete ? "✓ Complete" : isRedZone ? "⚠ Red Zone" : "Cycle Tracker"}
+            </div>
+            <div style={{ fontSize: 22, color: isRedZone ? T.red : isComplete ? T.green : T.white, fontWeight: 800, letterSpacing: "-0.02em" }}>
+              {cycleCount} <span style={{ fontSize: 13, color: T.muted, fontWeight: 400 }}>/ {totalCycles} cycles</span>
+            </div>
+          </div>
+          <div style={{ position: "relative", width: 56, height: 56 }}>
+            <svg width="56" height="56" viewBox="0 0 56 56">
+              <circle cx="28" cy="28" r="22" fill="none" stroke={T.dim} strokeWidth="5" />
+              <circle cx="28" cy="28" r="22" fill="none"
+                stroke={isComplete ? T.green : isRedZone ? T.red : JEAN_PURPLE}
+                strokeWidth="5"
+                strokeDasharray={`${(pct / 100) * 138.2} 138.2`}
+                strokeDashoffset="34.6"
+                strokeLinecap="round" />
+            </svg>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: isComplete ? T.green : isRedZone ? T.red : JEAN_PURPLE }}>{pct}%</div>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ height: 6, background: T.dim, borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
+          <div style={{ height: "100%", borderRadius: 3, background: isComplete ? T.green : isRedZone ? T.red : JEAN_PURPLE, width: `${pct}%`, transition: "width 0.4s cubic-bezier(0.22,1,0.36,1)" }} />
+        </div>
+
+        {/* Red zone indicator */}
+        {isRedZone && !isComplete && (
+          <div style={{ background: T.redDim, border: `1px solid ${T.red}30`, borderRadius: 8, padding: "7px 12px", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.red, animation: "pulse 1.5s infinite" }} />
+            <span style={{ fontSize: 11, color: T.red, fontWeight: 700 }}>Red Zone — {remaining} cycle{remaining !== 1 ? "s" : ""} remaining</span>
+          </div>
+        )}
+
+        <div style={{ fontSize: 10, color: T.muted, marginBottom: 12 }}>
+          {isComplete ? "All cycles complete — great work!" : `${remaining} cycle${remaining !== 1 ? "s" : ""} remaining · Started: ${cycleStartDate || "not started"}`}
+        </div>
+
+        <div style={{ display: "flex", gap: 7 }}>
+          <button onClick={incrementCycle} disabled={isComplete} style={{
+            flex: 1, background: isComplete ? T.dim : JEAN_DIM, border: `1px solid ${isComplete ? T.border : JEAN_PURPLE + "50"}`,
+            color: isComplete ? T.muted : JEAN_PURPLE, borderRadius: 8, padding: "8px 12px",
+            cursor: isComplete ? "default" : "pointer", fontSize: 11, fontWeight: 700,
+          }}>+ Mark Cycle Done</button>
+          <button onClick={resetCycle} style={{ background: T.dim, border: `1px solid ${T.border}`, color: T.muted, borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontSize: 10 }}>Reset</button>
+        </div>
       </div>
 
       {/* Class Schedule */}
-      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${JEAN_PURPLE}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-        <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>CLASS SCHEDULE</div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 4 }}>Every Tuesday</div>
-        <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>6:00 - 9:00 PM</div>
-        <div style={{ fontSize: 11, color: T.muted }}>3 hour class · Next: Apr 14</div>
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${JEAN_PURPLE}`, borderRadius: "0 12px 12px 0", padding: "12px 16px" }}>
+        <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Class Schedule</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>Every Tuesday · 6:00 – 9:00 PM</div>
+        <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>3 hour class · Next: {nextClassDate()}</div>
       </div>
 
-      {/* 2-column: To Do + Reminders */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-          <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>TO DO</div>
-          <div style={{ fontSize: 11, color: T.muted, fontStyle: "italic", marginBottom: 10 }}>No tasks yet</div>
-          <button onClick={() => onScheduleTask("Jean: ")} style={{ background: JEAN_DIM, border: `1px solid ${JEAN_PURPLE}30`, color: JEAN_PURPLE, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>+ Add task</button>
-        </div>
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-          <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>REMINDERS</div>
-          <div style={{ fontSize: 11, color: T.muted, fontStyle: "italic", marginBottom: 10 }}>No reminders yet</div>
-          <button onClick={() => onScheduleTask("Jean reminder: ")} style={{ background: JEAN_DIM, border: `1px solid ${JEAN_PURPLE}30`, color: JEAN_PURPLE, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>+ Add reminder</button>
-        </div>
+      {/* Quick Actions */}
+      <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+        {["+ Add task", "+ Add reminder", "+ Add note"].map(label => (
+          <button key={label} onClick={() => onScheduleTask(`Jean: ${label.replace("+ ", "")}: `)} style={{ padding: "7px 14px", background: JEAN_DIM, border: `1px solid ${JEAN_PURPLE}30`, color: JEAN_PURPLE, borderRadius: 20, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{label}</button>
+        ))}
       </div>
 
       {/* Notes */}
-      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-        <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>NOTES</div>
-        <div style={{ fontSize: 11, color: T.muted, fontStyle: "italic", marginBottom: 10 }}>No notes yet — details to be added later</div>
-        <button onClick={() => onScheduleTask("Jean note: ")} style={{ background: JEAN_DIM, border: `1px solid ${JEAN_PURPLE}30`, color: JEAN_PURPLE, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>+ Add note</button>
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14 }}>
+        <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Notes</div>
+        <textarea
+          value={notes}
+          onChange={e => saveNotes(e.target.value)}
+          placeholder="Add notes about Jean class..."
+          rows={3}
+          style={{ width: "100%", background: T.dim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none", resize: "vertical", lineHeight: 1.6 }}
+          onFocus={e => { e.target.style.borderColor = JEAN_PURPLE + "50"; }}
+          onBlur={e => { e.target.style.borderColor = T.border; }}
+        />
       </div>
     </div>
   );
@@ -2727,6 +2876,59 @@ function TravelBuilderPanel() {
 }
 
 
+// ─── Per-Business Todo List ───────────────────────────────────────────────────
+function BizTodoList({ biz }) {
+  const [todos, setTodos] = useState(biz.todos || []);
+  const [input, setInput] = useState("");
+
+  const toggle = (id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  const add = () => {
+    if (!input.trim()) return;
+    setTodos(prev => [...prev, { id: Date.now().toString(), text: input.trim(), done: false }]);
+    setInput("");
+  };
+
+  const open = todos.filter(t => !t.done).length;
+  const done = todos.filter(t => t.done).length;
+
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 18px", marginBottom: 18, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: biz.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em" }}>{biz.name} To-Do</span>
+        <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: biz.dim, color: biz.color, fontWeight: 700 }}>{open} open</span>
+        {done > 0 && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: T.greenDim, color: T.green, fontWeight: 700 }}>{done} done</span>}
+      </div>
+      <div style={{ display: "grid", gap: 5, marginBottom: 10 }}>
+        {todos.map(t => (
+          <div key={t.id} onClick={() => toggle(t.id)} style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+            background: t.done ? T.dim : T.surface, borderRadius: 8,
+            border: `1px solid ${t.done ? T.border : biz.color + "20"}`,
+            cursor: "pointer", transition: "all 0.15s", opacity: t.done ? 0.5 : 1,
+          }}>
+            <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${t.done ? T.green : biz.color}`, background: t.done ? T.greenDim : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              {t.done && <span style={{ fontSize: 9, color: T.green, fontWeight: 800 }}>✓</span>}
+            </div>
+            <span style={{ fontSize: 12, color: t.done ? T.muted : T.white, textDecoration: t.done ? "line-through" : "none", flex: 1 }}>{t.text}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") add(); }}
+          placeholder={`+ Add ${biz.name} task...`}
+          style={{ flex: 1, background: T.dim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 12px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+          onFocus={e => { e.target.style.borderColor = biz.color + "50"; }}
+          onBlur={e => { e.target.style.borderColor = T.border; }}
+        />
+        <button onClick={add} disabled={!input.trim()} style={{ background: input.trim() ? biz.dim : T.dim, border: `1px solid ${input.trim() ? biz.color + "40" : T.border}`, color: input.trim() ? biz.color : T.muted, borderRadius: 8, padding: "6px 12px", cursor: input.trim() ? "pointer" : "default", fontSize: 11, fontWeight: 700 }}>Add</button>
+      </div>
+    </div>
+  );
+}
+
+
 export default function MotesartOS() {
   const [open, setOpen] = useState(true);
   const [activeBiz, setActiveBiz] = useState("e7a");
@@ -2864,6 +3066,65 @@ export default function MotesartOS() {
             </div>
           )}
 
+          {/* ── App Launch Cards — overview only ── */}
+          {!isSpecialView && activeTab === "overview" && (biz.appUrl || biz.converterUrl) && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+              {biz.appUrl && (
+                <a href={biz.appUrl} target="_blank" rel="noopener noreferrer" style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: biz.dim, border: `1px solid ${biz.color}40`,
+                  borderRadius: 10, padding: "10px 16px", textDecoration: "none",
+                  transition: "all 0.18s",
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.background = biz.color + "25"; e.currentTarget.style.transform = "scale(1.02)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = biz.dim; e.currentTarget.style.transform = "scale(1)"; }}
+                >
+                  <span style={{ fontSize: 14 }}>{biz.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: biz.color, fontWeight: 700 }}>Open {biz.full}</div>
+                    <div style={{ fontSize: 9, color: T.muted, marginTop: 1 }}>Launch standalone app →</div>
+                  </div>
+                </a>
+              )}
+              {biz.converterUrl && (
+                <a href={biz.converterUrl} target="_blank" rel="noopener noreferrer" style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: T.dim, border: `1px solid ${T.blue}30`,
+                  borderRadius: 10, padding: "10px 16px", textDecoration: "none",
+                  transition: "all 0.18s",
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.blue + "15"; e.currentTarget.style.transform = "scale(1.02)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = T.dim; e.currentTarget.style.transform = "scale(1)"; }}
+                >
+                  <span style={{ fontSize: 14 }}>⟳</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.blue, fontWeight: 700 }}>Open Motesart Converter</div>
+                    <div style={{ fontSize: 9, color: T.muted, marginTop: 1 }}>Launch standalone tool →</div>
+                  </div>
+                </a>
+              )}
+              {activeBiz === "personal" && (
+                <a href="https://vitalstacktracker.netlify.app" target="_blank" rel="noopener noreferrer" style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: "rgba(58,154,96,0.1)", border: `1px solid ${T.green}30`,
+                  borderRadius: 10, padding: "10px 16px", textDecoration: "none",
+                  transition: "all 0.18s",
+                }}>
+                  <span style={{ fontSize: 14 }}>◈</span>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.green, fontWeight: 700 }}>Open VitalStack</div>
+                    <div style={{ fontSize: 9, color: T.muted, marginTop: 1 }}>Launch health tracker →</div>
+                  </div>
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* ── Per-Biz To-Do List — overview only ── */}
+          {!isSpecialView && activeTab === "overview" && biz.todos && biz.todos.length > 0 && (
+            <BizTodoList biz={biz} key={biz.id} />
+          )}
+
           {/* Notifications */}
           {!isSpecialView && (activeTab === "overview" || activeTab === "notifications") && (
             <div style={{ marginBottom: 18 }}>
@@ -2893,7 +3154,7 @@ export default function MotesartOS() {
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 9 }}>Needs Approval</div>
               <div style={{ display: "grid", gap: 6 }}>
-                {DEMO_APPROVALS.map(a => {
+                {DEMO_APPROVALS.filter(a => a.biz === biz.id).map(a => {
                   const done = approvedIds.includes(a.id);
                   return (
                     <div key={a.id} style={{
