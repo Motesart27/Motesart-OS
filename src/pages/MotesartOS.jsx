@@ -27,8 +27,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 
-// ─── PA Agent system prompt ───────────────────────────────────────────────────
-const PA_SYSTEM = `You are the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
+// ─── MYA Agent system prompt ───────────────────────────────────────────────────
+const PA_SYSTEM = `You are MYA -- the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
 
 PERSONAL DATA SECURITY — HIGHEST PRIORITY RULE:
 
@@ -743,7 +743,7 @@ function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onSelectPerson
           gap: 9, justifyContent: open ? "flex-start" : "center",
         }}>
           <span style={{ fontSize: 13, color: T.gold, flexShrink: 0 }}>◆</span>
-          {open && <span style={{ fontSize: 12, fontWeight: 700, color: T.gold }}>PA Agent</span>}
+          {open && <span style={{ fontSize: 12, fontWeight: 700, color: T.gold }}>MYA</span>}
         </button>
       </div>
     </div>
@@ -756,15 +756,15 @@ function PAAgentChat({ onClose, activeBiz }) {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "Good morning. PA Agent active. I have your briefing ready -- 3 items need your attention today for E7A, 2 for FinanceMind. What would you like to address first, or do you have an instruction for one of the executives?",
-      agent: "PA"
+      content: "Good morning. MYA active. I have your briefing ready — 3 items need your attention today for E7A, 2 for FinanceMind. What would you like to address first, or do you have an instruction for one of the executives?",
+      agent: "MYA"
     }
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [activeAgent, setActiveAgent] = useState("PA");
-  const AGENT_SYSTEMS = { PA: PA_SYSTEM, E7A: E7A_SYSTEM, SOM: SOM_SYSTEM, FM: FM_SYSTEM, BOOK: BOOK_SYSTEM };
-  const AGENT_LABELS = { PA: "Personal Assistant", E7A: "E7A Agency", SOM: "School of Motesart", FM: "FinanceMind", BOOK: "Book Project" };
+  const [activeAgent, setActiveAgent] = useState("MYA");
+  const AGENT_SYSTEMS = { MYA: PA_SYSTEM, E7A: E7A_SYSTEM, SOM: SOM_SYSTEM, FM: FM_SYSTEM, BOOK: BOOK_SYSTEM };
+  const AGENT_LABELS = { MYA: "Personal Assistant", E7A: "E7A Agency", SOM: "School of Motesart", FM: "FinanceMind", BOOK: "Book Project" };
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -776,7 +776,7 @@ function PAAgentChat({ onClose, activeBiz }) {
     function handleScheduleTask(e) {
       const task = e.detail;
       if (task) {
-        setActiveAgent("PA");
+        setActiveAgent("MYA");
         setInput(`Schedule this task for me: ${task}. Check my calendar for availability and suggest the best time. Ask me before adding it.`);
         setTimeout(() => {
           document.querySelector("[data-pa-send]")?.click();
@@ -819,7 +819,7 @@ function PAAgentChat({ onClose, activeBiz }) {
       const reply = data.reply || "No response from agent.";
 
       // Route suggestion from backend (soft -- user still controls active agent)
-      if (data.route_suggestion && data.route_suggestion !== activeAgent && activeAgent === "PA") {
+      if (data.route_suggestion && data.route_suggestion !== activeAgent && activeAgent === "MYA") {
         setActiveAgent(data.route_suggestion);
       }
 
@@ -834,7 +834,7 @@ function PAAgentChat({ onClose, activeBiz }) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
 
-  const agentColorMap = { PA: T.blue, E7A: T.gold, SOM: T.blue, FM: T.green, BOOK: T.amber };
+  const agentColorMap = { MYA: T.blue, E7A: T.gold, SOM: T.blue, FM: T.green, BOOK: T.amber };
   const agentColor = agentColorMap[activeAgent] || T.gold;
 
   return (
@@ -848,7 +848,7 @@ function PAAgentChat({ onClose, activeBiz }) {
       <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
         <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.green }} />
         <span style={{ fontSize: 13, fontWeight: 800, color: T.white, flex: 1, letterSpacing: "-0.01em" }}>
-          {activeAgent === "PA" ? "PA Agent" : activeAgent + " Executive"}
+          {activeAgent === "MYA" ? "MYA" : activeAgent + " Executive"}
         </span>
         <Badge text={AGENT_LABELS[activeAgent] || activeAgent} color={agentColor} dim={`${agentColor}15`} />
         <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4 }}>x</button>
@@ -857,8 +857,8 @@ function PAAgentChat({ onClose, activeBiz }) {
       {/* Agent switcher */}
       <div style={{ display: "flex", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
         <div style={{ overflowX: "auto", display: "flex" }}>
-        {["PA", "E7A", "SOM", "FM", "BOOK"].map(agent => {
-          const agentColors = { PA: T.blue, E7A: T.gold, SOM: T.blue, FM: T.green, BOOK: T.amber };
+        {["MYA", "E7A", "SOM", "FM", "BOOK"].map(agent => {
+          const agentColors = { MYA: T.blue, E7A: T.gold, SOM: T.blue, FM: T.green, BOOK: T.amber };
           const col = agentColors[agent] || T.gold;
           return (
             <button key={agent} onClick={() => setActiveAgent(agent)} style={{
@@ -878,8 +878,8 @@ function PAAgentChat({ onClose, activeBiz }) {
         {messages.map((m, i) => (
           <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
             {m.role === "assistant" && (
-              <div style={{ fontSize: 9, color: m.agent === "E7A" ? T.gold : T.blue, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4, paddingLeft: 2 }}>
-                {m.agent || "PA"} Agent
+              <div style={{ fontSize: 9, color: m.agent === "E7A" ? T.gold : m.agent === "MYA" ? T.blue : T.blue, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4, paddingLeft: 2 }}>
+                {m.agent === "MYA" ? "MYA" : (m.agent || "MYA") + " Executive"}
               </div>
             )}
             <div style={{
@@ -897,7 +897,7 @@ function PAAgentChat({ onClose, activeBiz }) {
         ))}
         {loading && (
           <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-            <div style={{ fontSize: 9, color: agentColor, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>{activeAgent} Agent</div>
+            <div style={{ fontSize: 9, color: agentColor, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>{activeAgent === "MYA" ? "MYA" : activeAgent + " Executive"}</div>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: "12px 12px 12px 2px", padding: "10px 16px" }}>
               <div style={{ display: "flex", gap: 4 }}>
                 {[0, 1, 2].map(i => (
@@ -912,7 +912,7 @@ function PAAgentChat({ onClose, activeBiz }) {
 
       {/* Quick commands */}
       <div style={{ padding: "8px 14px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {["Brief me", "What is urgent?", "Route to E7A", "SOM status", "Finance review", "Book project status"].map(cmd => (
+        {["Brief me", "What is urgent?", "Route to E7A", "SOM status", "Finance review", "Book project status", "VitalStack sync"].map(cmd => (
           <button key={cmd} onClick={() => { setInput(cmd); }} style={{
             background: T.dim, border: `1px solid ${T.border}`,
             color: T.muted, borderRadius: 4, padding: "3px 8px",
@@ -931,7 +931,7 @@ function PAAgentChat({ onClose, activeBiz }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder={activeAgent === "PA" ? "Message your PA Agent..." : `Send instruction to ${activeAgent} Executive...`}
+          placeholder={activeAgent === "MYA" ? "Message MYA..." : `Send instruction to ${activeAgent} Executive...`}
           rows={2}
           style={{
             flex: 1, background: T.card, border: `1px solid ${T.border}`,
@@ -959,35 +959,35 @@ function PAAgentChat({ onClose, activeBiz }) {
 }
 
 
-// ─── Personal Panel ───────────────────────────────────────────────────────────
+// ─── Personal Panel (Redesigned) ─────────────────────────────────────────────
 function PersonalPanel({ onClose, onScheduleTask }) {
   const [tab, setTab] = useState("health");
   const [taskInput, setTaskInput] = useState("");
-  const [taskSending, setTaskSending] = useState(false);
-  const tabs = ["health", "schedule", "goals"];
+  const tabs = ["health", "schedule", "goals", "jean"];
+  const JEAN_PURPLE = "#C084FC";
 
   return (
     <div style={{
-      position: "fixed", right: 0, top: 0, bottom: 0, width: 360,
+      position: "fixed", right: 0, top: 0, bottom: 0, width: 380,
       background: T.surface, borderLeft: `1px solid ${T.border}`,
       zIndex: 200, display: "flex", flexDirection: "column",
       boxShadow: "-12px 0 48px rgba(0,0,0,0.7)",
     }}>
       {/* Header */}
-      <div style={{ padding: "16px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.green }} />
+      <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
+        <div style={{ width: 7, height: 7, borderRadius: "50%", background: T.green }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: T.white, flex: 1 }}>Personal</span>
         <Badge text="Denarius Motes" color={T.green} dim={T.greenDim} />
-        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4 }}>x</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4 }}>✕</button>
       </div>
 
       {/* Tabs */}
       <div style={{ display: "flex", borderBottom: `1px solid ${T.border}` }}>
         {tabs.map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
-            flex: 1, padding: "9px 4px", background: "none", border: "none",
-            borderBottom: tab === t ? `2px solid ${T.green}` : "2px solid transparent",
-            color: tab === t ? T.green : T.muted,
+            flex: 1, padding: "10px 4px", background: "none", border: "none",
+            borderBottom: tab === t ? `2px solid ${t === "jean" ? JEAN_PURPLE : T.green}` : "2px solid transparent",
+            color: tab === t ? (t === "jean" ? JEAN_PURPLE : T.green) : T.muted,
             fontSize: 10, fontWeight: 700, textTransform: "uppercase",
             letterSpacing: "0.08em", cursor: "pointer",
           }}>{t}</button>
@@ -995,118 +995,111 @@ function PersonalPanel({ onClose, onScheduleTask }) {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "grid", gap: 10, alignContent: "start" }}>
 
-        {tab === "health" && (
-          <div style={{ display: "grid", gap: 10 }}>
-            {/* VitalStack connection status */}
-            <div style={{ background: T.goldDim, border: `1px solid ${T.gold}30`, borderRadius: 8, padding: "10px 14px" }}>
-              <div style={{ fontSize: 10, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>VitalStack</div>
-              <div style={{ fontSize: 12, color: T.white, marginBottom: 4 }}>Connection pending</div>
-              <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.5 }}>Live data will display here once VitalStack API endpoint is connected. Herbs, supplements, workouts, and wellbeing metrics will sync automatically.</div>
-            </div>
-
-            {/* Manual metrics */}
-            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden" }}>
-              <div style={{ padding: "8px 14px", borderBottom: `1px solid ${T.border}`, fontSize: 10, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                Weekly Metrics
-              </div>
-              {PERSONAL.health.metrics.map((m, i) => (
-                <div key={i} style={{ padding: "10px 14px", borderBottom: i < PERSONAL.health.metrics.length - 1 ? `1px solid ${T.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>{m.label}</span>
-                  <span style={{ fontSize: 12, color: m.status === "pending" ? T.muted : T.green }}>{m.value}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Last checkin */}
-            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px" }}>
-              <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Last PA Checkin</div>
-              <div style={{ fontSize: 13, color: T.white }}>{PERSONAL.health.lastCheckin}</div>
-            </div>
+        {/* ── HEALTH TAB ── */}
+        {tab === "health" && (<>
+          <div style={{ background: T.goldDim, border: `1px solid ${T.gold}30`, borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 10, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>VitalStack — Connection Pending</div>
+            <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6 }}>Herbs, supplements, workouts, and wellbeing metrics will sync automatically once the VitalStack API endpoint is live.</div>
           </div>
-        )}
+          <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Weekly Metrics</div>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+            {PERSONAL.health.metrics.map((m, i) => (
+              <div key={i} style={{ padding: "10px 14px", borderBottom: i < PERSONAL.health.metrics.length - 1 ? `1px solid ${T.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: T.muted }}>{m.label}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: `1px solid ${T.border}`, color: T.muted }}>Pending</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Last MYA Check-in</span>
+            <span style={{ fontSize: 12, color: T.muted, fontStyle: "italic" }}>Not yet logged</span>
+          </div>
+        </>)}
 
-        {tab === "schedule" && (
-          <div style={{ display: "grid", gap: 8 }}>
-            <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6, padding: "4px 0 8px", borderBottom: `1px solid ${T.border}`, marginBottom: 4 }}>
-              Recurring protected blocks. PA Agent will never schedule over these.
-            </div>
+        {/* ── SCHEDULE TAB ── */}
+        {tab === "schedule" && (<>
+          <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6, padding: "0 2px 4px" }}>Recurring protected blocks — MYA will never schedule over these.</div>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
             {PERSONAL.schedule.recurring.map((s, i) => (
-              <div key={i} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px", display: "flex", gap: 12 }}>
-                <div style={{ minWidth: 70 }}>
+              <div key={i} style={{ padding: "10px 14px", borderBottom: i < PERSONAL.schedule.recurring.length - 1 ? `1px solid ${T.border}` : "none", display: "flex", gap: 14 }}>
+                <div style={{ minWidth: 72, flexShrink: 0 }}>
                   <div style={{ fontSize: 11, color: T.green, fontWeight: 700 }}>{s.day}</div>
-                  <div style={{ fontSize: 10, color: T.muted }}>{s.time}</div>
+                  <div style={{ fontSize: 10, color: T.muted, marginTop: 1 }}>{s.time}</div>
                 </div>
-                <span style={{ fontSize: 12, color: T.white, lineHeight: 1.5 }}>{s.item}</span>
+                <span style={{ fontSize: 12, color: s.item.includes("locked") ? T.red : T.white, lineHeight: 1.5 }}>{s.item}</span>
               </div>
             ))}
           </div>
-        )}
+        </>)}
 
-        {tab === "goals" && (
-          <div style={{ display: "grid", gap: 8 }}>
-            <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6, padding: "4px 0 8px", borderBottom: `1px solid ${T.border}`, marginBottom: 4 }}>
-              Standing personal goals. PA Agent tracks these weekly.
-            </div>
+        {/* ── GOALS TAB ── */}
+        {tab === "goals" && (<>
+          <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6, padding: "0 2px 4px" }}>Standing personal goals. MYA tracks these weekly.</div>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
             {PERSONAL.goals.map((g, i) => (
-              <div key={i} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div key={i} style={{ padding: "11px 14px", borderBottom: i < PERSONAL.goals.length - 1 ? `1px solid ${T.border}` : "none", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.green, flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: T.white }}>{g.label}</span>
-                <Badge text={g.status} color={T.green} dim={T.greenDim} />
+                <span style={{ fontSize: 13, color: T.white, flex: 1 }}>{g.label}</span>
+                <Badge text="Active" color={T.green} dim={T.greenDim} />
               </div>
             ))}
-
-            {/* VitalStack note */}
-            <div style={{ background: T.goldDim, border: `1px solid ${T.gold}30`, borderRadius: 8, padding: "10px 14px", marginTop: 4 }}>
-              <div style={{ fontSize: 11, color: T.gold, lineHeight: 1.6 }}>
-                When VitalStack is connected, goal completion will be tracked automatically from your health data.
-              </div>
+          </div>
+          <div style={{ background: T.goldDim, border: `1px solid ${T.gold}30`, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 11, color: T.gold, lineHeight: 1.6 }}>
+              When VitalStack is connected, goal completion will be tracked automatically from your health data.
             </div>
           </div>
-        )}
+        </>)}
+
+        {/* ── JEAN TAB ── */}
+        {tab === "jean" && (<>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "2px 0 6px" }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: JEAN_PURPLE }} />
+            <div>
+              <div style={{ fontSize: 16, color: T.white, fontWeight: 700, letterSpacing: "-0.01em" }}>Jean</div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 1 }}>Class every Tuesday 6–9PM</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Upcoming Classes</div>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+            {[{ day: "Tue Apr 15", time: "6–9PM" }, { day: "Tue Apr 22", time: "6–9PM" }, { day: "Tue Apr 29", time: "6–9PM" }].map((c, i) => (
+              <div key={i} style={{ padding: "10px 14px", borderBottom: i < 2 ? `1px solid ${T.border}` : "none", display: "flex", gap: 14 }}>
+                <div style={{ minWidth: 72 }}>
+                  <div style={{ fontSize: 11, color: JEAN_PURPLE, fontWeight: 700 }}>{c.day}</div>
+                  <div style={{ fontSize: 10, color: T.muted, marginTop: 1 }}>{c.time}</div>
+                </div>
+                <span style={{ fontSize: 12, color: T.white }}>Jean Class</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Quick Actions</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {["+ Add task", "+ Add reminder", "+ Add note"].map(label => (
+              <button key={label} onClick={() => onScheduleTask(`Jean: ${label.replace("+ ", "")}: `)} style={{ padding: "7px 14px", background: `rgba(192,132,252,0.1)`, border: `1px solid ${JEAN_PURPLE}30`, color: JEAN_PURPLE, borderRadius: 20, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{label}</button>
+            ))}
+          </div>
+        </>)}
       </div>
 
-      {/* ─── Smart Task Scheduler ─── */}
-      <div style={{ padding: "10px 16px", borderTop: `1px solid ${T.border}`, background: T.bg, display: "flex", gap: 8, alignItems: "center" }}>
+      {/* Task bar */}
+      <div style={{ padding: "10px 16px 16px", borderTop: `1px solid ${T.border}`, background: T.bg, display: "flex", gap: 8, alignItems: "center" }}>
         <input
           value={taskInput}
           onChange={e => setTaskInput(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === "Enter" && taskInput.trim() && !taskSending) {
-              setTaskSending(true);
-              onScheduleTask(taskInput.trim());
-              setTaskInput("");
-              setTaskSending(false);
-            }
-          }}
-          placeholder="+ Add task..."
-          style={{
-            flex: 1, background: T.card, border: `1px solid ${T.border}`,
-            borderRadius: 8, padding: "8px 12px", color: T.white,
-            fontSize: 12, fontFamily: "inherit", outline: "none",
-          }}
+          onKeyDown={e => { if (e.key === "Enter" && taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }}
+          placeholder="+ Add task to MYA..."
+          style={{ flex: 1, background: T.card, border: `1px solid ${T.border}`, borderRadius: 20, padding: "8px 14px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none" }}
           onFocus={e => { e.target.style.borderColor = T.green + "50"; }}
           onBlur={e => { e.target.style.borderColor = T.border; }}
         />
         <button
-          onClick={() => {
-            if (taskInput.trim() && !taskSending) {
-              setTaskSending(true);
-              onScheduleTask(taskInput.trim());
-              setTaskInput("");
-              setTaskSending(false);
-            }
-          }}
-          disabled={!taskInput.trim() || taskSending}
-          style={{
-            background: !taskInput.trim() ? T.dim : T.greenDim,
-            border: `1px solid ${!taskInput.trim() ? T.border : T.green + "40"}`,
-            color: !taskInput.trim() ? T.muted : T.green,
-            borderRadius: 8, padding: "8px 14px", cursor: !taskInput.trim() ? "default" : "pointer",
-            fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", transition: "all 0.15s",
-          }}
-        >Schedule it</button>
+          onClick={() => { if (taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }}
+          disabled={!taskInput.trim()}
+          style={{ background: !taskInput.trim() ? T.dim : T.greenDim, border: `1px solid ${!taskInput.trim() ? T.border : T.green + "40"}`, color: !taskInput.trim() ? T.muted : T.green, borderRadius: 20, padding: "8px 16px", cursor: !taskInput.trim() ? "default" : "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+          Schedule it
+        </button>
       </div>
     </div>
   );
@@ -2572,7 +2565,7 @@ export default function MotesartOS() {
           {!isSpecialView && activeTab === "overview" && (
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${biz.color}`, borderRadius: 12, padding: "14px 18px", marginBottom: 18, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <span style={{ fontSize: 10, color: biz.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em" }}>◉ PA Agent Brief</span>
+                <span style={{ fontSize: 10, color: biz.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em" }}>◉ MYA Brief</span>
                 <Badge text={biz.name} color={biz.color} dim={biz.dim} />
                 <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                   <button style={{ background: T.dim, border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 600 }}>Read</button>
@@ -2693,7 +2686,7 @@ export default function MotesartOS() {
       }} />}
       {chatOpen && <PAAgentChat onClose={() => setChatOpen(false)} activeBiz={activeBiz} />}
 
-      {/* Floating PA Agent pill button */}
+      {/* Floating MYA pill button */}
       {!chatOpen && (
         <button onClick={() => setChatOpen(true)} className="os-pa-pill" style={{
           position: "fixed", bottom: 24, right: 24, zIndex: 150,
@@ -2708,7 +2701,7 @@ export default function MotesartOS() {
         }}
           onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 36px rgba(201,168,76,0.5)"; e.currentTarget.style.transform = "scale(1.06)"; e.currentTarget.style.animationPlayState = "paused"; }}
           onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 4px 24px rgba(201,168,76,0.25)"; e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.animationPlayState = "running"; }}
-          title="Open PA Agent"
+          title="Open MYA"
         ><span style={{ fontSize: 22 }}>◉</span></button>
       )}
 
