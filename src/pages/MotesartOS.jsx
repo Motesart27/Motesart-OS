@@ -27,6 +27,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import MyaDispatchPanel from "../components/MyaDispatchPanel";
+import JeanCycleTracker from "../components/JeanCycleTracker";
 
 // ─── PA Agent system prompt ───────────────────────────────────────────────────
 const PA_SYSTEM = `You are the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
@@ -1407,6 +1408,9 @@ function JeanMainView({ onScheduleTask }) {
         <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>6:00 - 9:00 PM</div>
         <div style={{ fontSize: 11, color: T.muted }}>3 hour class · Next: Apr 14</div>
       </div>
+
+      {/* Cycle Tracker */}
+      <JeanCycleTracker />
 
       {/* 2-column: To Do + Reminders */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
