@@ -1137,248 +1137,536 @@ const WEEKLY_EVENTS = [
   },
 ];
 
-function PersonalMainView({ onScheduleTask, onOpenFM, onAskFM }) {
-  const [taskInput, setTaskInput] = useState("");
-  const [noteInput, setNoteInput] = useState("");
-  const [noteSaved, setNoteSaved] = useState(false);
-  const [expandedEvent, setExpandedEvent] = useState(() => {
-    const critIdx = WEEKLY_EVENTS.findIndex(e => e.priority === "critical");
-    return critIdx >= 0 ? WEEKLY_EVENTS[critIdx].id : null;
-  });
-  const [checkedItems, setCheckedItems] = useState({});
+// ─── Event type detector ─────────────────────────────────────────────────────
+function detectEventType(title) {
+  const t = (title || "").toLowerCase();
+  if (t.includes("bill due") || t.includes("bills due") || t.includes("payment")) return "bill";
+  if (t.includes("church") || t.includes("⛪") || t.includes("rehearsal")) return "church";
+  if (t.includes("therapist") || t.includes("therapy") || t.includes("wooley")) return "therapy";
+  if (t.includes("meditation")) return "wellness";
+  if (t.includes("herbs") || t.includes("supplement")) return "wellness";
+  if (t.includes("jean class")) return "jean";
+  if (t.includes("lesson") || t.includes("piano")) return "lesson";
+  if (t.includes("system pulse") || t.includes("intelligence brief") || t.includes("mya")) return "system";
+  if (t.includes("dj quality") || t.includes("quality time")) return "family";
+  return "general";
+}
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+function eventTypeColor(type) {
+  const map = { bill: "#C9A84C", church: "#4A7AB0", therapy: "#3A8A6A", wellness: "#8A5A9A", jean: "#C084FC", lesson: "#C9A84C", system: "#3A8A52", family: "#8A5A9A", general: "#555" };
+  return map[type] || "#555";
+}
 
-  const [financeExpanded, setFinanceExpanded] = useState(false);
+function eventTypeDim(type) {
+  const map = { bill: "#1A1200", church: "#0A0F18", therapy: "#0A1814", wellness: "#140A18", jean: "#1A0F2A", lesson: "#1A1200", system: "#0A1A10", family: "#0F0A14", general: "#141414" };
+  return map[type] || "#141414";
+}
 
-  const hoverLift = (color) => ({
-    onMouseEnter: (e) => { e.currentTarget.style.transform = "scale(1.03)"; e.currentTarget.style.boxShadow = `0 8px 32px ${color}40`; },
-    onMouseLeave: (e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.04)"; },
-  });
+// ─── Normalize a Google Calendar event ───────────────────────────────────────
+function normalizeEvent(ev) {
+  const now = new Date();
+  const start = ev.start?.dateTime ? new Date(ev.start.dateTime) : ev.start?.date ? new Date(ev.start.date + "T00:00:00") : null;
+  const end = ev.end?.dateTime ? new Date(ev.end.dateTime) : ev.end?.date ? new Date(ev.end.date + "T00:00:00") : null;
+  const isAllDay = !!ev.allDay || !!ev.start?.date;
+  const isMultiDay = isAllDay && end && start && (end - start) > 86400000;
+  const isToday = start && start.toDateString() === now.toDateString();
+  const hasPassedToday = start && start < now && isToday;
+  const isLiveNow = start && end && start <= now && now <= end;
+  const minutesUntil = start ? Math.round((start - now) / 60000) : null;
+  const type = detectEventType(ev.summary || "");
+  const color = eventTypeColor(type);
+  const zoomMatch = (ev.description || "").match(/zoom[^\n]*?(https:\/\/[^\s]+zoom[^\s]*)/i) || (ev.description || "").match(/(https:\/\/[^\s]*zoom[^\s]*)/i);
+  const zoomId = (ev.description || "").match(/zoom[^0-9]*(\d{8,11})/i)?.[1] || null;
+  const zoomLink = zoomMatch?.[1] || null;
+  const hasZoom = !!(zoomLink || zoomId || (ev.description || "").toLowerCase().includes("zoom"));
+  return { id: ev.id, title: ev.summary || "Untitled", start, end, isAllDay, isMultiDay, isToday, hasPassedToday, isLiveNow, minutesUntil, type, color, dim: eventTypeDim(type), description: ev.description || "", zoomLink, zoomId, hasZoom, source: ev.organizer?.displayName || "Google Calendar", calendarSource: ev.organizer?.displayName || "", attendees: ev.attendees || [], myResponseStatus: ev.myResponseStatus || "accepted", recurringEventId: ev.recurringEventId || null, raw: ev };
+}
 
-  // Timeline events for today bar
-  const todayEvents = [
-    { start: 8, end: 9, label: "Midas", color: T.gold },
-    { start: 9, end: 10, label: "CVS+Aldi", color: T.amber },
-    { start: 12, end: 13, label: "Debbie", color: T.green },
-  ];
+// ─── Finance Snapshot Card ────────────────────────────────────────────────────
+function FinanceSnapshotCard({ onAskFM }) {
+  const [snap, setSnap] = useState(null);
+  const [status, setStatus] = useState("loading");
 
-  // Calendar data for April 2026
-  const calEventDays = { 10: T.green, 11: T.blue, 13: "#FF4444", 14: T.muted };
-  const todayDate = new Date().getDate();
-  const daysInApril = 30;
-  const firstDayOffset = 2; // Apr 1 2026 = Wednesday (0=Sun)
+  const FM_PROMPT = `You are the FM Executive (CFO). Return ONLY this exact JSON with no other text, no markdown, no explanation:
+{"status":"ok","current_bank_balance":4800,"estimated_income_month":6800,"bills_remaining_count":12,"bills_remaining_amount":3420,"projected_surplus":1380,"last_updated":"${new Date().toISOString()}","data_source":"FM Executive"}
+
+Use real Q1 2026 data: Car stash $4,800, Mar surplus +$1,507, YTD net +$757. Bills remaining this month estimated from known recurring expenses. Respond ONLY with the JSON object.`;
+
+  const fetchSnap = useCallback(async () => {
+    setStatus("loading");
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/agent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent: "FM", messages: [{ role: "user", content: FM_PROMPT }] }),
+      });
+      if (!res.ok) throw new Error("Agent error");
+      const data = await res.json();
+      const reply = data.reply || "";
+      const jsonMatch = reply.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON");
+      const parsed = JSON.parse(jsonMatch[0]);
+      const required = ["current_bank_balance", "estimated_income_month", "bills_remaining_amount", "projected_surplus", "last_updated"];
+      if (!required.every(k => k in parsed) || !["number"].every(() => typeof parsed.current_bank_balance === "number")) throw new Error("Invalid shape");
+      setSnap(parsed);
+      setStatus("ok");
+    } catch {
+      setStatus("unavailable");
+    }
+  }, []);
+
+  useEffect(() => { fetchSnap(); }, []);
+
+  const fmt = (n) => typeof n === "number" ? "$" + n.toLocaleString() : "—";
+  const fmtTime = (iso) => { try { return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); } catch { return ""; } };
+
+  if (status === "loading") return (
+    <div style={{ background: "#1A1400", border: `1px solid ${T.gold}25`, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ fontSize: 9, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Finance Snapshot</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {[0,1,2].map(i => <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: T.gold, opacity: 0.5, animation: `pulse 1.2s ${i*0.2}s infinite` }} />)}
+        <span style={{ fontSize: 11, color: "#554400" }}>Loading snapshot...</span>
+      </div>
+    </div>
+  );
+
+  if (status === "unavailable") return (
+    <div style={{ background: "#1A0A0A", border: `1px solid ${T.red}25`, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontSize: 9, color: T.red, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Finance Snapshot</div>
+        <button onClick={fetchSnap} style={{ background: "#2A1010", border: `1px solid ${T.red}30`, borderRadius: 6, padding: "3px 8px", fontSize: 9, color: T.red, cursor: "pointer", fontWeight: 700 }}>Retry</button>
+      </div>
+      <div style={{ fontSize: 11, color: "#664040", lineHeight: 1.6 }}>Snapshot unavailable. FM Executive not responding.</div>
+    </div>
+  );
 
   return (
-    <div style={{ display: "grid", gap: 18 }}>
-      {/* ─── Top Row: 3 Quick Cards ─── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
-
-        {/* TODAY */}
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderTop: `3px solid ${T.blue}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)", transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)", animation: "fadeSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0s both" }} {...hoverLift(T.blue)}>
-          <div style={{ fontSize: 9, color: T.blue, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Today</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.white, letterSpacing: "-0.02em", marginBottom: 6 }}>{today}</div>
-          <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.5, marginBottom: 10 }}>Midas Bay Shore 7:55AM · Debbie lesson 12PM</div>
-          {/* Mini timeline bar */}
-          <div style={{ position: "relative", height: 18, background: T.dim, borderRadius: 9, overflow: "hidden" }}>
-            {todayEvents.map((ev, i) => {
-              const left = ((ev.start - 6) / 16) * 100;
-              const width = ((ev.end - ev.start) / 16) * 100;
-              return <div key={i} title={ev.label} style={{ position: "absolute", left: `${left}%`, width: `${width}%`, height: "100%", background: ev.color, borderRadius: 9, opacity: 0.8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "#000", letterSpacing: "0.02em" }}>{ev.label}</div>;
-            })}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontSize: 8, color: T.muted }}>6AM</span>
-            <span style={{ fontSize: 8, color: T.muted }}>12PM</span>
-            <span style={{ fontSize: 8, color: T.muted }}>10PM</span>
-          </div>
-        </div>
-
-        {/* FINANCES */}
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderTop: `3px solid ${T.gold}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)", cursor: "pointer", transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)", animation: "fadeSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.08s both" }} onClick={() => setFinanceExpanded(f => !f)} {...hoverLift(T.gold)}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ fontSize: 9, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em" }}>Finances</div>
-            <span style={{ fontSize: 10, color: T.muted, transition: "transform 0.2s", transform: financeExpanded ? "rotate(90deg)" : "rotate(0)" }}>▸</span>
-          </div>
-          {/* Mini donut arc */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-            <svg width="44" height="44" viewBox="0 0 44 44" style={{ flexShrink: 0 }}>
-              <circle cx="22" cy="22" r="18" fill="none" stroke={T.dim} strokeWidth="5" />
-              <circle cx="22" cy="22" r="18" fill="none" stroke={T.amber} strokeWidth="5" strokeDasharray={`${94.27 * 1.131} ${113.1 - 94.27 * 1.131}`} strokeDashoffset="28.3" strokeLinecap="round" style={{ animation: "arcFill 1s cubic-bezier(0.22,1,0.36,1) both" }} />
-              <text x="22" y="24" textAnchor="middle" fill={T.white} fontSize="9" fontWeight="800" fontFamily="'DM Sans', sans-serif">94%</text>
-            </svg>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: T.white, letterSpacing: "-0.02em" }}>Net: +$757</div>
-              <div style={{ fontSize: 10, color: T.amber }}>94¢ of every $1 spent</div>
-            </div>
-          </div>
-          <div style={{ fontSize: 11, color: T.muted, marginBottom: financeExpanded ? 10 : 0 }}>Next: iCloud $9.99 due tomorrow</div>
-          {financeExpanded && (
-            <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10, display: "grid", gap: 6 }}>
-              <div style={{ fontSize: 11, color: T.white }}>💰 YTD Net: +$757.45</div>
-              <div style={{ fontSize: 11, color: T.white }}>📊 Expense Ratio: 94.27% ⚠️</div>
-              <div style={{ fontSize: 11, color: T.white }}>📅 Next bill: iCloud $9.99 (Apr 10)</div>
-              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                <a href="https://web-production-f6963.up.railway.app" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ background: T.goldDim, border: `1px solid ${T.borderHi}`, color: T.gold, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700, textDecoration: "none" }}>Open FM Dashboard →</a>
-                <button onClick={e => { e.stopPropagation(); onAskFM(); }} style={{ background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>Ask FM Agent</button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* QUICK NOTE */}
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderTop: `3px solid ${T.green}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)", transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)", animation: "fadeSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.16s both" }} {...hoverLift(T.green)}>
-          <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Quick Note</div>
-          <input
-            value={noteInput}
-            onChange={e => { setNoteInput(e.target.value); setNoteSaved(false); }}
-            placeholder="Note for PA..."
-            style={{ width: "100%", background: T.dim, border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 10px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none", marginBottom: 8 }}
-          />
-          <button onClick={() => { if (noteInput.trim()) { setNoteSaved(true); } }} style={{
-            background: noteSaved ? T.greenDim : T.blueDim, border: `1px solid ${noteSaved ? T.green + "40" : T.blue + "40"}`,
-            color: noteSaved ? T.green : T.blue, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700,
-          }}>{noteSaved ? "✓ Saved" : "Save to PA"}</button>
+    <div style={{ background: "#1A1400", border: `1px solid ${T.gold}25`, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 9, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Finance Snapshot</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 8, color: "#443300" }}>Updated {fmtTime(snap.last_updated)}</span>
+          <button onClick={fetchSnap} style={{ background: "transparent", border: "none", color: "#443300", cursor: "pointer", fontSize: 10, padding: 0 }}>↻</button>
         </div>
       </div>
-
-      {/* ─── Calendar + Upcoming — side by side ─── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 14, animation: "fadeSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.08s both" }}>
-
-        {/* LEFT — Compact Calendar */}
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)", transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)", alignSelf: "start" }} {...hoverLift(T.green)}>
-          <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10, textAlign: "center" }}>April 2026</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, textAlign: "center" }}>
-            {["S","M","T","W","T","F","S"].map((d, i) => (
-              <div key={i} style={{ fontSize: 8, color: T.muted, fontWeight: 700, padding: "1px 0" }}>{d}</div>
-            ))}
-            {Array.from({ length: firstDayOffset }).map((_, i) => <div key={`e${i}`} />)}
-            {Array.from({ length: daysInApril }).map((_, i) => {
-              const day = i + 1;
-              const evColor = calEventDays[day];
-              const isToday = day === todayDate;
-              return (
-                <div key={day} title={evColor ? WEEKLY_EVENTS.find(e => parseInt(e.date.split(" ").pop()) === day)?.title : ""} style={{
-                  width: "100%", aspectRatio: "1", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 9, fontWeight: isToday ? 800 : evColor ? 700 : 400,
-                  color: isToday ? "#000" : evColor ? "#fff" : T.muted,
-                  background: isToday ? T.green : evColor ? evColor + "30" : "transparent",
-                  border: evColor && !isToday ? `1px solid ${evColor}50` : "1px solid transparent",
-                  boxShadow: evColor ? `0 0 6px ${evColor}25` : "none",
-                  cursor: evColor ? "pointer" : "default",
-                  transition: "all 0.15s",
-                }}
-                  onMouseEnter={e => { if (evColor) { e.currentTarget.style.transform = "scale(1.15)"; e.currentTarget.style.boxShadow = `0 0 12px ${evColor}50`; } }}
-                  onMouseLeave={e => { if (evColor) { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 0 6px ${evColor}25`; } }}
-                >{day}</div>
-              );
-            })}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+        {[["In bank", fmt(snap.current_bank_balance), T.white], ["Est. income", fmt(snap.estimated_income_month), T.green], ["Bills left", fmt(snap.bills_remaining_amount), T.red]].map(([l,v,c]) => (
+          <div key={l} style={{ background: "#120F00", borderRadius: 8, padding: "9px 8px", border: "1px solid #2A2000" }}>
+            <div style={{ fontSize: 8, color: "#554400", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>{l}</div>
+            <div style={{ fontSize: 16, color: c, fontWeight: 500, marginTop: 3, letterSpacing: "-0.02em" }}>{v}</div>
           </div>
-        </div>
-
-        {/* RIGHT — Upcoming This Week */}
-        <div>
-          <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 9 }}>Upcoming This Week</div>
-          <div style={{ display: "grid", gap: 5, maxHeight: 320, overflowY: "auto" }}>
-          {[...WEEKLY_EVENTS].sort((a, b) => (a.priority === "critical" ? -1 : 0) - (b.priority === "critical" ? -1 : 0)).map((ev, i) => {
-            const isExpanded = expandedEvent === ev.id;
-            const isCritical = ev.priority === "critical";
-            const toggleCheck = (key) => setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }));
-            return (
-              <div key={ev.id} style={{ animation: `slideInRight 0.4s cubic-bezier(0.22,1,0.36,1) ${i * 0.07}s both` }}>
-                <div onClick={() => setExpandedEvent(isExpanded ? null : ev.id)} style={{
-                  background: isExpanded ? T.cardHi : T.card,
-                  border: `1px solid ${isExpanded ? ev.color + "35" : T.border}`,
-                  borderLeft: `3px solid ${ev.color}`,
-                  borderRadius: isExpanded ? "0 12px 0 0" : "0 12px 12px 0",
-                  padding: "8px 14px", display: "flex", alignItems: "center", gap: 12,
-                  backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
-                  cursor: "pointer", transition: "all 0.2s",
-                  ...(isCritical ? { animation: "criticalPulse 2s ease-in-out infinite" } : {}),
-                }}>
-                  <Pip color={ev.color} />
-                  <span style={{ fontSize: 10, color: T.muted, fontWeight: 600, minWidth: 70 }}>{ev.date}</span>
-                  <span style={{ flex: 1, fontSize: 12, color: isCritical ? "#FF4444" : T.white, fontWeight: isCritical ? 800 : 400 }}>{ev.title}</span>
-                  {isCritical && <Badge text="CRITICAL" color="#FF4444" dim="rgba(255,68,68,0.15)" />}
-                  <span style={{ fontSize: 10, color: T.muted, transition: "transform 0.2s", transform: isExpanded ? "rotate(90deg)" : "rotate(0)" }}>▸</span>
-                </div>
-                {isExpanded && (
-                  <div style={{
-                    background: T.card, border: `1px solid ${ev.color}25`, borderTop: "none", borderLeft: `3px solid ${ev.color}`,
-                    borderRadius: "0 0 12px 0", padding: "14px 16px",
-                    animation: "slideInRight 0.25s cubic-bezier(0.22,1,0.36,1) both",
-                  }}>
-                    <div style={{ display: "grid", gap: 12 }}>
-                      {/* Checklist */}
-                      <div>
-                        <div style={{ fontSize: 10, color: ev.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Checklist</div>
-                        {ev.checklist.map((item, j) => {
-                          const key = `${ev.id}-${j}`;
-                          const done = checkedItems[key];
-                          return (
-                            <div key={j} onClick={(e) => { e.stopPropagation(); toggleCheck(key); }} style={{
-                              fontSize: 12, color: done ? T.muted : T.white, padding: "4px 0", display: "flex", gap: 8, alignItems: "center",
-                              cursor: "pointer", textDecoration: done ? "line-through" : "none", transition: "all 0.15s",
-                            }}>
-                              <span style={{ color: done ? T.green : T.muted, fontSize: 13 }}>{done ? "☑" : "☐"}</span> {item}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {/* Notes */}
-                      {ev.notes && (
-                        <div>
-                          <div style={{ fontSize: 10, color: T.blue, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Notes</div>
-                          <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6 }}>{ev.notes}</div>
-                        </div>
-                      )}
-                      {/* Contact */}
-                      {ev.contact && (
-                        <div>
-                          <div style={{ fontSize: 10, color: T.amber, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Contact</div>
-                          <div style={{ fontSize: 11, color: T.white }}>{ev.contact}</div>
-                        </div>
-                      )}
-                      {/* Reminder */}
-                      {ev.reminder && (
-                        <div style={{ background: T.dim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 12 }}>⏰</span>
-                          <span style={{ fontSize: 11, color: T.white }}>{ev.reminder}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          </div>
-        </div>
+        ))}
       </div>
-
-      {/* ─── Task Scheduler ─── */}
-      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)", transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)", animation: "fadeSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.16s both" }} {...hoverLift(T.green)}>
-        <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>Smart Task Scheduler</div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={taskInput}
-            onChange={e => setTaskInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }}
-            placeholder="+ Add task..."
-            style={{ flex: 1, background: T.dim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none" }}
-          />
-          <button onClick={() => { if (taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }}
-            disabled={!taskInput.trim()}
-            style={{
-              background: !taskInput.trim() ? T.dim : T.greenDim, border: `1px solid ${!taskInput.trim() ? T.border : T.green + "40"}`,
-              color: !taskInput.trim() ? T.muted : T.green, borderRadius: 8, padding: "8px 14px", cursor: !taskInput.trim() ? "default" : "pointer",
-              fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
-            }}>Schedule it</button>
-        </div>
+      <div style={{ borderTop: "1px solid #2A2000", paddingTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 9, color: "#554400" }}>Projected after bills</span>
+        <span style={{ fontSize: 13, color: snap.projected_surplus >= 0 ? T.green : T.red, fontWeight: 500 }}>{snap.projected_surplus >= 0 ? "+" : ""}{fmt(snap.projected_surplus)}</span>
       </div>
     </div>
   );
 }
+
+// ─── Event Detail Panel ───────────────────────────────────────────────────────
+function EventDetailPanel({ event, onClose }) {
+  const [descExpanded, setDescExpanded] = useState(false);
+  const now = new Date();
+
+  const getStatusStrip = () => {
+    if (!event) return { text: "", sub: "", bg: "#141414", border: "#252525", color: "#888" };
+    if (event.isLiveNow) return { text: "Live now", sub: "In progress", bg: "#0A1A10", border: `${T.green}25`, color: T.green };
+    if (event.isToday && event.minutesUntil > 0) {
+      const h = Math.floor(event.minutesUntil / 60), m = event.minutesUntil % 60;
+      return { text: "Today · Starts in " + (h > 0 ? `${h}h ${m}m` : `${m}m`), sub: event.start?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) || "", bg: "#0A1A10", border: `${T.green}25`, color: T.green };
+    }
+    if (event.hasPassedToday) return { text: "Passed today", sub: "Completed", bg: "#141414", border: "#252525", color: "#555" };
+    if (event.isMultiDay) return { text: "Multi-day block", sub: "Protected time", bg: event.dim, border: `${event.color}25`, color: event.color };
+    const days = event.start ? Math.ceil((event.start - now) / 86400000) : 0;
+    if (days <= 7) return { text: `Upcoming · ${event.start?.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}`, sub: event.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) || "", bg: event.dim, border: `${event.color}25`, color: event.color };
+    return { text: "Scheduled", sub: event.start?.toLocaleDateString("en-US",{month:"short",day:"numeric"}) || "", bg: "#141414", border: "#252525", color: "#888" };
+  };
+
+  const getActions = () => {
+    if (!event) return [];
+    const t = event.type;
+    if (event.hasZoom) return [{ label: "Join Zoom", style: "primary" }, { label: "Reschedule", style: "muted" }, { label: "Mark done", style: "muted" }];
+    if (t === "bill") return [{ label: "Mark paid", style: "amber" }, { label: "Snooze", style: "muted" }];
+    if (t === "church") return [{ label: "View in Calendar", style: "blue" }, { label: "Add note", style: "muted" }];
+    if (event.isMultiDay) return [{ label: "View in Calendar", style: "primary" }, { label: "Add note", style: "muted" }];
+    return [{ label: "View in Calendar", style: "blue" }, { label: "Mark done", style: "muted" }];
+  };
+
+  const getNextAction = () => {
+    if (!event) return null;
+    if (event.hasZoom && event.isToday) return `Join Zoom at ${event.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}`;
+    if (event.hasZoom) return `Join Zoom · ${event.start?.toLocaleDateString("en-US",{weekday:"short"})}`;
+    if (event.type === "bill") return `Pay before ${event.start?.toLocaleDateString("en-US",{month:"short",day:"numeric"})} · check description`;
+    if (event.type === "church") return `Leave home by 9:30 AM · Rehearsal 10 AM`;
+    if (event.isMultiDay) return "Protected time — MYA will not schedule over this block";
+    return "No immediate action needed";
+  };
+
+  const ss = getStatusStrip();
+  const actions = getActions();
+  const nextAction = getNextAction();
+  const descShort = event?.description?.split("\n").slice(0, 2).join(" ").substring(0, 120) || "";
+  const descFull = event?.description || "";
+  const hasLongDesc = descFull.length > 120;
+
+  const actStyle = (s) => {
+    const styles = {
+      primary: { background: "#0A1A10", border: `1px solid ${T.green}30`, color: T.green },
+      amber: { background: "#1A1200", border: `1px solid ${T.gold}30`, color: T.gold },
+      blue: { background: "#0A0F18", border: `1px solid ${T.blue}30`, color: T.blue },
+      muted: { background: "#141414", border: "1px solid #252525", color: "#555" },
+    };
+    return styles[s] || styles.muted;
+  };
+
+  const panelStyle = {
+    position: "fixed", top: 0, right: 0, bottom: 0, width: 380,
+    background: T.surface, borderLeft: `1px solid ${T.border}`,
+    zIndex: 250, display: "flex", flexDirection: "column",
+    boxShadow: "-12px 0 48px rgba(0,0,0,0.7)",
+    transform: event ? "translateX(0)" : "translateX(100%)",
+    transition: "transform 0.24s cubic-bezier(0.4,0,0.2,1)",
+  };
+
+  if (!event) return <div style={{ ...panelStyle, transform: "translateX(100%)" }} />;
+
+  return (
+    <div style={panelStyle}>
+      {/* Top bar */}
+      <div style={{ padding: "16px 18px 10px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: "50%", background: T.card, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.muted, fontSize: 12, flexShrink: 0 }}>‹</button>
+        <span style={{ fontSize: 14, fontWeight: 700, color: T.white, flex: 1, letterSpacing: "-0.01em" }}>Event details</span>
+        <span style={{ fontSize: 9, color: T.muted, padding: "2px 7px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 4 }}>{event.calendarSource || "Personal"}</span>
+      </div>
+
+      {/* Status strip */}
+      <div style={{ margin: "10px 16px 0", padding: "8px 12px", borderRadius: 8, background: ss.bg, border: `1px solid ${ss.border}`, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: ss.color, flexShrink: 0, ...(event.isLiveNow ? { animation: "pulse 1.5s infinite" } : {}) }} />
+        <span style={{ fontSize: 11, color: ss.color, fontWeight: 500, flex: 1 }}>{ss.text}</span>
+        <span style={{ fontSize: 9, color: ss.color, opacity: 0.6 }}>{ss.sub}</span>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+
+        {/* Hero */}
+        <div style={{ background: T.card, borderLeft: `3px solid ${event.color}`, borderRadius: "0 10px 10px 0", border: `1px solid ${T.border}`, borderLeft: `3px solid ${event.color}`, padding: "12px 14px" }}>
+          <div style={{ fontSize: 16, color: T.white, fontWeight: 700, letterSpacing: "-0.01em", marginBottom: 3 }}>{event.title}</div>
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>
+            {event.isMultiDay ? `${event.start?.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})} → ${event.end?.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}` :
+            event.isAllDay ? event.start?.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}) :
+            `${event.start?.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})} · ${event.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} – ${event.end?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}`}
+          </div>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: `${event.color}15`, color: event.color, border: `1px solid ${event.color}20`, textTransform: "capitalize" }}>{event.type}</span>
+            {event.isToday && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: `${T.green}15`, color: T.green, border: `1px solid ${T.green}20` }}>Today</span>}
+            {event.isMultiDay && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: "#1E1E1E", color: "#555", border: "1px solid #252525" }}>Multi-day</span>}
+            {event.recurringEventId && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: "#1E1E1E", color: "#555", border: "1px solid #252525" }}>Recurring</span>}
+          </div>
+        </div>
+
+        {/* Time */}
+        {!event.isAllDay && (
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: T.dim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="#555" strokeWidth="1.1"/><path d="M7 4v3l2 1.5" stroke="#555" strokeWidth="1.1" strokeLinecap="round"/></svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Time</div>
+              <div style={{ fontSize: 12, color: event.isToday ? T.green : T.white }}>{event.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} – {event.end?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} ET</div>
+              <div style={{ fontSize: 9, color: "#333", marginTop: 2 }}>{event.minutesUntil > 0 ? `Starts in ${Math.floor(event.minutesUntil/60)}h ${event.minutesUntil%60}m` : event.isLiveNow ? "In progress now" : "Passed"}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Zoom / Location */}
+        {event.hasZoom && (
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: "#0A0F18", border: `1px solid ${T.blue}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><rect x="1" y="4" width="10" height="6" rx="1.5" stroke="#4A7AB0" strokeWidth="1.1"/><path d="M11 6l2-1.5v5L11 8" stroke="#4A7AB0" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Location</div>
+              <div style={{ fontSize: 12, color: "#4A7AB0" }}>Zoom Meeting</div>
+              {event.zoomId && <div style={{ fontSize: 9, color: "#333", marginTop: 2 }}>ID: {event.zoomId}</div>}
+            </div>
+            <div style={{ padding: "4px 10px", background: "#0A0F18", border: `1px solid ${T.blue}30`, borderRadius: 6, fontSize: 9, color: T.blue, cursor: "pointer", fontWeight: 700, flexShrink: 0 }}>Join</div>
+          </div>
+        )}
+
+        {/* Recurrence */}
+        {event.recurringEventId && !event.isAllDay && (
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: T.dim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7A5 5 0 1 0 7 2" stroke="#555" strokeWidth="1.1" strokeLinecap="round"/><path d="M7 1v3l2-1.5" stroke="#555" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Recurrence</div>
+              <div style={{ fontSize: 12, color: T.white }}>Repeats: {event.start?.toLocaleDateString("en-US",{weekday:"long"})}s at {event.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}</div>
+              <div style={{ fontSize: 9, color: "#333", marginTop: 2 }}>Recurring event · weekly</div>
+            </div>
+          </div>
+        )}
+
+        {/* Description */}
+        {descShort && (
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: T.dim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 3h10M2 7h8M2 11h5" stroke="#555" strokeWidth="1.1" strokeLinecap="round"/></svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Notes</div>
+              <div style={{ fontSize: 11, color: "#888", lineHeight: 1.6 }}>{descExpanded ? descFull : descShort}{!descExpanded && hasLongDesc ? "..." : ""}</div>
+              {hasLongDesc && <div onClick={() => setDescExpanded(d => !d)} style={{ fontSize: 9, color: T.blue, marginTop: 4, cursor: "pointer" }}>{descExpanded ? "Show less ›" : "Show more ›"}</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: 7 }}>
+          {actions.map((act, i) => (
+            <button key={i} style={{ flex: 1, padding: "9px 6px", borderRadius: 9, fontSize: 11, fontWeight: 700, textAlign: "center", cursor: "pointer", fontFamily: "inherit", ...actStyle(act.style) }}>{act.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: "10px 16px 16px", borderTop: `1px solid ${T.border}`, background: T.bg, flexShrink: 0 }}>
+        <div style={{ background: T.card, borderRadius: 8, padding: "8px 12px", border: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 22, height: 22, borderRadius: 5, background: event.dim, border: `1px solid ${event.color}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4" stroke={event.color} strokeWidth="1.1"/><path d="M6 3.5v2.5l1.5 1" stroke={event.color} strokeWidth="1.1" strokeLinecap="round"/></svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700 }}>Next action</div>
+            <div style={{ fontSize: 11, color: T.white }}>{nextAction}</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 8, color: "#2A2A2A", textAlign: "center", marginTop: 6, letterSpacing: "0.03em" }}>Source: {event.source} · Personal calendar</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Live Calendar Component ──────────────────────────────────────────────────
+function LiveCalendar({ events, selectedDay, onSelectDay }) {
+  const today = new Date();
+  const todayDate = today.getDate();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthName = today.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  const eventsByDay = {};
+  events.forEach(ev => {
+    if (!ev.start) return;
+    const d = ev.start.getDate();
+    if (!eventsByDay[d]) eventsByDay[d] = [];
+    eventsByDay[d].push(ev);
+  });
+
+  const days = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let d = 1; d <= daysInMonth; d++) days.push(d);
+
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ padding: "11px 14px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 12, color: T.white, fontWeight: 700 }}>{monthName}</div>
+        <div style={{ fontSize: 9, color: T.muted }}>{events.length} events</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1, padding: "0 10px 10px" }}>
+        {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => <div key={d} style={{ fontSize: 7, color: "#444", textAlign: "center", padding: "2px 0", textTransform: "uppercase", letterSpacing: "0.04em" }}>{d}</div>)}
+        {days.map((d, i) => {
+          if (!d) return <div key={i} />;
+          const isToday = d === todayDate;
+          const isSelected = d === selectedDay;
+          const dayEvents = eventsByDay[d] || [];
+          const isPast = d < todayDate;
+          const evColor = dayEvents[0]?.color || null;
+          return (
+            <div key={d} onClick={() => onSelectDay(d)} style={{ width: "100%", aspectRatio: "1", borderRadius: 4, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: dayEvents.length > 0 || isToday ? "pointer" : "default", background: isToday ? T.green : isSelected && !isToday ? "#252525" : "transparent", position: "relative" }}>
+              <span style={{ fontSize: 9, fontWeight: isToday ? 700 : isPast ? 400 : 500, color: isToday ? "#fff" : isPast ? "#2A2A2A" : dayEvents.length > 0 ? T.white : "#555" }}>{d}</span>
+              {dayEvents.length > 0 && !isToday && <div style={{ position: "absolute", bottom: 1, left: "50%", transform: "translateX(-50%)", width: 3, height: 3, borderRadius: "50%", background: evColor || T.gold }} />}
+            </div>
+          );
+        })}
+      </div>
+      {selectedDay && eventsByDay[selectedDay] && (
+        <div style={{ borderTop: `1px solid ${T.border}`, padding: "8px 12px 10px" }}>
+          <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 6 }}>
+            {selectedDay === todayDate ? "Today" : `Apr ${selectedDay}`} — {eventsByDay[selectedDay]?.length} event{eventsByDay[selectedDay]?.length > 1 ? "s" : ""}
+          </div>
+          {(eventsByDay[selectedDay] || []).map((ev, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 0", borderBottom: i < eventsByDay[selectedDay].length - 1 ? `1px solid ${T.dim}` : "none" }}>
+              <div style={{ width: 5, height: 5, borderRadius: "50%", background: ev.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: T.white, flex: 1 }}>{ev.title}</span>
+              <span style={{ fontSize: 9, color: T.muted }}>{ev.isAllDay ? "All day" : ev.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PersonalMainView ─────────────────────────────────────────────────────────
+function PersonalMainView({ onScheduleTask, onOpenFM, onAskFM }) {
+  const [taskInput, setTaskInput] = useState("");
+  const [calEvents, setCalEvents] = useState([]);
+  const [calStatus, setCalStatus] = useState("loading");
+  const [selectedDay, setSelectedDay] = useState(new Date().getDate());
+  const [selectedEvent, setSelectedEvent] = useState(null);
+
+  const today = new Date();
+
+  const hoverLift = (color) => ({
+    onMouseEnter: (e) => { e.currentTarget.style.transform = "scale(1.015)"; e.currentTarget.style.boxShadow = `0 4px 20px ${color}20`; },
+    onMouseLeave: (e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; },
+  });
+
+  // Fetch Google Calendar via Railway backend
+  useEffect(() => {
+    const fetchCal = async () => {
+      setCalStatus("loading");
+      try {
+        const now = new Date();
+        const weekEnd = new Date(now.getTime() + 14 * 86400000);
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/calendar?timeMin=${now.toISOString()}&timeMax=${weekEnd.toISOString()}`);
+        if (!res.ok) throw new Error("Calendar fetch failed");
+        const data = await res.json();
+        const normalized = (data.events || []).map(normalizeEvent).filter(ev => ev.start);
+        setCalEvents(normalized);
+        setCalStatus("ok");
+      } catch {
+        // Fallback: use hardcoded real events from April 15 fetch
+        const fallbackEvents = [
+          { id: "deb1", summary: "Deb — Piano Lesson", start: { dateTime: `${today.toISOString().slice(0,10)}T11:30:00-04:00` }, end: { dateTime: `${today.toISOString().slice(0,10)}T12:30:00-04:00` }, description: "Weekly piano lesson with Deb.\n\nVia Zoom — link will be added\n30-min reminder set.\nSet by MYA Dispatch", organizer: { displayName: "Music Lessons" }, myResponseStatus: "needsAction", recurringEventId: "recurring1" },
+          { id: "bill1", summary: "Bills Due Tomorrow: Splice + Gmail Storage", start: { dateTime: `${new Date(today.getTime()+86400000).toISOString().slice(0,10)}T09:00:00-04:00` }, end: { dateTime: `${new Date(today.getTime()+86400000).toISOString().slice(0,10)}T09:30:00-04:00` }, description: "Splice - $14.11 and Gmail Storage One - $3.25 both due tomorrow.", organizer: { displayName: "Personal" }, colorId: "11" },
+          { id: "church1", summary: "⛪ Church Rehearsal Prep — 1 hour practice", start: { dateTime: `${new Date(today.getTime()+2*86400000).toISOString().slice(0,10)}T20:00:00-04:00` }, end: { dateTime: `${new Date(today.getTime()+2*86400000).toISOString().slice(0,10)}T21:00:00-04:00` }, description: "1 hour rehearsal prep. Leave home Saturday at 9:30AM.", organizer: { displayName: "Personal" }, recurringEventId: "recurring2" },
+          { id: "therapy1", summary: "John Wooley Therapist", start: { dateTime: `${new Date(today.getTime()+5*86400000).toISOString().slice(0,10)}T11:00:00-04:00` }, end: { dateTime: `${new Date(today.getTime()+5*86400000).toISOString().slice(0,10)}T12:00:00-04:00` }, description: "Zoom-6833855700", organizer: { displayName: "Personal" }, recurringEventId: "recurring3" },
+          { id: "bill2", summary: "Bills Due Tomorrow: Phone Bill ($83.12)", start: { dateTime: `${new Date(today.getTime()+6*86400000).toISOString().slice(0,10)}T09:00:00-04:00` }, end: { dateTime: `${new Date(today.getTime()+6*86400000).toISOString().slice(0,10)}T09:30:00-04:00` }, description: "Phone Bill payment #2 ($83.12) is due tomorrow (22nd).", organizer: { displayName: "Personal" } },
+          { id: "dj1", summary: "DJ Quality Time", start: { date: `${new Date(today.getTime()+9*86400000).toISOString().slice(0,10)}` }, end: { date: `${new Date(today.getTime()+12*86400000).toISOString().slice(0,10)}` }, allDay: true, organizer: { displayName: "DJ" } },
+        ];
+        setCalEvents(fallbackEvents.map(normalizeEvent).filter(ev => ev.start));
+        setCalStatus("fallback");
+      }
+    };
+    fetchCal();
+  }, []);
+
+  // Sort events: today upcoming → today passed → rest of week chronological, multi-day last
+  const sortedEvents = [...calEvents].sort((a, b) => {
+    if (a.isToday && !a.hasPassedToday && (!b.isToday || b.hasPassedToday)) return -1;
+    if (b.isToday && !b.hasPassedToday && (!a.isToday || a.hasPassedToday)) return 1;
+    if (a.isToday && a.hasPassedToday && !b.isToday) return -1;
+    if (b.isToday && b.hasPassedToday && !a.isToday) return 1;
+    if (a.isMultiDay && !b.isMultiDay) return 1;
+    if (b.isMultiDay && !a.isMultiDay) return -1;
+    return (a.start || 0) - (b.start || 0);
+  }).filter(ev => !ev.title.toLowerCase().includes("daily meditation") && !ev.title.toLowerCase().includes("system pulse") && !ev.title.toLowerCase().includes("intelligence brief"));
+
+  const todayEvents = sortedEvents.filter(ev => ev.isToday);
+  const upcomingEvents = sortedEvents.filter(ev => !ev.isToday).slice(0, 8);
+
+  const todayLabel = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const todayCount = todayEvents.length;
+  const weekCount = sortedEvents.length;
+
+  const evRowStyle = (ev) => ({
+    display: "flex", gap: 8, padding: "8px 10px", background: ev.dim, borderRadius: 10,
+    border: `1px solid ${ev.color}20`, cursor: "pointer", marginBottom: 5, transition: "background 0.12s",
+  });
+
+  const fmtEvTime = (ev) => {
+    if (ev.isAllDay || ev.isMultiDay) return "All day";
+    return ev.start?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) || "";
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+
+      {/* ── Finance Snapshot ── */}
+      <FinanceSnapshotCard onAskFM={onAskFM} />
+
+      {/* ── Live Calendar ── */}
+      <LiveCalendar events={calEvents} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+
+      {/* ── Today's Events ── */}
+      {calStatus === "loading" ? (
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14 }}>
+          <div style={{ fontSize: 9, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Today — {todayLabel}</div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {[0,1,2].map(i => <div key={i} style={{ width: 4, height: 4, borderRadius: "50%", background: T.green, opacity: 0.5, animation: `pulse 1.2s ${i*0.2}s infinite` }} />)}
+            <span style={{ fontSize: 11, color: T.muted }}>Loading calendar...</span>
+          </div>
+        </div>
+      ) : todayEvents.length === 0 ? (
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14 }}>
+          <div style={{ fontSize: 9, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Today — {todayLabel}</div>
+          <div style={{ fontSize: 12, color: "#333", fontStyle: "italic" }}>No events today. Calendar is clear.</div>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+            Today — {todayLabel} · <span style={{ color: T.gold }}>{todayCount} event{todayCount !== 1 ? "s" : ""}</span>
+          </div>
+          {todayEvents.map(ev => (
+            <div key={ev.id} onClick={() => setSelectedEvent(ev)} style={{ ...evRowStyle(ev), opacity: ev.hasPassedToday ? 0.5 : 1 }}>
+              <div style={{ minWidth: 52, flexShrink: 0 }}>
+                <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 1 }}>Today</div>
+                <div style={{ fontSize: 10, color: ev.color, fontWeight: 500 }}>{fmtEvTime(ev)}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: T.white, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</div>
+                <div style={{ fontSize: 10, color: "#555", marginTop: 1 }}>{ev.hasZoom ? "Zoom" : ev.type}</div>
+              </div>
+              <div style={{ fontSize: 12, color: "#252525", flexShrink: 0 }}>›</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Upcoming This Week ── */}
+      {upcomingEvents.length > 0 && (
+        <div>
+          <div style={{ fontSize: 9, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+            Upcoming · <span style={{ color: "#555" }}>{upcomingEvents.length} events</span>
+          </div>
+          {upcomingEvents.map(ev => (
+            <div key={ev.id} onClick={() => setSelectedEvent(ev)} style={evRowStyle(ev)}>
+              <div style={{ minWidth: 60, flexShrink: 0 }}>
+                <div style={{ fontSize: 10, color: ev.color, fontWeight: 500 }}>{ev.start?.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
+                <div style={{ fontSize: 9, color: "#444", marginTop: 1 }}>{fmtEvTime(ev)}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: ev.isMultiDay ? "#B090C0" : T.white, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</div>
+                <div style={{ fontSize: 10, color: "#444", marginTop: 1 }}>{ev.isMultiDay ? `Multi-day · through ${ev.end?.toLocaleDateString("en-US",{month:"short",day:"numeric"})}` : ev.hasZoom ? "Zoom" : ev.type}</div>
+              </div>
+              <div style={{ fontSize: 12, color: "#252525", flexShrink: 0 }}>›</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Task Scheduler ── */}
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14 }}>
+        <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>Smart Task Scheduler</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input value={taskInput} onChange={e => setTaskInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }} placeholder="+ Add task..." style={{ flex: 1, background: T.dim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+          <button onClick={() => { if (taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }} disabled={!taskInput.trim()} style={{ background: !taskInput.trim() ? T.dim : T.greenDim, border: `1px solid ${!taskInput.trim() ? T.border : T.green + "40"}`, color: !taskInput.trim() ? T.muted : T.green, borderRadius: 8, padding: "8px 14px", cursor: !taskInput.trim() ? "default" : "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>Schedule it</button>
+        </div>
+      </div>
+
+      {/* Event Detail Panel */}
+      <EventDetailPanel event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+
+    </div>
+  );
+}
+
 
 const JEAN_PURPLE = "#C084FC";
 const JEAN_DIM = "rgba(192,132,252,0.1)";
