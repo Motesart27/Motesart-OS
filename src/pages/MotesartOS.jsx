@@ -832,7 +832,7 @@ function PAAgentChat({ onClose, activeBiz }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          agent: activeAgent,
+         agent: AGENT_API_MAP[activeAgent] || "PA",
           messages: history.filter(m => m.role === "user" || m.role === "assistant")
             .map(m => ({ role: m.role, content: m.content })),
         }),
@@ -840,7 +840,13 @@ function PAAgentChat({ onClose, activeBiz }) {
 
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.detail || "Agent request failed");
+        const msg =
+          typeof errBody.detail === "string"
+            ? errBody.detail
+            : Array.isArray(errBody.detail)
+              ? errBody.detail.map(d => d.msg || JSON.stringify(d)).join("; ")
+              : "Agent request failed";
+        throw new Error(msg);
       }
 
       const data = await res.json();
@@ -861,7 +867,14 @@ function PAAgentChat({ onClose, activeBiz }) {
   function handleKey(e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
-
+const AGENT_API_MAP = {
+  MYA: "PA",
+  PA: "PA",
+  E7A: "E7A",
+  SOM: "SOM",
+  FM: "FM",
+  BOOK: "BOOK",
+};
   const agentColorMap = { MYA: T.blue, E7A: T.gold, SOM: T.blue, FM: T.green, BOOK: T.amber };
   const agentColor = agentColorMap[activeAgent] || T.gold;
 
