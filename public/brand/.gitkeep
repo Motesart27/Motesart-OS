@@ -1,0 +1,8 @@
+# Phase 3C.B — drop branded logo assets here
+# Suggested filenames (referenced in src/config/appLaunchers.js):
+#   som.svg          — School of Motesart
+#   converter.svg    — Motesart Converter
+#   finance.svg      — FinanceMind
+#   book.svg         — Book Manager
+#   vitalstack.svg   — VitalStack
+# Approval visual assets go in public/brand/approvals/ (create when needed)

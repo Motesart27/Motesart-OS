@@ -31,6 +31,9 @@ import ExecutiveTile from "../components/ExecutiveTile";
 import { useToast } from "../components/Toast";
 import useExecutiveRun from "../hooks/useExecutiveRun";
 import useExecutiveHealth from "../hooks/useExecutiveHealth";
+import ApprovalPreviewModal from "../components/ApprovalPreviewModal";
+import AppLauncherCard from "../components/AppLauncherCard";
+import { APPROVALS } from "../config/approvals";
 
 // ─── MYA Agent system prompt ───────────────────────────────────────────────────
 const PA_SYSTEM = `You are MYA -- the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
@@ -548,14 +551,6 @@ const DEMO_NOTIFICATIONS = [
   { id: 5, biz: "FinanceMind", level: "low",    text: "Credit score update available",                            time: "1d" },
   { id: 6, biz: "SOM",  level: "low",    text: "Motesart Converter -- next build session due",            time: "1d" },
   { id: 7, biz: "Book", level: "medium", text: "Book project platform not yet scoped -- publishing path TBD", time: "2d" },
-];
-
-const DEMO_APPROVALS = [
-  { id: 1, biz: "e7a", artist: "Velvet Room", type: "Visual",   item: "Post 1 -- Mood Visual cover frame" },
-  { id: 2, biz: "e7a", artist: "Velvet Room", type: "Caption",  item: "Post 2 -- Primary Reel caption draft" },
-  { id: 3, biz: "e7a", artist: "Velvet Room", type: "Strategy", item: "Platform lead: Instagram confirmed?" },
-  { id: 4, biz: "som", artist: "SOM",         type: "Build",    item: "Motesart Converter architecture review" },
-  { id: 5, biz: "book", artist: "Book",       type: "Content",  item: "Chapter 4 Husband-Hood — complete missing case study" },
 ];
 
 const LEVEL_C = {
@@ -2966,6 +2961,8 @@ export default function MotesartOS() {
   const [chatOpen, setChatOpen] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [revisionRequestedIds, setRevisionRequestedIds] = useState([]);
+  const [previewItem, setPreviewItem] = useState(null);
   const [topTab, setTopTab] = useState("overview");
 
   const isPersonal = activeBiz === "personal";
@@ -2977,6 +2974,29 @@ export default function MotesartOS() {
   const tabs = isSpecialView ? ["overview"] : ["overview", "notifications", "approvals", ...(isFM ? ["travel builder"] : []), ...(biz.artists.length > 0 ? ["artists"] : [])];
 
   function switchBiz(id) { setActiveBiz(id); setSelectedArtist(null); setActiveTab("overview"); setTopTab("overview"); }
+
+  // Phase 3C.A — approval state helpers
+  function statusFor(id) {
+    if (approvedIds.includes(id)) return "approved";
+    if (revisionRequestedIds.includes(id)) return "revision_requested";
+    return "pending";
+  }
+
+  function handleApprove(id) {
+    setApprovedIds(ids => ids.includes(id) ? ids : [...ids, id]);
+    setRevisionRequestedIds(ids => ids.filter(x => x !== id));
+    setPreviewItem(null);
+    try {
+      const item = APPROVALS.find(a => a.id === id);
+      window.dispatchEvent(new CustomEvent("approval-ready-to-schedule", { detail: { item } }));
+    } catch { /* noop */ }
+  }
+
+  function handleRevise(id) {
+    setRevisionRequestedIds(ids => ids.includes(id) ? ids : [...ids, id]);
+    setApprovedIds(ids => ids.filter(x => x !== id));
+    setPreviewItem(null);
+  }
 
   return (
     <div className="os-root" style={{ display: "flex", height: "100vh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
@@ -3106,57 +3126,11 @@ export default function MotesartOS() {
             />
           )}
 
-          {/* ── App Launch Cards — overview only ── */}
-          {!isSpecialView && activeTab === "overview" && (biz.appUrl || biz.converterUrl) && (
-            <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
-              {biz.appUrl && (
-                <a href={biz.appUrl} target="_blank" rel="noopener noreferrer" style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  background: biz.dim, border: `1px solid ${biz.color}40`,
-                  borderRadius: 10, padding: "10px 16px", textDecoration: "none",
-                  transition: "all 0.18s",
-                }}
-                  onMouseEnter={e => { e.currentTarget.style.background = biz.color + "25"; e.currentTarget.style.transform = "scale(1.02)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = biz.dim; e.currentTarget.style.transform = "scale(1)"; }}
-                >
-                  <span style={{ fontSize: 14 }}>{biz.icon}</span>
-                  <div>
-                    <div style={{ fontSize: 11, color: biz.color, fontWeight: 700 }}>Open {biz.full}</div>
-                    <div style={{ fontSize: 9, color: T.muted, marginTop: 1 }}>Launch standalone app →</div>
-                  </div>
-                </a>
-              )}
-              {biz.converterUrl && (
-                <a href={biz.converterUrl} target="_blank" rel="noopener noreferrer" style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  background: T.dim, border: `1px solid ${T.blue}30`,
-                  borderRadius: 10, padding: "10px 16px", textDecoration: "none",
-                  transition: "all 0.18s",
-                }}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.blue + "15"; e.currentTarget.style.transform = "scale(1.02)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = T.dim; e.currentTarget.style.transform = "scale(1)"; }}
-                >
-                  <span style={{ fontSize: 14 }}>⟳</span>
-                  <div>
-                    <div style={{ fontSize: 11, color: T.blue, fontWeight: 700 }}>Open Motesart Converter</div>
-                    <div style={{ fontSize: 9, color: T.muted, marginTop: 1 }}>Launch standalone tool →</div>
-                  </div>
-                </a>
-              )}
-              {activeBiz === "personal" && (
-                <a href="https://vitalstacktracker.netlify.app" target="_blank" rel="noopener noreferrer" style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  background: "rgba(58,154,96,0.1)", border: `1px solid ${T.green}30`,
-                  borderRadius: 10, padding: "10px 16px", textDecoration: "none",
-                  transition: "all 0.18s",
-                }}>
-                  <span style={{ fontSize: 14 }}>◈</span>
-                  <div>
-                    <div style={{ fontSize: 11, color: T.green, fontWeight: 700 }}>Open VitalStack</div>
-                    <div style={{ fontSize: 9, color: T.muted, marginTop: 1 }}>Launch health tracker →</div>
-                  </div>
-                </a>
-              )}
+          {/* ── App Launch Cards — Phase 3C.B — LOCK 3: SOM + Converter only ── */}
+          {!isSpecialView && activeTab === "overview" && biz.id === "som" && (
+            <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+              <AppLauncherCard appId="som-app" />
+              <AppLauncherCard appId="motesart-converter" />
             </div>
           )}
 
@@ -3189,36 +3163,77 @@ export default function MotesartOS() {
             </div>
           )}
 
-          {/* Approvals */}
+          {/* Approvals — Phase 3C.A */}
           {!isSpecialView && (activeTab === "overview" || activeTab === "approvals") && (
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 9 }}>Needs Approval</div>
               <div style={{ display: "grid", gap: 6 }}>
-                {DEMO_APPROVALS.filter(a => a.biz === biz.id).map(a => {
-                  const done = approvedIds.includes(a.id);
+                {APPROVALS.filter(a => a.biz === biz.id).map(a => {
+                  const status = statusFor(a.id);
+                  const done = status === "approved";
+                  const revise = status === "revision_requested";
+                  const rowColor = done ? T.green : revise ? T.amber : null;
+                  const rowBg    = done ? T.greenDim : revise ? T.amberDim : T.card;
+                  const isPending = !done && !revise;
+
                   return (
-                    <div key={a.id} style={{
-                      background: done ? T.greenDim : T.card, border: `1px solid ${done ? T.green + "35" : T.border}`,
-                      borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12,
-                      opacity: done ? 0.65 : 1, transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
-                      backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
-                    }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", gap: 5, marginBottom: 4 }}>
+                    <div
+                      key={a.id}
+                      onClick={() => setPreviewItem(a)}
+                      style={{
+                        background: rowBg,
+                        border: `1px solid ${rowColor ? rowColor + "35" : T.border}`,
+                        borderRadius: 12, padding: "10px 14px",
+                        display: "flex", alignItems: "center", gap: 12,
+                        opacity: done ? 0.75 : 1,
+                        cursor: "pointer",
+                        transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)",
+                        backdropFilter: "blur(12px)",
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", gap: 5, marginBottom: 4, alignItems: "center", flexWrap: "wrap" }}>
                           <Badge text={a.type} color={T.blue} dim={T.blueDim} />
                           <Badge text={a.artist} color={T.gold} dim={T.goldDim} />
+                          {/* LOCK 4 — visible Preview cue */}
+                          <span style={{
+                            fontSize: 9,
+                            color: T.gold,
+                            background: T.goldDim,
+                            border: `1px solid ${T.gold}30`,
+                            padding: "3px 7px",
+                            borderRadius: 4,
+                            fontWeight: 700,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}>◉ Preview</span>
+                          {isPending && (
+                            <span style={{
+                              marginLeft: "auto",
+                              fontSize: 9,
+                              color: T.muted,
+                              fontStyle: "italic",
+                              letterSpacing: "0.04em",
+                            }}>Click to preview →</span>
+                          )}
                         </div>
                         <span style={{ fontSize: 12, color: T.white }}>{a.item}</span>
                       </div>
-                      {!done ? (
-                        <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                          <button onClick={() => setApprovedIds(ids => [...ids, a.id])} style={{ background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>Approve</button>
-                          <button style={{ background: T.redDim, border: `1px solid ${T.red}40`, color: T.red, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10 }}>Revise</button>
-                        </div>
-                      ) : (
+                      {done ? (
                         <span style={{ fontSize: 10, color: T.green, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
                           <span style={{ animation: "checkPop 0.35s cubic-bezier(0.22,1,0.36,1) both", display: "inline-block" }}>✓</span> Approved
                         </span>
+                      ) : revise ? (
+                        <span style={{ fontSize: 10, color: T.amber, fontWeight: 700 }}>↺ Revision</span>
+                      ) : (
+                        <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                          <button onClick={() => handleApprove(a.id)} style={{ background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>Approve</button>
+                          <button onClick={() => handleRevise(a.id)} style={{ background: T.redDim, border: `1px solid ${T.red}40`, color: T.red, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10 }}>Revise</button>
+                        </div>
                       )}
                     </div>
                   );
@@ -3280,6 +3295,15 @@ export default function MotesartOS() {
         open={dispatchOpen}
         onClose={() => setDispatchOpen(false)}
         actionBarSlot={<DispatchExecutiveActions />}
+      />
+
+      {/* Phase 3C.A — Approval preview modal */}
+      <ApprovalPreviewModal
+        item={previewItem}
+        onClose={() => setPreviewItem(null)}
+        onApprove={handleApprove}
+        onRevise={handleRevise}
+        status={previewItem ? statusFor(previewItem.id) : "pending"}
       />
 
       {/* Floating MYA pill button */}
