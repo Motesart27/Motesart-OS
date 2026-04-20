@@ -37,7 +37,14 @@ const api = {
   async wake() {
     try { const r = await fetch(`${SOM_API}/api/health`); return r.json() }
     catch { return { ok: false } }
-  }
+  },
+  // ─── Phase 3B — Executive runner ─────────────────────
+  // POST /api/executives/{name}/run
+  // Body: {} for top-priority selection, or { task_id, dry_run } per Phase 3A handoff
+  runExecutive(name, body = {}) {
+    return api.post(`/api/executives/${name}/run`, body)
+  },
 }
+
 export default api
 export { api }
