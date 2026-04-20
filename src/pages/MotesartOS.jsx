@@ -26,6 +26,11 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import MyaDispatchPanel from "../components/MyaDispatchPanel";
+import ExecutiveTile from "../components/ExecutiveTile";
+import { useToast } from "../components/Toast";
+import useExecutiveRun from "../hooks/useExecutiveRun";
+import useExecutiveHealth from "../hooks/useExecutiveHealth";
 
 // ─── MYA Agent system prompt ───────────────────────────────────────────────────
 const PA_SYSTEM = `You are MYA -- the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
@@ -694,7 +699,7 @@ function ArtistPanel({ artist, onClose }) {
   );
 }
 
-function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onSelectPersonal, onPersonalActive }) {
+function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen, onSelectPersonal, onPersonalActive }) {
   return (
     <div className="os-sidebar" style={{
       width: open ? 210 : 52, flexShrink: 0,
@@ -772,6 +777,16 @@ function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onSelectPerson
         }}>
           <span style={{ fontSize: 13, color: T.gold, flexShrink: 0 }}>◆</span>
           {open && <span style={{ fontSize: 12, fontWeight: 700, color: T.gold }}>MYA</span>}
+        </button>
+        {/* Phase 3B — Dispatch panel entry */}
+        <button onClick={onDispatchOpen} style={{
+          width: "100%", background: "transparent", border: `1px solid ${T.border}`,
+          borderRadius: 8, padding: open ? "9px 10px" : "9px",
+          cursor: "pointer", display: "flex", alignItems: "center",
+          gap: 9, justifyContent: open ? "flex-start" : "center",
+        }}>
+          <span style={{ fontSize: 13, color: T.muted, flexShrink: 0 }}>◈</span>
+          {open && <span style={{ fontSize: 11, fontWeight: 600, color: T.muted }}>Dispatch</span>}
         </button>
       </div>
     </div>
@@ -2950,6 +2965,7 @@ export default function MotesartOS() {
   const [approvedIds, setApprovedIds] = useState([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
   const [topTab, setTopTab] = useState("overview");
 
   const isPersonal = activeBiz === "personal";
@@ -2965,7 +2981,7 @@ export default function MotesartOS() {
   return (
     <div className="os-root" style={{ display: "flex", height: "100vh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
 
-      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} />
+      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onDispatchOpen={() => setDispatchOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} />
 
       <div className="os-main" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
@@ -3077,6 +3093,17 @@ export default function MotesartOS() {
               </div>
               <p style={{ margin: 0, fontSize: 13, color: T.white, lineHeight: 1.65 }}>{biz.brief}</p>
             </div>
+          )}
+
+          {/* Phase 3B — SOM Executive Tile (SOM overview only) */}
+          {!isSpecialView && activeTab === "overview" && biz.id === "som" && (
+            <ExecutiveTile
+              executive="som"
+              label="SOM Executive"
+              color={T.blue}
+              dim={T.blueDim}
+              description="Backend worker. Picks up the next pending SOM task, writes an audit trail to TASK_UPDATES, and patches MASTER_TASKS. Never marks anything done."
+            />
           )}
 
           {/* ── App Launch Cards — overview only ── */}
@@ -3248,6 +3275,13 @@ export default function MotesartOS() {
       }} />}
       {chatOpen && <PAAgentChat onClose={() => setChatOpen(false)} activeBiz={activeBiz} />}
 
+      {/* Phase 3B — Dispatch panel (opened from Sidebar "Dispatch" button) */}
+      <MyaDispatchPanel
+        open={dispatchOpen}
+        onClose={() => setDispatchOpen(false)}
+        actionBarSlot={<DispatchExecutiveActions />}
+      />
+
       {/* Floating MYA pill button */}
       {!chatOpen && (
         <button onClick={() => setChatOpen(true)} className="os-pa-pill" style={{
@@ -3366,5 +3400,52 @@ export default function MotesartOS() {
         }
       `}</style>
     </div>
+  );
+}
+
+// ─── Phase 3B — Secondary run button inside dispatch panel action bar ───
+function DispatchExecutiveActions() {
+  const { run, loading } = useExecutiveRun("som");
+  const { available } = useExecutiveHealth();
+  const toast = useToast();
+
+  const offline = available === false;
+  const disabled = loading || offline || available === null;
+
+  const onRun = async () => {
+    const result = await run();
+    if (result) {
+      toast.success(
+        `SOM Executive → ${result.new_status}`,
+        result.action_taken || "Run complete",
+        { accent: "#5a8fc9" }
+      );
+    } else {
+      toast.error("SOM Executive failed", "Check Railway logs with grep [SOM]");
+    }
+  };
+
+  return (
+    <button
+      onClick={offline ? undefined : onRun}
+      disabled={disabled}
+      title={offline ? "Backend offline" : undefined}
+      style={{
+        background: disabled ? "#1c1c22" : offline ? "rgba(201,90,90,0.10)" : "rgba(90,143,201,0.12)",
+        border: `1px solid ${offline ? "rgba(201,90,90,0.40)" : "rgba(90,143,201,0.40)"}`,
+        color: disabled ? "#52525e" : offline ? "#c95a5a" : "#5a8fc9",
+        borderRadius: 6,
+        padding: "6px 12px",
+        cursor: disabled ? "not-allowed" : "pointer",
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        fontFamily: "inherit",
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      {offline ? "⚠ SOM Offline" : loading ? "◌ Running…" : "▶ Run SOM"}
+    </button>
   );
 }

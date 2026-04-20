@@ -57,7 +57,7 @@ const T = {
 
 // ── COMPONENT ────────────────────────────────────────
 
-export default function MyaDispatchPanel({ open, onClose }) {
+export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }) {
   const [tab, setTab] = useState('compose');
   const [dispatches, setDispatches] = useState([]);
   const [queue, setQueue] = useState([]);
@@ -218,6 +218,29 @@ export default function MyaDispatchPanel({ open, onClose }) {
             </div>
           ))}
         </div>
+
+        {/* Phase 3B — Executive action bar slot */}
+        {actionBarSlot && (
+          <div style={{
+            padding: '8px 14px',
+            background: 'rgba(201,168,76,0.04)',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}>
+            <span style={{
+              fontSize: 9,
+              color: '#9a9aa5',
+              fontWeight: 700,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              marginRight: 4,
+            }}>Executives</span>
+            {actionBarSlot}
+          </div>
+        )}
 
         {/* BODY */}
         <div style={S.body} ref={bodyRef}>
