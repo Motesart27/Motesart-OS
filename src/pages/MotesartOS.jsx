@@ -2998,6 +2998,12 @@ export default function MotesartOS() {
     setPreviewItem(null);
   }
 
+  function handleUndo(id) {
+    setApprovedIds(ids => ids.filter(x => x !== id));
+    setRevisionRequestedIds(ids => ids.filter(x => x !== id));
+    setPreviewItem(null);
+  }
+
   return (
     <div className="os-root" style={{ display: "flex", height: "100vh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
 
@@ -3224,11 +3230,17 @@ export default function MotesartOS() {
                         <span style={{ fontSize: 12, color: T.white }}>{a.item}</span>
                       </div>
                       {done ? (
-                        <span style={{ fontSize: 10, color: T.green, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ animation: "checkPop 0.35s cubic-bezier(0.22,1,0.36,1) both", display: "inline-block" }}>✓</span> Approved
-                        </span>
+                        <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                          <span style={{ fontSize: 10, color: T.green, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ animation: "checkPop 0.35s cubic-bezier(0.22,1,0.36,1) both", display: "inline-block" }}>✓</span> Approved
+                          </span>
+                          <button onClick={() => handleUndo(a.id)} style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "3px 8px", cursor: "pointer", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em" }}>Undo</button>
+                        </div>
                       ) : revise ? (
-                        <span style={{ fontSize: 10, color: T.amber, fontWeight: 700 }}>↺ Revision</span>
+                        <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                          <span style={{ fontSize: 10, color: T.amber, fontWeight: 700 }}>↺ Revision</span>
+                          <button onClick={() => handleUndo(a.id)} style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "3px 8px", cursor: "pointer", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em" }}>Undo</button>
+                        </div>
                       ) : (
                         <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 5, flexShrink: 0 }}>
                           <button onClick={() => handleApprove(a.id)} style={{ background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>Approve</button>
@@ -3303,6 +3315,7 @@ export default function MotesartOS() {
         onClose={() => setPreviewItem(null)}
         onApprove={handleApprove}
         onRevise={handleRevise}
+        onUndo={handleUndo}
         status={previewItem ? statusFor(previewItem.id) : "pending"}
       />
 

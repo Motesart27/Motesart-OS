@@ -1,16 +1,14 @@
 // src/components/ApprovalPreviewModal.jsx
 //
 // Phase 3C.A — Reusable approval preview modal.
-// Renders preview for VISUAL, CAPTION, STRATEGY, BUILD, CONTENT approval types.
-//
-// LOCK 2: when item.preview_url is null for a visual, renders the "no preview
-// set" dashed state — no remote placeholder, no broken image icon.
+// Updated: Undo support + mobile polish pass.
 //
 // Props:
-//   item:      object | null      — the approval item (null = closed)
+//   item:      object | null
 //   onClose:   () => void
 //   onApprove: (id) => void
 //   onRevise:  (id) => void
+//   onUndo:    (id) => void
 //   status:    "pending" | "approved" | "revision_requested"
 
 import { useEffect } from 'react'
@@ -57,8 +55,7 @@ function StatusPill({ status }) {
   return <Badge text="Pending" color={T.muted} dim={T.dim} />
 }
 
-export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevise, status = 'pending' }) {
-  // ESC key closes + body scroll lock
+export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevise, onUndo, status = 'pending' }) {
   useEffect(() => {
     if (!item) return
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -84,7 +81,7 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
         background: 'rgba(0,0,0,0.72)',
         backdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 20,
+        padding: 'clamp(8px, 4vw, 20px)',
         animation: 'approvalFadeIn 0.2s ease',
       }}
     >
@@ -96,38 +93,49 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
           borderRadius: 16,
           maxWidth: 720,
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: '95vh',
           overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
           boxShadow: '0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)',
           fontFamily: "'DM Sans', system-ui, sans-serif",
         }}
       >
         {/* Header */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-          padding: '14px 20px',
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+          padding: 'clamp(10px, 3vw, 14px) clamp(12px, 4vw, 20px)',
           borderBottom: `1px solid ${T.border}`,
           background: T.cardHi,
           position: 'sticky', top: 0, zIndex: 1,
+          flexShrink: 0,
         }}>
           <Badge text={item.type} color={T.blue} dim={T.blueDim} />
           <Badge text={item.artist} color={T.gold} dim={T.goldDim} />
           <StatusPill status={status} />
           <div style={{ marginLeft: 'auto' }}>
+            {/* Larger tap target on mobile */}
             <button onClick={onClose} style={{
               background: 'transparent', border: `1px solid ${T.border}`,
-              color: T.muted, borderRadius: 6, padding: '4px 10px',
-              cursor: 'pointer', fontSize: 14, lineHeight: 1,
-              fontFamily: 'inherit',
+              color: T.muted, borderRadius: 8,
+              minWidth: 44, minHeight: 44,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', fontSize: 16, lineHeight: 1,
+              fontFamily: 'inherit', padding: 0,
             }}>✕</button>
           </div>
         </div>
 
-        {/* Body */}
-        <div style={{ padding: '18px 20px' }}>
+        {/* Body — scrollable */}
+        <div style={{
+          padding: 'clamp(12px, 4vw, 18px) clamp(12px, 4vw, 20px)',
+          flex: 1,
+          overflowY: 'auto',
+        }}>
           {/* Title */}
           <div style={{
-            fontSize: 16, color: T.white, fontWeight: 700,
+            fontSize: 'clamp(14px, 4vw, 16px)',
+            color: T.white, fontWeight: 700,
             marginBottom: 14, letterSpacing: '-0.01em', lineHeight: 1.4,
           }}>{item.item}</div>
 
@@ -142,7 +150,7 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
-              minHeight: 200,
+              minHeight: 160,
             }}>
               {item.media_type === 'image' ? (
                 <img
@@ -150,7 +158,8 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
                   alt={item.item}
                   style={{
                     maxWidth: '100%',
-                    maxHeight: '50vh',
+                    maxHeight: 'clamp(200px, 40vh, 50vh)',
+                    width: '100%',
                     display: 'block',
                     objectFit: 'contain',
                   }}
@@ -161,7 +170,8 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
                   controls
                   style={{
                     maxWidth: '100%',
-                    maxHeight: '50vh',
+                    maxHeight: 'clamp(200px, 40vh, 50vh)',
+                    width: '100%',
                     display: 'block',
                   }}
                 />
@@ -169,11 +179,11 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
             </div>
           )}
 
-          {/* No-preview state for visuals */}
+          {/* No-preview state */}
           {isVisual && !item.preview_url && (
             <div style={{
               background: T.dim, border: `1px dashed ${T.border}`, borderRadius: 10,
-              padding: '32px 20px', textAlign: 'center', marginBottom: 14,
+              padding: 'clamp(20px, 5vw, 32px) 20px', textAlign: 'center', marginBottom: 14,
               color: T.muted, fontSize: 12, lineHeight: 1.6,
             }}>
               <div style={{ fontSize: 24, marginBottom: 8, opacity: 0.4 }}>◉</div>
@@ -190,18 +200,12 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
             <div style={{ marginBottom: 14 }}>
               <div style={{
                 fontSize: 9, color: T.muted, fontWeight: 700,
-                letterSpacing: '0.14em', textTransform: 'uppercase',
-                marginBottom: 6,
+                letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 6,
               }}>Caption</div>
               <div style={{
-                background: T.dim,
-                border: `1px solid ${T.border}`,
-                borderRadius: 8,
-                padding: '10px 14px',
-                fontSize: 13,
-                color: T.white,
-                lineHeight: 1.6,
-                whiteSpace: 'pre-wrap',
+                background: T.dim, border: `1px solid ${T.border}`,
+                borderRadius: 8, padding: '10px 14px',
+                fontSize: 13, color: T.white, lineHeight: 1.6, whiteSpace: 'pre-wrap',
               }}>{item.caption}</div>
             </div>
           )}
@@ -211,72 +215,80 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
             <div style={{ marginBottom: 4 }}>
               <div style={{
                 fontSize: 9, color: T.muted, fontWeight: 700,
-                letterSpacing: '0.14em', textTransform: 'uppercase',
-                marginBottom: 6,
+                letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 6,
               }}>Notes</div>
               <div style={{
-                fontSize: 12,
-                color: T.white,
-                lineHeight: 1.6,
-                whiteSpace: 'pre-wrap',
+                fontSize: 12, color: T.white, lineHeight: 1.6, whiteSpace: 'pre-wrap',
               }}>{item.notes}</div>
             </div>
           )}
         </div>
 
-        {/* Footer action bar */}
+        {/* Footer — wraps on mobile */}
         <div style={{
-          display: 'flex', gap: 8, justifyContent: 'flex-end',
-          padding: '14px 20px',
+          display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end',
+          padding: 'clamp(10px, 3vw, 14px) clamp(12px, 4vw, 20px)',
           borderTop: `1px solid ${T.border}`,
           background: T.cardHi,
           position: 'sticky', bottom: 0,
+          flexShrink: 0,
         }}>
           {isPending ? (
             <>
               <button
                 onClick={() => onRevise(item.id)}
                 style={{
-                  background: T.redDim,
-                  border: `1px solid ${T.red}40`,
-                  color: T.red,
-                  borderRadius: 6, padding: '8px 16px',
+                  flex: '1 1 auto', minWidth: 130, minHeight: 44,
+                  background: T.redDim, border: `1px solid ${T.red}40`, color: T.red,
+                  borderRadius: 8, padding: '10px 16px',
                   cursor: 'pointer', fontSize: 11, fontWeight: 700,
-                  letterSpacing: '0.06em', textTransform: 'uppercase',
-                  fontFamily: 'inherit',
+                  letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit',
                 }}
               >↺ Request Revision</button>
               <button
                 onClick={() => onApprove(item.id)}
                 style={{
-                  background: T.greenDim,
-                  border: `1px solid ${T.green}40`,
-                  color: T.green,
-                  borderRadius: 6, padding: '8px 16px',
+                  flex: '1 1 auto', minWidth: 130, minHeight: 44,
+                  background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green,
+                  borderRadius: 8, padding: '10px 16px',
                   cursor: 'pointer', fontSize: 11, fontWeight: 700,
-                  letterSpacing: '0.06em', textTransform: 'uppercase',
-                  fontFamily: 'inherit',
+                  letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit',
                 }}
               >✓ Approve</button>
             </>
           ) : (
-            <button
-              onClick={onClose}
-              style={{
-                background: T.dim,
-                border: `1px solid ${T.border}`,
-                color: T.muted,
-                borderRadius: 6, padding: '8px 16px',
-                cursor: 'pointer', fontSize: 11, fontWeight: 700,
-                letterSpacing: '0.06em', textTransform: 'uppercase',
-                fontFamily: 'inherit',
-              }}
-            >Close</button>
+            <>
+              {onUndo && (
+                <button
+                  onClick={() => onUndo(item.id)}
+                  style={{
+                    flex: '1 1 auto', minWidth: 100, minHeight: 44,
+                    background: 'transparent', border: `1px solid ${T.border}`, color: T.muted,
+                    borderRadius: 8, padding: '10px 16px',
+                    cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                    letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit',
+                  }}
+                >↩ Undo</button>
+              )}
+              <button
+                onClick={onClose}
+                style={{
+                  flex: '1 1 auto', minWidth: 100, minHeight: 44,
+                  background: T.dim, border: `1px solid ${T.border}`, color: T.muted,
+                  borderRadius: 8, padding: '10px 16px',
+                  cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                  letterSpacing: '0.06em', textTransform: 'uppercase', fontFamily: 'inherit',
+                }}
+              >Close</button>
+            </>
           )}
         </div>
 
         <style>{`
           @keyframes approvalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+          @media (max-width: 480px) {
+            /* bottom-sheet feel on phones */
+          }
         `}</style>
       </div>
     </div>
