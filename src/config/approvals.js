@@ -26,7 +26,7 @@ export const APPROVALS = [
     artist: "Velvet Room",
     type: "Visual",
     item: "Post 1 -- Mood Visual cover frame",
-    preview_url: null,                       // drop asset at /brand/approvals/vr-post-1.jpg later
+    preview_url: "/brand/approvals/soft-spot-cover.jpg",
     media_type: "image",
     caption: "Soft Spot — arriving soon. A record for after midnight.",
     notes: "Mood frame for IG carousel. Target drop: Thursday 2PM window.",
