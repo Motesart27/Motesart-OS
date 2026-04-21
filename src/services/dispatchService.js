@@ -5,6 +5,8 @@
 //          receipt generation, offline queue
 // ══════════════════════════════════════════════════════
 
+import api from './api'
+
 // ── ROUTING CONFIG (hardcoded Phase 1) ───────────────
 
 export const ROUTES = {
@@ -132,11 +134,33 @@ export async function executeDispatch(record, { dispatches, queue, onUpdate }) {
   }
 
   try {
-    const ai = await classifyDispatch(record);
-    record.aiResult = ai;
-    record.route = (record.route === 'auto' && ai.route) ? ai.route : record.route;
+    // 1. Post to backend — this is the authoritative record
+    const backendResult = await api.postDispatch({
+      message: record.message,
+      route: record.route,
+      priority: record.priority,
+      source: record.source || 'motesart-os',
+      client_dispatch_id: record.client_dispatch_id || record.id,
+    });
+    record.server_id = backendResult.id;
+
+    // 2. Try AI classification for receipt (best-effort — does not block dispatch)
+    let ai = null;
+    try {
+      ai = await classifyDispatch(record);
+      record.aiResult = ai;
+      record.route = (record.route === 'auto' && ai.route) ? ai.route : record.route;
+    } catch {
+      if (record.route === 'auto') record.route = 'pa';
+    }
+
     record.status = 'routed';
-    record.receipt = buildReceipt(record, ai);
+    record.receipt = buildReceipt(record, ai || {
+      confidence: 'medium',
+      summary: record.message.length > 140 ? record.message.substring(0, 140) + '…' : record.message,
+      next_action: 'Review this dispatch',
+      category: 'task',
+    });
 
     dispatches.unshift(record);
     saveDispatches(dispatches);
@@ -148,7 +172,7 @@ export async function executeDispatch(record, { dispatches, queue, onUpdate }) {
     record.error = e.message || String(e);
     queue.push(record);
     saveQueue(queue);
-    onUpdate({ dispatches, queue, status: 'error', message: 'API error — queued for retry' });
+    onUpdate({ dispatches, queue, status: 'error', message: 'Failed — queued for retry' });
     return { success: false, reason: 'error' };
   }
 }
@@ -164,11 +188,31 @@ export async function retryQueueItem(idx, { dispatches, queue, onUpdate }) {
   onUpdate({ dispatches, queue });
 
   try {
-    const ai = await classifyDispatch(record);
-    record.aiResult = ai;
-    record.route = (record.route === 'auto' && ai.route) ? ai.route : record.route;
+    // Re-post to backend on retry
+    const backendResult = await api.postDispatch({
+      message: record.message,
+      route: record.route,
+      priority: record.priority,
+      source: record.source || 'motesart-os',
+      client_dispatch_id: record.client_dispatch_id || record.id,
+    });
+    record.server_id = backendResult.id;
+
+    let ai = null;
+    try {
+      ai = await classifyDispatch(record);
+      record.aiResult = ai;
+      record.route = (record.route === 'auto' && ai.route) ? ai.route : record.route;
+    } catch {
+      if (record.route === 'auto') record.route = 'pa';
+    }
     record.status = 'routed';
-    record.receipt = buildReceipt(record, ai);
+    record.receipt = buildReceipt(record, ai || {
+      confidence: 'medium',
+      summary: record.message.length > 140 ? record.message.substring(0, 140) + '…' : record.message,
+      next_action: 'Review this dispatch',
+      category: 'task',
+    });
     dispatches.unshift(record);
     saveDispatches(dispatches);
   } catch (e) {

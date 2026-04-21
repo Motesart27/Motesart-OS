@@ -35,7 +35,7 @@ const api = {
   },
   fm(path) { return fetch(`${FM_URL}${path}`).then(r => r.json()) },
   async wake() {
-    try { const r = await fetch(`${SOM_API}/api/health`); return r.json() }
+    try { const r = await fetch(`${SOM_API}/health`); return r.json() }
     catch { return { ok: false } }
   },
   // ─── Phase 4A — Approvals ───────────────────────────────
@@ -55,6 +55,15 @@ const api = {
       headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
       body: JSON.stringify(body),
     }).then(r => { if (!r.ok) throw new Error(`patch approval ${r.status}`); return r.json() })
+  },
+  // ─── Dispatch ──────────────────────────────────────────
+  postDispatch({ message, route, priority, source = 'motesart-os', client_dispatch_id = null }) {
+    const t = getToken()
+    return fetch(`${SOM_API}/api/dispatch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+      body: JSON.stringify({ message, route, priority, source, client_dispatch_id }),
+    }).then(r => { if (!r.ok) throw new Error(`dispatch ${r.status}`); return r.json() })
   },
   // ─── Phase 3B — Executive runner ─────────────────────
   // POST /api/executives/{name}/run
