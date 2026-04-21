@@ -890,19 +890,19 @@ const AGENT_API_MAP = {
 
   return (
     <div style={{
-      position: "fixed", right: 0, top: 0, bottom: 0, width: 380,
+      position: "fixed", right: 0, top: 0, bottom: 0, width: "min(380px, 100dvw)",
       background: T.surface, borderLeft: `1px solid ${T.border}`,
       zIndex: 300, display: "flex", flexDirection: "column",
       boxShadow: "-12px 0 48px rgba(0,0,0,0.75)",
     }}>
       {/* Header */}
-      <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
+      <div style={{ padding: "14px 18px", paddingTop: "max(14px, env(safe-area-inset-top))", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
         <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.green }} />
         <span style={{ fontSize: 13, fontWeight: 800, color: T.white, flex: 1, letterSpacing: "-0.01em" }}>
           {activeAgent === "MYA" ? "MYA" : activeAgent + " Executive"}
         </span>
         <Badge text={AGENT_LABELS[activeAgent] || activeAgent} color={agentColor} dim={`${agentColor}15`} />
-        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4 }}>x</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
       </div>
 
       {/* Agent switcher */}
@@ -977,7 +977,7 @@ const AGENT_API_MAP = {
       </div>
 
       {/* Input */}
-      <div style={{ padding: "10px 14px", borderTop: `1px solid ${T.border}`, background: T.bg, display: "flex", gap: 8, alignItems: "flex-end" }}>
+      <div style={{ padding: "10px 14px", paddingBottom: "max(10px, env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, background: T.bg, display: "flex", gap: 8, alignItems: "flex-end" }}>
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -1019,17 +1019,17 @@ function PersonalPanel({ onClose, onScheduleTask }) {
 
   return (
     <div style={{
-      position: "fixed", right: 0, top: 0, bottom: 0, width: 380,
+      position: "fixed", right: 0, top: 0, bottom: 0, width: "min(380px, 100dvw)",
       background: T.surface, borderLeft: `1px solid ${T.border}`,
       zIndex: 200, display: "flex", flexDirection: "column",
       boxShadow: "-12px 0 48px rgba(0,0,0,0.7)",
     }}>
       {/* Header */}
-      <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
+      <div style={{ padding: "14px 18px", paddingTop: "max(14px, env(safe-area-inset-top))", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
         <div style={{ width: 7, height: 7, borderRadius: "50%", background: T.green }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: T.white, flex: 1 }}>Personal</span>
         <Badge text="Denarius Motes" color={T.green} dim={T.greenDim} />
-        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4 }}>✕</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
       </div>
 
       {/* Tabs */}
@@ -1046,7 +1046,7 @@ function PersonalPanel({ onClose, onScheduleTask }) {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "grid", gap: 10, alignContent: "start" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: 16, paddingBottom: "calc(16px + env(safe-area-inset-bottom))", display: "grid", gap: 10, alignContent: "start" }}>
 
         {/* ── HEALTH TAB ── */}
         {tab === "health" && (<>

@@ -413,6 +413,87 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 }
 
 
+// ── DISPATCH RECEIPT (shown after successful send) ─────
+function DispatchReceipt({ receipt, routes, onHistory, onNew }) {
+  const routeLabel = routes[receipt.route]?.label || receipt.route;
+  const routeIcon = routes[receipt.route]?.icon || '◇';
+  const statusColor = receipt.status === 'routed' ? '#4caf50' : '#e8a838';
+  const idDisplay = receipt.server_id || receipt.id || '—';
+
+  return (
+    <div style={{
+      background: 'rgba(201,166,68,0.06)', border: '1px solid rgba(201,166,68,0.22)',
+      borderRadius: 14, padding: 20,
+    }}>
+      {/* Success banner */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+          background: 'rgba(76,175,80,0.12)', border: '1.5px solid #4caf5055',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 16, color: '#4caf50',
+        }}>✓</div>
+        <div>
+          <div style={{ fontFamily: "'Lora',Georgia,serif", fontSize: 15, fontWeight: 700, color: '#e5e3de' }}>Dispatch Sent</div>
+          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: '#6a6e78', marginTop: 2 }}>
+            {new Date(receipt.created).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+          </div>
+        </div>
+        <span style={{
+          marginLeft: 'auto', padding: '3px 10px', borderRadius: 20,
+          background: receipt.status === 'routed' ? 'rgba(76,175,80,0.1)' : 'rgba(232,168,56,0.1)',
+          color: statusColor,
+          fontFamily: "'JetBrains Mono',monospace", fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+        }}>{receipt.status}</span>
+      </div>
+
+      {/* Receipt fields */}
+      <div style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
+        {[
+          { label: 'Dispatch ID', value: idDisplay, mono: true },
+          { label: 'Route', value: `${routeIcon} ${routeLabel}` },
+          { label: 'Priority', value: receipt.priority?.toUpperCase() },
+          { label: 'Status', value: receipt.status?.toUpperCase() },
+        ].map(({ label, value, mono }) => (
+          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: '#4e5460', textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>{label}</span>
+            <span style={{ fontFamily: mono ? "'JetBrains Mono',monospace" : 'inherit', fontSize: mono ? 10 : 12, color: '#8a8e98', textAlign: 'right', wordBreak: 'break-all' }}>{value}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* AI summary if present */}
+      {receipt.receipt?.summary && (
+        <div style={{
+          background: 'rgba(201,166,68,0.08)', borderRadius: 8, padding: '10px 12px',
+          fontSize: 12, color: '#c9a644', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 14,
+        }}>◇ {receipt.receipt.summary}</div>
+      )}
+
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={onHistory}
+          style={{
+            flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+            background: 'linear-gradient(135deg, #c9a644, #a08530)',
+            color: '#fff', fontWeight: 800, fontSize: 13,
+          }}
+        >View in History →</button>
+        <button
+          onClick={onNew}
+          style={{
+            padding: '11px 16px', borderRadius: 10, cursor: 'pointer',
+            background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+            color: '#6a6e78', fontSize: 12, fontWeight: 700,
+          }}
+        >+ New</button>
+      </div>
+    </div>
+  );
+}
+
 // ── RECEIPT CARD SUB-COMPONENT ────────────────────────
 
 function ReceiptCard({ d }) {
@@ -469,7 +550,7 @@ const S = {
     borderTop: `1px solid ${T.border2}`,
     borderRadius: '20px 20px 0 0',
     display: 'flex', flexDirection: 'column',
-    height: '94vh', maxHeight: '94vh',
+    height: '94dvh', maxHeight: '94dvh',
     overflow: 'hidden',
     boxShadow: '0 -8px 40px rgba(0,0,0,0.5)',
   },
@@ -478,6 +559,7 @@ const S = {
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '16px 20px 12px',
+    paddingTop: 'max(16px, env(safe-area-inset-top))',
     borderBottom: `1px solid ${T.border}`,
   },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 12 },
@@ -491,9 +573,9 @@ const S = {
   headerSub: { fontFamily: T.mono, fontSize: 9, letterSpacing: '0.1em', marginTop: 2 },
   closeBtn: {
     background: T.bg3, border: `1px solid ${T.border2}`,
-    borderRadius: 10, width: 36, height: 36,
+    borderRadius: 10, width: 44, height: 44, minWidth: 44, minHeight: 44,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: T.t2, fontSize: 14, cursor: 'pointer',
+    color: T.t2, fontSize: 14, cursor: 'pointer', flexShrink: 0,
   },
   statusDot: (color) => ({
     display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
@@ -521,7 +603,9 @@ const S = {
 
   // Body
   body: {
-    flex: 1, overflowY: 'auto', padding: '18px 20px 40px',
+    flex: 1, overflowY: 'auto',
+    padding: '18px 20px 40px',
+    paddingBottom: 'calc(40px + env(safe-area-inset-bottom))',
   },
 
   // Form
