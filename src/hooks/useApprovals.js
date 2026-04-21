@@ -36,7 +36,7 @@ export default function useApprovals() {
 
   useEffect(() => { fetchApprovals() }, [fetchApprovals])
 
-  const _optimisticPatch = useCallback(async (contentId, newStatus) => {
+  const _optimisticPatch = useCallback(async (contentId, newStatus, extras = {}) => {
     setApprovals(prev =>
       prev.map(a => {
         const key = a.content_id || String(a.id)
@@ -45,19 +45,23 @@ export default function useApprovals() {
           ...a,
           approval_status: newStatus,
           approved_at: newStatus === 'approved' ? new Date().toISOString() : null,
+          reviewed_by: newStatus === 'pending' ? null : a.reviewed_by,
+          revision_reason: Object.prototype.hasOwnProperty.call(extras, 'revision_reason')
+            ? extras.revision_reason
+            : a.revision_reason,
         }
       })
     )
     try {
-      await api.patchApprovalStatus(contentId, newStatus)
+      await api.patchApprovalStatus(contentId, newStatus, extras.revision_reason ?? null)
     } catch {
       await fetchApprovals()
     }
   }, [fetchApprovals])
 
-  const approve = useCallback(contentId => _optimisticPatch(contentId, 'approved'), [_optimisticPatch])
-  const revise  = useCallback(contentId => _optimisticPatch(contentId, 'revision_requested'), [_optimisticPatch])
-  const undo    = useCallback(contentId => _optimisticPatch(contentId, 'pending'), [_optimisticPatch])
+  const approve = useCallback(contentId => _optimisticPatch(contentId, 'approved', { revision_reason: null }), [_optimisticPatch])
+  const revise  = useCallback((contentId, reason) => _optimisticPatch(contentId, 'revision_requested', { revision_reason: reason }), [_optimisticPatch])
+  const undo    = useCallback(contentId => _optimisticPatch(contentId, 'pending', { revision_reason: null }), [_optimisticPatch])
 
   return { approvals, loading, error, source, approve, revise, undo, refetch: fetchApprovals }
 }

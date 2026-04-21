@@ -46,12 +46,14 @@ const api = {
       headers: t ? { Authorization: `Bearer ${t}` } : {},
     }).then(r => { if (!r.ok) throw new Error(`approvals ${r.status}`); return r.json() })
   },
-  patchApprovalStatus(contentId, approval_status) {
+  patchApprovalStatus(contentId, approval_status, revision_reason = null) {
     const t = getToken()
+    const body = { approval_status }
+    if (revision_reason !== null) body.revision_reason = revision_reason
     return fetch(`${SOM_API}/api/approvals/${encodeURIComponent(contentId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
-      body: JSON.stringify({ approval_status }),
+      body: JSON.stringify(body),
     }).then(r => { if (!r.ok) throw new Error(`patch approval ${r.status}`); return r.json() })
   },
   // ─── Phase 3B — Executive runner ─────────────────────

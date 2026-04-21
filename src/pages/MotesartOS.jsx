@@ -2961,6 +2961,8 @@ export default function MotesartOS() {
   const [personalOpen, setPersonalOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState(null);
+  const [reviseInputId, setReviseInputId] = useState(null);
+  const [reviseReason, setReviseReason] = useState('');
   const [topTab, setTopTab] = useState("overview");
   const { approvals, approve: _approveBackend, revise: _reviseBackend, undo: _undoBackend } = useApprovals();
 
@@ -2986,8 +2988,16 @@ export default function MotesartOS() {
   }
 
   function handleRevise(contentId) {
-    _reviseBackend(contentId);
     setPreviewItem(null);
+    setReviseInputId(contentId);
+    setReviseReason('');
+  }
+
+  function handleReviseSubmit(contentId) {
+    if (!reviseReason.trim()) return;
+    _reviseBackend(contentId, reviseReason.trim());
+    setReviseInputId(null);
+    setReviseReason('');
   }
 
   function handleUndo(contentId) {
@@ -3177,12 +3187,12 @@ export default function MotesartOS() {
                   return (
                     <div
                       key={a.id}
-                      onClick={() => setPreviewItem(a)}
+                      onClick={() => { if (reviseInputId !== cid) setPreviewItem(a); }}
                       style={{
                         background: rowBg,
                         border: `1px solid ${rowColor ? rowColor + "35" : T.border}`,
                         borderRadius: 12, padding: "10px 14px",
-                        display: "flex", alignItems: "center", gap: 12,
+                        display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
                         opacity: done ? 0.75 : 1,
                         cursor: "pointer",
                         transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)",
@@ -3220,6 +3230,9 @@ export default function MotesartOS() {
                           )}
                         </div>
                         <span style={{ fontSize: 12, color: T.white }}>{a.item}</span>
+                        {revise && a.revision_reason && (
+                          <div style={{ fontSize: 11, color: T.amber, marginTop: 4, fontStyle: "italic", lineHeight: 1.4 }}>↺ {a.revision_reason}</div>
+                        )}
                       </div>
                       {done ? (
                         <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
@@ -3237,6 +3250,33 @@ export default function MotesartOS() {
                         <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 5, flexShrink: 0 }}>
                           <button onClick={() => handleApprove(cid)} style={{ background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>Approve</button>
                           <button onClick={() => handleRevise(cid)} style={{ background: T.redDim, border: `1px solid ${T.red}40`, color: T.red, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10 }}>Revise</button>
+                        </div>
+                      )}
+                      {reviseInputId === cid && (
+                        <div onClick={e => e.stopPropagation()} style={{ width: "100%", marginTop: 8, borderTop: `1px solid ${T.border}`, paddingTop: 8 }}>
+                          <textarea
+                            autoFocus
+                            value={reviseReason}
+                            onChange={e => setReviseReason(e.target.value)}
+                            placeholder="Describe what needs to be revised..."
+                            rows={2}
+                            style={{
+                              width: "100%", boxSizing: "border-box",
+                              background: T.dim, border: `1px solid ${T.amber}40`, borderRadius: 6,
+                              color: T.white, fontSize: 12, padding: "8px 10px",
+                              fontFamily: "inherit", resize: "none", outline: "none",
+                            }}
+                          />
+                          <div style={{ display: "flex", gap: 6, marginTop: 6, justifyContent: "flex-end" }}>
+                            <button
+                              onClick={() => { setReviseInputId(null); setReviseReason(""); }}
+                              style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "4px 12px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
+                            >Cancel</button>
+                            <button
+                              onClick={() => handleReviseSubmit(cid)}
+                              style={{ background: T.amberDim, border: `1px solid ${T.amber}40`, color: T.amber, borderRadius: 5, padding: "4px 12px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
+                            >Send Revision</button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -3308,7 +3348,7 @@ export default function MotesartOS() {
         onApprove={handleApprove}
         onRevise={handleRevise}
         onUndo={handleUndo}
-        status={previewItem ? statusFor(previewItem.id) : "pending"}
+        status={previewItem ? (previewItem.approval_status || "pending") : "pending"}
       />
 
       {/* Floating MYA pill button */}

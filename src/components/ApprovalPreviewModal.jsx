@@ -212,7 +212,7 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
 
           {/* Notes */}
           {item.notes && (
-            <div style={{ marginBottom: 4 }}>
+            <div style={{ marginBottom: 14 }}>
               <div style={{
                 fontSize: 9, color: T.muted, fontWeight: 700,
                 letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 6,
@@ -220,6 +220,21 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
               <div style={{
                 fontSize: 12, color: T.white, lineHeight: 1.6, whiteSpace: 'pre-wrap',
               }}>{item.notes}</div>
+            </div>
+          )}
+
+          {/* Revision note — Lock 3: only when status === revision_requested AND reason present */}
+          {status === 'revision_requested' && item.revision_reason && (
+            <div style={{ marginBottom: 4 }}>
+              <div style={{
+                fontSize: 9, color: T.amber, fontWeight: 700,
+                letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: 6,
+              }}>Revision Note</div>
+              <div style={{
+                background: T.amberDim, border: `1px solid ${T.amber}30`,
+                borderRadius: 8, padding: '10px 14px',
+                fontSize: 12, color: T.white, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+              }}>{item.revision_reason}</div>
             </div>
           )}
         </div>
@@ -236,7 +251,7 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
           {isPending ? (
             <>
               <button
-                onClick={() => onRevise(item.id)}
+                onClick={() => onRevise(item.content_id || item.id)}
                 style={{
                   flex: '1 1 auto', minWidth: 130, minHeight: 44,
                   background: T.redDim, border: `1px solid ${T.red}40`, color: T.red,
@@ -246,7 +261,7 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
                 }}
               >↺ Request Revision</button>
               <button
-                onClick={() => onApprove(item.id)}
+                onClick={() => onApprove(item.content_id || item.id)}
                 style={{
                   flex: '1 1 auto', minWidth: 130, minHeight: 44,
                   background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green,
@@ -260,7 +275,7 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
             <>
               {onUndo && (
                 <button
-                  onClick={() => onUndo(item.id)}
+                  onClick={() => onUndo(item.content_id || item.id)}
                   style={{
                     flex: '1 1 auto', minWidth: 100, minHeight: 44,
                     background: 'transparent', border: `1px solid ${T.border}`, color: T.muted,
