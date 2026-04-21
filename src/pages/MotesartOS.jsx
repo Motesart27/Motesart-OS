@@ -624,16 +624,16 @@ function ArtistPanel({ artist, onClose }) {
   const [tab, setTab] = useState("calendar");
   return (
     <div style={{
-      position: "fixed", right: 0, top: 0, bottom: 0, width: 340,
+      position: "fixed", right: 0, top: 0, bottom: 0, width: "min(340px, 100dvw)",
       background: T.surface, borderLeft: `1px solid ${T.border}`,
       zIndex: 200, display: "flex", flexDirection: "column",
       boxShadow: "-12px 0 48px rgba(0,0,0,0.7)",
     }}>
-      <div style={{ padding: "16px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ padding: "16px 18px", paddingTop: "max(16px, env(safe-area-inset-top))", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
         <Pip color={artist.color} />
         <span style={{ fontSize: 14, fontWeight: 700, color: T.white, flex: 1 }}>{artist.name}</span>
         <Badge text={artist.stage} color={artist.color} dim={`${artist.color}18`} />
-        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 8 }}>x</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 8, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
       </div>
 
       <div style={{ display: "flex", borderBottom: `1px solid ${T.border}` }}>
@@ -648,7 +648,7 @@ function ArtistPanel({ artist, onClose }) {
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: 16, paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}>
         {tab === "calendar" && (
           <div style={{ display: "grid", gap: 8 }}>
             {artist.calendar.map((c, i) => (
@@ -1373,7 +1373,7 @@ function EventDetailPanel({ event, onClose }) {
   };
 
   const panelStyle = {
-    position: "fixed", top: 0, right: 0, bottom: 0, width: 380,
+    position: "fixed", top: 0, right: 0, bottom: 0, width: "min(380px, 100dvw)",
     background: T.surface, borderLeft: `1px solid ${T.border}`,
     zIndex: 250, display: "flex", flexDirection: "column",
     boxShadow: "-12px 0 48px rgba(0,0,0,0.7)",
@@ -1386,8 +1386,8 @@ function EventDetailPanel({ event, onClose }) {
   return (
     <div style={panelStyle}>
       {/* Top bar */}
-      <div style={{ padding: "16px 18px 10px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg, flexShrink: 0 }}>
-        <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: "50%", background: T.card, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.muted, fontSize: 12, flexShrink: 0 }}>‹</button>
+      <div style={{ padding: "16px 18px 10px", paddingTop: "max(16px, env(safe-area-inset-top))", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ minWidth: 44, minHeight: 44, borderRadius: "50%", background: T.card, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.muted, fontSize: 14, flexShrink: 0 }}>‹</button>
         <span style={{ fontSize: 14, fontWeight: 700, color: T.white, flex: 1, letterSpacing: "-0.01em" }}>Event details</span>
         <span style={{ fontSize: 9, color: T.muted, padding: "2px 7px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 4 }}>{event.calendarSource || "Personal"}</span>
       </div>
@@ -1400,7 +1400,7 @@ function EventDetailPanel({ event, onClose }) {
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 8 }}>
 
         {/* Hero */}
         <div style={{ background: T.card, borderLeft: `3px solid ${event.color}`, borderRadius: "0 10px 10px 0", border: `1px solid ${T.border}`, borderLeft: `3px solid ${event.color}`, padding: "12px 14px" }}>
@@ -3006,7 +3006,7 @@ export default function MotesartOS() {
   }
 
   return (
-    <div className="os-root" style={{ display: "flex", height: "100vh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
+    <div className="os-root" style={{ display: "flex", height: "100dvh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
 
       <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onDispatchOpen={() => setDispatchOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} />
 
@@ -3354,7 +3354,7 @@ export default function MotesartOS() {
       {/* Floating MYA pill button */}
       {!chatOpen && (
         <button onClick={() => setChatOpen(true)} className="os-pa-pill" style={{
-          position: "fixed", bottom: 24, right: 24, zIndex: 150,
+          position: "fixed", bottom: "calc(24px + env(safe-area-inset-bottom))", right: "max(24px, env(safe-area-inset-right))", zIndex: 150,
           background: `linear-gradient(135deg, ${T.goldDim}, rgba(201,168,76,0.18))`,
           border: `1px solid ${T.borderHi}`,
           borderRadius: "50%", width: 50, height: 50,
@@ -3405,7 +3405,7 @@ export default function MotesartOS() {
           }
           .os-sidebar {
             width: 100% !important;
-            height: 56px !important;
+            height: calc(56px + env(safe-area-inset-bottom)) !important;
             flex-direction: row !important;
             border-right: none !important;
             border-top: 1px solid rgba(255,255,255,0.055) !important;
@@ -3416,6 +3416,7 @@ export default function MotesartOS() {
             z-index: 100 !important;
             overflow-x: auto !important;
             overflow-y: hidden !important;
+            padding-bottom: env(safe-area-inset-bottom) !important;
           }
           .os-sidebar > *:first-child,
           .os-sidebar > *:nth-child(2) { display: none !important; }
@@ -3438,14 +3439,14 @@ export default function MotesartOS() {
             gap: 2px !important;
           }
           .os-main {
-            padding-bottom: 72px !important;
+            padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important;
           }
           .os-main .os-content-area {
             padding: 14px !important;
           }
           .os-pa-pill {
-            bottom: 68px !important;
-            right: 14px !important;
+            bottom: calc(68px + env(safe-area-inset-bottom)) !important;
+            right: max(14px, env(safe-area-inset-right)) !important;
             font-size: 11px !important;
             padding: 10px 16px 10px 14px !important;
           }
@@ -3464,7 +3465,7 @@ export default function MotesartOS() {
           .os-pa-pill {
             font-size: 10px !important;
             padding: 8px 14px 8px 12px !important;
-            bottom: 64px !important;
+            bottom: calc(64px + env(safe-area-inset-bottom)) !important;
           }
         }
       `}</style>

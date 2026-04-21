@@ -81,7 +81,7 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
         background: 'rgba(0,0,0,0.72)',
         backdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 'clamp(8px, 4vw, 20px)',
+        padding: 'max(clamp(8px, 4vw, 20px), env(safe-area-inset-top)) max(clamp(8px, 4vw, 20px), env(safe-area-inset-right)) max(clamp(8px, 4vw, 20px), env(safe-area-inset-bottom)) max(clamp(8px, 4vw, 20px), env(safe-area-inset-left))',
         animation: 'approvalFadeIn 0.2s ease',
       }}
     >
@@ -93,7 +93,7 @@ export default function ApprovalPreviewModal({ item, onClose, onApprove, onRevis
           borderRadius: 16,
           maxWidth: 720,
           width: '100%',
-          maxHeight: '95vh',
+          maxHeight: '95dvh',
           overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',

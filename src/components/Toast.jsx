@@ -62,14 +62,14 @@ export function ToastProvider({ children }) {
       {children}
       <div style={{
         position: 'fixed',
-        top: 16,
-        right: 16,
+        top: 'max(16px, env(safe-area-inset-top))',
+        right: 'max(16px, env(safe-area-inset-right))',
         zIndex: 9999,
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
         pointerEvents: 'none',
-        maxWidth: 380,
+        maxWidth: 'min(380px, calc(100vw - 32px))',
       }}>
         {toasts.map(t => (
           <div
