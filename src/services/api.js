@@ -77,6 +77,31 @@ const api = {
       headers: t ? { Authorization: `Bearer ${t}` } : {},
     }).then(r => { if (!r.ok) throw new Error(`getDispatch ${r.status}`); return r.json() })
   },
+  // ─── Phase 5A — Dispatch Tasks ────────────────────────────────────────
+  listDispatchTasks(biz, limit = 20) {
+    const t = getToken()
+    const params = new URLSearchParams({ limit })
+    if (biz) params.set('biz', biz)
+    return fetch(`${SOM_API}/api/dispatch-tasks?${params}`, {
+      headers: t ? { Authorization: `Bearer ${t}` } : {},
+    }).then(r => { if (!r.ok) throw new Error(`listDispatchTasks ${r.status}`); return r.json() })
+  },
+  createDispatchTask(body) {
+    const t = getToken()
+    return fetch(`${SOM_API}/api/dispatch-tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+      body: JSON.stringify(body),
+    }).then(r => { if (!r.ok) throw new Error(`createDispatchTask ${r.status}`); return r.json() })
+  },
+  patchDispatchTask(id, body) {
+    const t = getToken()
+    return fetch(`${SOM_API}/api/dispatch-tasks/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+      body: JSON.stringify(body),
+    }).then(r => { if (!r.ok) throw new Error(`patchDispatchTask ${r.status}`); return r.json() })
+  },
   // ─── Phase 3B — Executive runner ─────────────────────
   // POST /api/executives/{name}/run
   // Body: {} for top-priority selection, or { task_id, dry_run } per Phase 3A handoff

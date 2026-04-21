@@ -195,6 +195,19 @@ export async function executeDispatch(record, { dispatches, queue, onUpdate }) {
       category: 'task',
     });
 
+    // Phase 5A — fire-and-forget task promotion
+    const _bizMap = { pa:'os', book:'book', som:'som', claude:'os', os:'os', finance:'fm', auto:'os', e7a:'e7a' };
+    try {
+      await api.createDispatchTask({
+        dispatch_id: record.server_id || record.id,
+        biz: _bizMap[record.route] || 'os',
+        title: record.message.substring(0, 80),
+        message: record.message,
+        priority: record.priority || 'normal',
+        task_origin: 'dispatch',
+      });
+    } catch { /* best-effort — dispatch already saved */ }
+
     dispatches.unshift(record);
     saveDispatches(dispatches);
     onUpdate({ dispatches, queue, status: 'routed', message: `Dispatched → ${ROUTES[record.route]?.label || record.route}` });

@@ -35,6 +35,8 @@ import ApprovalPreviewModal from "../components/ApprovalPreviewModal";
 import AppLauncherCard from "../components/AppLauncherCard";
 import useApprovals from "../hooks/useApprovals";
 import { quickDispatch } from "../services/dispatchService";
+import useDispatchTasks from "../hooks/useDispatchTasks";
+import ActiveTasksSection from "../components/ActiveTasksSection";
 
 // ─── MYA Agent system prompt ───────────────────────────────────────────────────
 const PA_SYSTEM = `You are MYA -- the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
@@ -2967,6 +2969,7 @@ export default function MotesartOS() {
   const [reviseReason, setReviseReason] = useState('');
   const [topTab, setTopTab] = useState("overview");
   const { approvals, approve: _approveBackend, revise: _reviseBackend, undo: _undoBackend } = useApprovals();
+  const { tasks: dispatchTasks } = useDispatchTasks(activeBiz);
 
   const isPersonal = activeBiz === "personal";
   const isBook = activeBiz === "book";
@@ -3183,6 +3186,11 @@ export default function MotesartOS() {
                 a.biz != null
               )}
             />
+          )}
+
+          {/* Active Tasks — Phase 5A */}
+          {!isSpecialView && activeTab === "overview" && (
+            <ActiveTasksSection tasks={dispatchTasks} />
           )}
 
           {/* Approvals — Phase 3C.A */}
