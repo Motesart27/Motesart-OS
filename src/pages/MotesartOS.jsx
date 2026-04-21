@@ -3173,6 +3173,18 @@ export default function MotesartOS() {
             </div>
           )}
 
+          {/* Ready to Schedule — Phase 4C */}
+          {!isSpecialView && (activeTab === "overview" || activeTab === "approvals") && (
+            <ReadyToScheduleSection
+              items={approvals.filter(a =>
+                a.biz === biz.id &&
+                a.ready_to_schedule === true &&
+                a.item != null &&
+                a.biz != null
+              )}
+            />
+          )}
+
           {/* Approvals — Phase 3C.A */}
           {!isSpecialView && (activeTab === "overview" || activeTab === "approvals") && (
             <div style={{ marginBottom: 18 }}>
@@ -3477,6 +3489,55 @@ export default function MotesartOS() {
 }
 
 // ─── Phase 3B — Secondary run button inside dispatch panel action bar ───
+function ReadyToScheduleSection({ items }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{
+        fontSize: 10, color: T.green, fontWeight: 700,
+        letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 9,
+      }}>✓ Ready to Schedule</div>
+      <div style={{ display: "grid", gap: 6 }}>
+        {items.map(a => (
+          <div key={a.content_id} style={{
+            background: T.card,
+            border: `1px solid ${T.green}35`,
+            borderLeft: `3px solid ${T.green}`,
+            borderRadius: 12,
+            padding: "10px 14px",
+            backdropFilter: "blur(12px)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+          }}>
+            <div style={{ display: "flex", gap: 5, marginBottom: 6, alignItems: "center", flexWrap: "wrap" }}>
+              <Badge text={a.type} color={T.blue} dim={T.blueDim} />
+              <Badge text={a.artist} color={T.gold} dim={T.goldDim} />
+              <span style={{
+                marginLeft: "auto", fontSize: 9, fontWeight: 700, color: T.green,
+                letterSpacing: "0.08em", textTransform: "uppercase",
+              }}>✓ Approved</span>
+            </div>
+            <div style={{
+              fontSize: 13, color: T.white, fontWeight: 600,
+              letterSpacing: "-0.01em", lineHeight: 1.4,
+              marginBottom: a.caption ? 4 : 0,
+            }}>{a.item}</div>
+            {a.caption && (
+              <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.5 }}>
+                {a.caption.length > 100 ? a.caption.substring(0, 100) + "…" : a.caption}
+              </div>
+            )}
+            {a.approved_at && (
+              <div style={{ fontSize: 9, color: T.muted, marginTop: 6, letterSpacing: "0.06em" }}>
+                Approved {new Date(a.approved_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DispatchExecutiveActions() {
   const { run, loading } = useExecutiveRun("som");
   const { available } = useExecutiveHealth();
