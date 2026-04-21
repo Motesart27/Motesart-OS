@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ROUTES,
   loadDispatches,
+  loadDispatchesFromBackend,
   loadQueue,
   saveDispatches,
   saveQueue,
@@ -68,16 +69,21 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [previews, setPreviews] = useState([]);
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState({ text: '', color: T.t3 });
+  const [receipt, setReceipt] = useState(null);
   const [filter, setFilter] = useState('all');
   const [online, setOnline] = useState(navigator.onLine);
   const fileRef = useRef(null);
   const imgRef = useRef(null);
   const bodyRef = useRef(null);
 
-  // Load data on mount
+  // Load data on open — backend is source of truth, localStorage is fallback
   useEffect(() => {
-    setDispatches(loadDispatches());
+    if (!open) return;
+    setReceipt(null);
     setQueue(loadQueue());
+    loadDispatchesFromBackend()
+      .then(list => setDispatches(list))
+      .catch(() => setDispatches(loadDispatches()));
   }, [open]);
 
   // Online/offline
@@ -96,6 +102,17 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       return () => clearTimeout(timer);
     }
   }, [online]);
+
+  const refreshHistory = () => {
+    loadDispatchesFromBackend()
+      .then(list => setDispatches(list))
+      .catch(() => {});
+  };
+
+  const handleTabClick = (t) => {
+    setTab(t);
+    if (t === 'history') refreshHistory();
+  };
 
   const handleUpdate = useCallback(({ dispatches: d, queue: q, status: s, message: m }) => {
     if (d) setDispatches([...d]);
@@ -130,8 +147,8 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     setSending(false);
 
     if (result.success) {
+      setReceipt(record);
       clearForm();
-      setTimeout(() => setTab('history'), 600);
     } else {
       clearForm();
     }
@@ -210,7 +227,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           {['compose', 'history', 'queue'].map(t => (
             <div
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => handleTabClick(t)}
               style={{ ...S.tab, ...(tab === t ? S.tabOn : {}) }}
             >
               {t === 'compose' ? 'Dispatch' : t === 'history' ? 'History' : 'Queue'}
@@ -248,6 +265,14 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           {/* ═══ COMPOSE ═══ */}
           {tab === 'compose' && (
             <div style={S.form}>
+              {receipt ? (
+                <DispatchReceipt
+                  receipt={receipt}
+                  routes={ROUTES}
+                  onHistory={() => { setReceipt(null); handleTabClick('history'); }}
+                  onNew={() => setReceipt(null)}
+                />
+              ) : (<>
               {/* Message */}
               <div style={S.field}>
                 <label style={S.label}>What do you need?</label>
@@ -342,6 +367,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                 </button>
                 {status.text && <span style={{ ...S.statusText, color: status.color }}>{status.text}</span>}
               </div>
+              </>)}
             </div>
           )}
 
@@ -455,6 +481,7 @@ function DispatchReceipt({ receipt, routes, onHistory, onNew }) {
           { label: 'Route', value: `${routeIcon} ${routeLabel}` },
           { label: 'Priority', value: receipt.priority?.toUpperCase() },
           { label: 'Status', value: receipt.status?.toUpperCase() },
+          { label: 'Check Progress', value: 'History tab — search by ID' },
         ].map(({ label, value, mono }) => (
           <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 9, color: '#4e5460', textTransform: 'uppercase', letterSpacing: '0.1em', flexShrink: 0 }}>{label}</span>
@@ -501,6 +528,8 @@ function ReceiptCard({ d }) {
   const badgeStyle = d.status === 'routed' ? S.badgeRouted :
                      d.status === 'queued' ? S.badgeQueued :
                      d.status === 'failed' ? S.badgeFailed : S.badgePending;
+  const created = d.created || d.created_at || '';
+  const dispatchId = d.server_id || d.id || '';
 
   return (
     <div style={S.receipt}>
@@ -521,11 +550,12 @@ function ReceiptCard({ d }) {
         </div>
       )}
       <div style={S.receiptMeta}>
-        <span style={S.tag}>📱 From Motesart OS — {formatTime(d.created)}</span>
-        <span style={S.tag}>{formatDate(d.created)}</span>
+        <span style={S.tag}>📱 {d.source || 'Motesart OS'} — {created ? formatTime(created) : '—'}</span>
+        <span style={S.tag}>{created ? formatDate(created) : ''}</span>
         <span style={S.tag}>{d.priority?.toUpperCase()}</span>
         {d.receipt?.confidence && <span style={S.tag}>Confidence: {d.receipt.confidence}</span>}
         {d.attachments?.length > 0 && <span style={S.tag}>📎 {d.attachments.length} file{d.attachments.length > 1 ? 's' : ''}</span>}
+        {dispatchId && <span style={{ ...S.tag, fontFamily: T.mono, fontSize: 9 }}>{dispatchId.substring(0, 22)}</span>}
       </div>
     </div>
   );

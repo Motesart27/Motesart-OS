@@ -65,6 +65,18 @@ const api = {
       body: JSON.stringify({ message, route, priority, source, client_dispatch_id }),
     }).then(r => { if (!r.ok) throw new Error(`dispatch ${r.status}`); return r.json() })
   },
+  getDispatches(limit = 50) {
+    const t = getToken()
+    return fetch(`${SOM_API}/api/dispatch?limit=${limit}`, {
+      headers: t ? { Authorization: `Bearer ${t}` } : {},
+    }).then(r => { if (!r.ok) throw new Error(`getDispatches ${r.status}`); return r.json() })
+  },
+  getDispatch(id) {
+    const t = getToken()
+    return fetch(`${SOM_API}/api/dispatch/${encodeURIComponent(id)}`, {
+      headers: t ? { Authorization: `Bearer ${t}` } : {},
+    }).then(r => { if (!r.ok) throw new Error(`getDispatch ${r.status}`); return r.json() })
+  },
   // ─── Phase 3B — Executive runner ─────────────────────
   // POST /api/executives/{name}/run
   // Body: {} for top-priority selection, or { task_id, dry_run } per Phase 3A handoff

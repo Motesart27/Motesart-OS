@@ -45,6 +45,39 @@ export function genDispatchId() {
   return 'mya_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
 }
 
+export async function loadDispatchesFromBackend() {
+  const data = await api.getDispatches(50)
+  const records = (data.dispatches || []).map(d => ({
+    id: d.client_dispatch_id || d.id,
+    server_id: d.id,
+    message: d.message,
+    route: d.route,
+    priority: d.priority,
+    status: d.status,
+    source: d.source,
+    created: d.created_at,
+    receipt: (d.ai_summary || d.ai_next_action) ? {
+      summary: d.ai_summary,
+      next_action: d.ai_next_action,
+      category: d.ai_category,
+      confidence: 'high',
+    } : null,
+    aiResult: null,
+    attachments: [],
+  }))
+  saveDispatches(records)
+  return records
+}
+
+export async function quickDispatch(message, route = 'pa', source = 'motesart-os') {
+  try {
+    const id = genDispatchId()
+    await api.postDispatch({ message, route, priority: 'normal', source, client_dispatch_id: id })
+  } catch {
+    // fire-and-forget — silently ignore errors
+  }
+}
+
 // ── CLASSIFY SERVICE (Anthropic Messages API) ────────
 
 export async function classifyDispatch(record) {

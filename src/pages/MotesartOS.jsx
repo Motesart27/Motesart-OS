@@ -34,6 +34,7 @@ import useExecutiveHealth from "../hooks/useExecutiveHealth";
 import ApprovalPreviewModal from "../components/ApprovalPreviewModal";
 import AppLauncherCard from "../components/AppLauncherCard";
 import useApprovals from "../hooks/useApprovals";
+import { quickDispatch } from "../services/dispatchService";
 
 // ─── MYA Agent system prompt ───────────────────────────────────────────────────
 const PA_SYSTEM = `You are MYA -- the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
@@ -814,6 +815,7 @@ function PAAgentChat({ onClose, activeBiz }) {
     function handleScheduleTask(e) {
       const task = e.detail;
       if (task) {
+        quickDispatch(task, 'pa', 'fm-executive');
         setActiveAgent("MYA");
         setInput(`Schedule this task for me: ${task}. Check my calendar for availability and suggest the best time. Ask me before adding it.`);
         setTimeout(() => {
@@ -3087,6 +3089,7 @@ export default function MotesartOS() {
               }}
               onOpenFM={() => { setActiveBiz("fm"); setActiveTab("overview"); }}
               onAskFM={() => {
+                quickDispatch("Finance brief requested", "finance", "fm-executive");
                 setChatOpen(true);
                 setTimeout(() => {
                   window.dispatchEvent(new CustomEvent("pa-schedule-task", { detail: "Give me a finance brief" }));
