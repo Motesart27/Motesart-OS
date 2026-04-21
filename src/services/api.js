@@ -38,6 +38,22 @@ const api = {
     try { const r = await fetch(`${SOM_API}/api/health`); return r.json() }
     catch { return { ok: false } }
   },
+  // ─── Phase 4A — Approvals ───────────────────────────────
+  listApprovals(biz) {
+    const url = biz ? `/api/approvals?biz=${encodeURIComponent(biz)}` : '/api/approvals'
+    const t = getToken()
+    return fetch(`${SOM_API}${url}`, {
+      headers: t ? { Authorization: `Bearer ${t}` } : {},
+    }).then(r => { if (!r.ok) throw new Error(`approvals ${r.status}`); return r.json() })
+  },
+  patchApprovalStatus(contentId, approval_status) {
+    const t = getToken()
+    return fetch(`${SOM_API}/api/approvals/${encodeURIComponent(contentId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+      body: JSON.stringify({ approval_status }),
+    }).then(r => { if (!r.ok) throw new Error(`patch approval ${r.status}`); return r.json() })
+  },
   // ─── Phase 3B — Executive runner ─────────────────────
   // POST /api/executives/{name}/run
   // Body: {} for top-priority selection, or { task_id, dry_run } per Phase 3A handoff

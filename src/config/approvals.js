@@ -22,6 +22,8 @@
 export const APPROVALS = [
   {
     id: 1,
+    content_id: "e7a-visual-velvet-room-soft-spot-cover",
+    approval_status: "pending",
     biz: "e7a",
     artist: "Velvet Room",
     type: "Visual",
@@ -33,6 +35,8 @@ export const APPROVALS = [
   },
   {
     id: 2,
+    content_id: "e7a-caption-velvet-room-reel-1",
+    approval_status: "pending",
     biz: "e7a",
     artist: "Velvet Room",
     type: "Caption",
@@ -44,6 +48,8 @@ export const APPROVALS = [
   },
   {
     id: 3,
+    content_id: "e7a-strategy-platform-lead-ig",
+    approval_status: "pending",
     biz: "e7a",
     artist: "Velvet Room",
     type: "Strategy",
@@ -55,6 +61,8 @@ export const APPROVALS = [
   },
   {
     id: 4,
+    content_id: "som-build-converter-arch-review",
+    approval_status: "pending",
     biz: "som",
     artist: "SOM",
     type: "Build",
@@ -66,6 +74,8 @@ export const APPROVALS = [
   },
   {
     id: 5,
+    content_id: "book-content-chapter4-case-study",
+    approval_status: "pending",
     biz: "book",
     artist: "Book",
     type: "Content",

@@ -33,7 +33,7 @@ import useExecutiveRun from "../hooks/useExecutiveRun";
 import useExecutiveHealth from "../hooks/useExecutiveHealth";
 import ApprovalPreviewModal from "../components/ApprovalPreviewModal";
 import AppLauncherCard from "../components/AppLauncherCard";
-import { APPROVALS } from "../config/approvals";
+import useApprovals from "../hooks/useApprovals";
 
 // ─── MYA Agent system prompt ───────────────────────────────────────────────────
 const PA_SYSTEM = `You are MYA -- the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
@@ -2957,13 +2957,12 @@ export default function MotesartOS() {
   const [activeBiz, setActiveBiz] = useState("e7a");
   const [selectedArtist, setSelectedArtist] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
-  const [approvedIds, setApprovedIds] = useState([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
-  const [revisionRequestedIds, setRevisionRequestedIds] = useState([]);
   const [previewItem, setPreviewItem] = useState(null);
   const [topTab, setTopTab] = useState("overview");
+  const { approvals, approve: _approveBackend, revise: _reviseBackend, undo: _undoBackend } = useApprovals();
 
   const isPersonal = activeBiz === "personal";
   const isBook = activeBiz === "book";
@@ -2975,32 +2974,24 @@ export default function MotesartOS() {
 
   function switchBiz(id) { setActiveBiz(id); setSelectedArtist(null); setActiveTab("overview"); setTopTab("overview"); }
 
-  // Phase 3C.A — approval state helpers
-  function statusFor(id) {
-    if (approvedIds.includes(id)) return "approved";
-    if (revisionRequestedIds.includes(id)) return "revision_requested";
-    return "pending";
-  }
+  // Phase 4A — approval status is now on each item from useApprovals
 
-  function handleApprove(id) {
-    setApprovedIds(ids => ids.includes(id) ? ids : [...ids, id]);
-    setRevisionRequestedIds(ids => ids.filter(x => x !== id));
+  function handleApprove(contentId) {
+    _approveBackend(contentId);
     setPreviewItem(null);
     try {
-      const item = APPROVALS.find(a => a.id === id);
+      const item = approvals.find(a => (a.content_id || String(a.id)) === contentId);
       window.dispatchEvent(new CustomEvent("approval-ready-to-schedule", { detail: { item } }));
     } catch { /* noop */ }
   }
 
-  function handleRevise(id) {
-    setRevisionRequestedIds(ids => ids.includes(id) ? ids : [...ids, id]);
-    setApprovedIds(ids => ids.filter(x => x !== id));
+  function handleRevise(contentId) {
+    _reviseBackend(contentId);
     setPreviewItem(null);
   }
 
-  function handleUndo(id) {
-    setApprovedIds(ids => ids.filter(x => x !== id));
-    setRevisionRequestedIds(ids => ids.filter(x => x !== id));
+  function handleUndo(contentId) {
+    _undoBackend(contentId);
     setPreviewItem(null);
   }
 
@@ -3174,8 +3165,9 @@ export default function MotesartOS() {
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 9 }}>Needs Approval</div>
               <div style={{ display: "grid", gap: 6 }}>
-                {APPROVALS.filter(a => a.biz === biz.id).map(a => {
-                  const status = statusFor(a.id);
+                {approvals.filter(a => a.biz === biz.id).map(a => {
+                  const cid = a.content_id || String(a.id);
+                  const status = a.approval_status || "pending";
                   const done = status === "approved";
                   const revise = status === "revision_requested";
                   const rowColor = done ? T.green : revise ? T.amber : null;
@@ -3234,17 +3226,17 @@ export default function MotesartOS() {
                           <span style={{ fontSize: 10, color: T.green, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
                             <span style={{ animation: "checkPop 0.35s cubic-bezier(0.22,1,0.36,1) both", display: "inline-block" }}>✓</span> Approved
                           </span>
-                          <button onClick={() => handleUndo(a.id)} style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "3px 8px", cursor: "pointer", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em" }}>Undo</button>
+                          <button onClick={() => handleUndo(cid)} style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "3px 8px", cursor: "pointer", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em" }}>Undo</button>
                         </div>
                       ) : revise ? (
                         <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                           <span style={{ fontSize: 10, color: T.amber, fontWeight: 700 }}>↺ Revision</span>
-                          <button onClick={() => handleUndo(a.id)} style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "3px 8px", cursor: "pointer", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em" }}>Undo</button>
+                          <button onClick={() => handleUndo(cid)} style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "3px 8px", cursor: "pointer", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em" }}>Undo</button>
                         </div>
                       ) : (
                         <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                          <button onClick={() => handleApprove(a.id)} style={{ background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>Approve</button>
-                          <button onClick={() => handleRevise(a.id)} style={{ background: T.redDim, border: `1px solid ${T.red}40`, color: T.red, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10 }}>Revise</button>
+                          <button onClick={() => handleApprove(cid)} style={{ background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>Approve</button>
+                          <button onClick={() => handleRevise(cid)} style={{ background: T.redDim, border: `1px solid ${T.red}40`, color: T.red, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10 }}>Revise</button>
                         </div>
                       )}
                     </div>
