@@ -17,13 +17,15 @@ const api = {
     return data
   },
   verifySession() {
-    const t = getToken()
-    if (!t) throw new Error('No token')
     try {
-      const payload = JSON.parse(atob(t.split('.')[0]))
-      if (payload.exp < Date.now()) throw new Error('Expired')
+      const t = getToken()
+      if (!t) return Promise.resolve({ valid: false })
+      const payload = JSON.parse(atob(t.split('.')[1]))
+      if (payload.exp && payload.exp * 1000 < Date.now()) return Promise.resolve({ valid: false })
       return Promise.resolve({ valid: true, user: payload })
-    } catch { throw new Error('Invalid token') }
+    } catch {
+      return Promise.resolve({ valid: false })
+    }
   },
   post(path, body = {}) {
     const t = getToken()

@@ -63,6 +63,7 @@ export function AuthProvider({ children }) {
     if (!token) {
       // No token = legacy session. Force re-login.
       console.warn('[SOM Auth] No token found — clearing legacy session')
+      console.warn('Session expired. Please log in again.')
       logout()
       return
     }
@@ -75,6 +76,7 @@ export function AuthProvider({ children }) {
         if (cancelled) return
         if (!data || !data.valid) {
           console.warn('[SOM Auth] Session invalid — forcing re-login')
+          console.warn('Session expired. Please log in again.')
           logout()
         } else if (data.user) {
           // Refresh role from Airtable (in case admin changed it)
@@ -85,6 +87,7 @@ export function AuthProvider({ children }) {
         // Backend unreachable — do NOT grant access. Force re-login.
         if (!cancelled) {
           console.warn('[SOM Auth] Backend unreachable — clearing session')
+          console.warn('Session expired. Please log in again.')
           logout()
         }
       })
