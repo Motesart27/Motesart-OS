@@ -133,6 +133,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       id: genDispatchId(),
       client_dispatch_id: genDispatchId(),
       message: msg.trim(),
+      biz: 'som',
       route,
       priority: prio,
       attachments: attachments.map(f => ({ name: f.name, type: f.type, size: f.size })),

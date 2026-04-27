@@ -167,15 +167,8 @@ export async function executeDispatch(record, { dispatches, queue, onUpdate }) {
   }
 
   try {
-    // 1. Post to backend — this is the authoritative record
-    const backendResult = await api.postDispatch({
-      message: record.message,
-      route: record.route,
-      priority: record.priority,
-      source: record.source || 'motesart-os',
-      client_dispatch_id: record.client_dispatch_id || record.id,
-    });
-    record.server_id = backendResult.id;
+    // 1. Post to backend via /api/mya/dispatch
+    await api.postMyaDispatch(record.message, record.biz || 'som');
 
     // 2. Try AI classification for receipt (best-effort — does not block dispatch)
     let ai = null;
@@ -218,7 +211,7 @@ export async function executeDispatch(record, { dispatches, queue, onUpdate }) {
     record.error = e.message || String(e);
     queue.push(record);
     saveQueue(queue);
-    onUpdate({ dispatches, queue, status: 'error', message: 'Failed — queued for retry' });
+    onUpdate({ dispatches, queue, status: 'error', message: e.message || String(e) });
     return { success: false, reason: 'error' };
   }
 }
