@@ -8,6 +8,7 @@ import {
   saveQueue,
   genDispatchId,
   executeDispatch,
+  resubmitClarification,
   retryQueueItem,
   dropQueueItem,
   formatTime,
@@ -72,6 +73,10 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [receipt, setReceipt] = useState(null);
   const [filter, setFilter] = useState('all');
   const [online, setOnline] = useState(navigator.onLine);
+  const [pendingDispatch, setPendingDispatch] = useState(null);
+  const [awaitingClarification, setAwaitingClarification] = useState(false);
+  const [clarificationQuestions, setClarificationQuestions] = useState([]);
+  const [myaMessage, setMyaMessage] = useState(null);
   const fileRef = useRef(null);
   const imgRef = useRef(null);
   const bodyRef = useRef(null);
@@ -80,6 +85,10 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   useEffect(() => {
     if (!open) return;
     setReceipt(null);
+    setMyaMessage(null);
+    setAwaitingClarification(false);
+    setPendingDispatch(null);
+    setClarificationQuestions([]);
     setQueue(loadQueue());
     loadDispatchesFromBackend()
       .then(list => setDispatches(list))
@@ -129,6 +138,31 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     setSending(true);
     setStatus({ text: '', color: T.t3 });
 
+    if (awaitingClarification && pendingDispatch) {
+      const question = (clarificationQuestions || [])[0] || '';
+      const updated = { ...pendingDispatch };
+      if (/date|time|when/i.test(question)) updated.requested_datetime_text = msg.trim();
+      else if (/email|attendee/i.test(question)) updated.attendee_email = msg.trim();
+      setAwaitingClarification(false);
+      setPendingDispatch(null);
+      setClarificationQuestions([]);
+      clearForm();
+      const result = await resubmitClarification(updated, { dispatches, queue, onUpdate: handleUpdate });
+      setSending(false);
+      if (result.type === 'clarification') {
+        setAwaitingClarification(true);
+        setPendingDispatch(result.pending_dispatch);
+        setClarificationQuestions(result.questions || []);
+        setMyaMessage((result.questions || [])[0] || 'Could you clarify?');
+      } else if (result.success && result.calendarEvent) {
+        const ev = result.calendarEvent;
+        setMyaMessage(`✅ Done — ${ev.title} scheduled. ${ev.html_link}`);
+      } else if (result.success) {
+        setReceipt({ id: genDispatchId(), status: 'routed', route: 'pa', priority: 'normal', created: new Date().toISOString() });
+      }
+      return;
+    }
+
     const record = {
       id: genDispatchId(),
       client_dispatch_id: genDispatchId(),
@@ -147,7 +181,17 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     const result = await executeDispatch(record, { dispatches, queue, onUpdate: handleUpdate });
     setSending(false);
 
-    if (result.success) {
+    if (result.type === 'clarification') {
+      setAwaitingClarification(true);
+      setPendingDispatch(result.pending_dispatch);
+      setClarificationQuestions(result.questions || []);
+      setMyaMessage((result.questions || [])[0] || 'Could you clarify?');
+      clearForm();
+    } else if (result.success && result.calendarEvent) {
+      const ev = result.calendarEvent;
+      setMyaMessage(`✅ Done — ${ev.title} scheduled. ${ev.html_link}`);
+      clearForm();
+    } else if (result.success) {
       setReceipt(record);
       clearForm();
     } else {
@@ -273,19 +317,54 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                   onHistory={() => { setReceipt(null); handleTabClick('history'); }}
                   onNew={() => setReceipt(null)}
                 />
+              ) : myaMessage && !awaitingClarification ? (
+                <div>
+                  <div style={{
+                    background: 'rgba(58,175,142,0.10)', border: '1px solid rgba(58,175,142,0.25)',
+                    borderRadius: 12, padding: '14px 16px', marginBottom: 18,
+                    display: 'flex', gap: 10, alignItems: 'flex-start',
+                  }}>
+                    <div style={{
+                      flexShrink: 0, width: 28, height: 28,
+                      background: 'linear-gradient(135deg, #3aaf8e, #2a8f72)',
+                      borderRadius: 8, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontSize: 13, color: '#fff',
+                    }}>◇</div>
+                    <div style={{ fontSize: 13, color: '#e5e3de', lineHeight: 1.6 }}>{myaMessage}</div>
+                  </div>
+                  <button onClick={() => setMyaMessage(null)} style={{ ...S.dispatchBtn }}>
+                    ◇ New Dispatch
+                  </button>
+                </div>
               ) : (<>
+              {myaMessage && awaitingClarification && (
+                <div style={{
+                  background: 'rgba(58,175,142,0.10)', border: '1px solid rgba(58,175,142,0.25)',
+                  borderRadius: 12, padding: '14px 16px', marginBottom: 18,
+                  display: 'flex', gap: 10, alignItems: 'flex-start',
+                }}>
+                  <div style={{
+                    flexShrink: 0, width: 28, height: 28,
+                    background: 'linear-gradient(135deg, #3aaf8e, #2a8f72)',
+                    borderRadius: 8, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 13, color: '#fff',
+                  }}>◇</div>
+                  <div style={{ fontSize: 13, color: '#e5e3de', lineHeight: 1.6 }}>{myaMessage}</div>
+                </div>
+              )}
               {/* Message */}
               <div style={S.field}>
-                <label style={S.label}>What do you need?</label>
+                <label style={S.label}>{awaitingClarification ? 'Your reply' : 'What do you need?'}</label>
                 <textarea
                   style={S.textarea}
                   value={msg}
                   onChange={e => setMsg(e.target.value)}
-                  placeholder="Describe the task, request, or message…"
+                  placeholder={awaitingClarification ? 'Type your answer…' : 'Describe the task, request, or message…'}
                   rows={4}
                 />
               </div>
 
+              {!awaitingClarification && (<>
               {/* Routes */}
               <div style={S.field}>
                 <label style={S.label}>Route To</label>
@@ -356,6 +435,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                   </div>
                 )}
               </div>
+              </>)}
 
               {/* Submit */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 22 }}>
@@ -364,7 +444,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                   disabled={sending}
                   style={{ ...S.dispatchBtn, opacity: sending ? 0.5 : 1 }}
                 >
-                  {sending ? '⏳ Dispatching…' : '◇ Dispatch'}
+                  {sending ? '⏳ Dispatching…' : awaitingClarification ? '◇ Send Reply' : '◇ Dispatch'}
                 </button>
                 {status.text && <span style={{ ...S.statusText, color: status.color }}>{status.text}</span>}
               </div>

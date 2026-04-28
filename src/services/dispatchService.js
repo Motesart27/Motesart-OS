@@ -168,7 +168,19 @@ export async function executeDispatch(record, { dispatches, queue, onUpdate }) {
 
   try {
     // 1. Post to backend via /api/mya/dispatch
-    await api.postMyaDispatch(record.message, record.biz || 'som');
+    const response = await api.postMyaDispatch(record.message, record.biz || 'som');
+
+    if (response.execution_status === 'needs_clarification') {
+      return {
+        type: 'clarification',
+        questions: response.clarification_questions,
+        pending_dispatch: response.pending_dispatch,
+      };
+    }
+
+    const calendarEvent = response.execution_status === 'calendar_event_created'
+      ? response.calendar_event
+      : null;
 
     // 2. Try AI classification for receipt (best-effort — does not block dispatch)
     let ai = null;
@@ -204,13 +216,53 @@ export async function executeDispatch(record, { dispatches, queue, onUpdate }) {
     dispatches.unshift(record);
     saveDispatches(dispatches);
     onUpdate({ dispatches, queue, status: 'routed', message: `Dispatched → ${ROUTES[record.route]?.label || record.route}` });
-    return { success: true };
+    return { success: true, calendarEvent };
 
   } catch (e) {
     record.status = 'queued';
     record.error = e.message || String(e);
     queue.push(record);
     saveQueue(queue);
+    onUpdate({ dispatches, queue, status: 'error', message: e.message || String(e) });
+    return { success: false, reason: 'error' };
+  }
+}
+
+export async function resubmitClarification(pendingDispatch, { dispatches, queue, onUpdate }) {
+  if (!navigator.onLine) {
+    const record = { id: genDispatchId(), ...pendingDispatch, status: 'queued', created: new Date().toISOString() };
+    queue.push(record);
+    saveQueue(queue);
+    onUpdate({ dispatches, queue, status: 'queued', message: 'Offline — queued for retry' });
+    return { success: false, reason: 'offline' };
+  }
+  try {
+    const response = await api.postMyaDispatchPending(pendingDispatch);
+    if (response.execution_status === 'needs_clarification') {
+      return {
+        type: 'clarification',
+        questions: response.clarification_questions,
+        pending_dispatch: response.pending_dispatch,
+      };
+    }
+    const calendarEvent = response.execution_status === 'calendar_event_created'
+      ? response.calendar_event
+      : null;
+    const record = {
+      id: genDispatchId(),
+      message: pendingDispatch.message || '',
+      route: 'pa',
+      priority: 'normal',
+      status: 'routed',
+      created: new Date().toISOString(),
+      source: 'motesart-os',
+      receipt: { summary: 'Clarification provided and dispatched', confidence: 'high', category: 'task' },
+    };
+    dispatches.unshift(record);
+    saveDispatches(dispatches);
+    onUpdate({ dispatches, queue, status: 'routed', message: 'Dispatched' });
+    return { success: true, calendarEvent };
+  } catch (e) {
     onUpdate({ dispatches, queue, status: 'error', message: e.message || String(e) });
     return { success: false, reason: 'error' };
   }

@@ -80,6 +80,19 @@ const api = {
     }
     return res.json()
   },
+  async postMyaDispatchPending(pendingDispatch) {
+    const t = getToken()
+    const res = await fetch(`${SOM_API}/api/mya/dispatch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+      body: JSON.stringify(pendingDispatch),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`ERROR: ${res.status} ${body}`)
+    }
+    return res.json()
+  },
   getDispatches(limit = 50) {
     const t = getToken()
     return fetch(`${SOM_API}/api/dispatch?limit=${limit}`, {
