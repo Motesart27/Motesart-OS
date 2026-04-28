@@ -2103,7 +2103,7 @@ function BookManagerPanel() {
   };
 
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"240px 1fr 280px", height:"100%", overflow:"hidden", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+    <div style={{ display:"grid", gridTemplateColumns: typeof window !== "undefined" && window.innerWidth <= 768 ? "1fr" : "240px 1fr 280px", height:"100%", overflow:"hidden", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
 
       {/* ── LEFT RAIL ── */}
       <div style={{ background:"#101013", borderRight:"1px solid rgba(255,255,255,0.06)", overflowY:"auto", padding:"12px 0 24px" }}>
