@@ -3378,7 +3378,7 @@ export default function MotesartOS() {
       {/* Floating MYA pill button */}
       {!chatOpen && (
         <button onClick={() => setChatOpen(true)} className="os-pa-pill" style={{
-          position: "fixed", bottom: "calc(env(safe-area-inset-bottom, 16px) + 80px)", right: "max(24px, env(safe-area-inset-right))", zIndex: 150,
+          position: "fixed", bottom: "calc(env(safe-area-inset-bottom, 20px) + 64px)", right: "max(24px, env(safe-area-inset-right))", zIndex: 150,
           background: `linear-gradient(135deg, ${T.goldDim}, rgba(201,168,76,0.18))`,
           border: `1px solid ${T.borderHi}`,
           borderRadius: "50%", width: 50, height: 50,
@@ -3465,7 +3465,7 @@ export default function MotesartOS() {
             gap: 2px !important;
           }
           .os-main {
-            padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+            padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 64px) !important;
           }
           .os-main .os-content-area {
             padding: 14px !important;
