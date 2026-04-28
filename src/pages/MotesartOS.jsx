@@ -2957,7 +2957,7 @@ function BizTodoList({ biz }) {
 
 
 export default function MotesartOS() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(typeof window !== "undefined" && window.innerWidth > 768);
   const [activeBiz, setActiveBiz] = useState("e7a");
   const [selectedArtist, setSelectedArtist] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -3020,6 +3020,7 @@ export default function MotesartOS() {
         {/* Topbar */}
         <div style={{ borderBottom: `1px solid ${T.border}`, padding: "12px 22px", background: T.surface, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button className="os-back-btn" onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, minWidth: 36, minHeight: 36, paddingTop: "env(safe-area-inset-top, 44px)", paddingLeft: 0, flexShrink: 0 }}>‹</button>
             <div style={{ width: 3, height: 22, background: biz.color, borderRadius: 2 }} />
             <div>
               <div style={{ fontSize: 15, fontWeight: 800, color: T.white, letterSpacing: "-0.02em" }}>{biz.full}</div>
@@ -3377,7 +3378,7 @@ export default function MotesartOS() {
       {/* Floating MYA pill button */}
       {!chatOpen && (
         <button onClick={() => setChatOpen(true)} className="os-pa-pill" style={{
-          position: "fixed", bottom: "calc(24px + env(safe-area-inset-bottom))", right: "max(24px, env(safe-area-inset-right))", zIndex: 150,
+          position: "fixed", bottom: "calc(env(safe-area-inset-bottom, 16px) + 80px)", right: "max(24px, env(safe-area-inset-right))", zIndex: 150,
           background: `linear-gradient(135deg, ${T.goldDim}, rgba(201,168,76,0.18))`,
           border: `1px solid ${T.borderHi}`,
           borderRadius: "50%", width: 50, height: 50,
@@ -3421,6 +3422,8 @@ export default function MotesartOS() {
           from { stroke-dasharray: 0 113.1; }
         }
 
+        .os-back-btn { display: none; }
+
         /* ─── Mobile: sidebar → bottom tab bar ─── */
         @media (max-width: 700px) {
           .os-root {
@@ -3439,7 +3442,7 @@ export default function MotesartOS() {
             z-index: 100 !important;
             overflow-x: auto !important;
             overflow-y: hidden !important;
-            padding-bottom: env(safe-area-inset-bottom) !important;
+            padding-bottom: env(safe-area-inset-bottom, 16px) !important;
           }
           .os-sidebar > *:first-child,
           .os-sidebar > *:nth-child(2) { display: none !important; }
@@ -3476,9 +3479,14 @@ export default function MotesartOS() {
           .os-stat-card {
             min-width: 0 !important;
           }
+          .os-content-area {
+            display: flex !important;
+            flex-direction: column !important;
+          }
           .os-topbar-title {
             font-size: 13px !important;
           }
+          .os-back-btn { display: flex !important; }
         }
 
         @media (max-width: 480px) {
