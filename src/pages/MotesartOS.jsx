@@ -3443,6 +3443,7 @@ export default function MotesartOS() {
             overflow-x: auto !important;
             overflow-y: hidden !important;
             padding-bottom: env(safe-area-inset-bottom, 16px) !important;
+            align-items: center !important;
           }
           .os-sidebar > *:first-child,
           .os-sidebar > *:nth-child(2) { display: none !important; }
@@ -3451,11 +3452,18 @@ export default function MotesartOS() {
             padding: 4px 8px !important;
             flex: 1 !important;
             overflow-x: auto !important;
+            display: flex !important;
+            align-items: center !important;
+            height: 100% !important;
+            white-space: nowrap !important;
           }
           .os-sidebar > *:nth-child(3) button {
             margin-bottom: 0 !important;
             margin-right: 2px !important;
             flex-shrink: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            white-space: nowrap !important;
           }
           .os-sidebar > *:last-child {
             flex-direction: row !important;
@@ -3463,6 +3471,8 @@ export default function MotesartOS() {
             border-left: 1px solid rgba(255,255,255,0.055) !important;
             padding: 4px 8px !important;
             gap: 2px !important;
+            align-items: center !important;
+            height: 100% !important;
           }
           .os-main {
             padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 64px) !important;
@@ -3471,7 +3481,7 @@ export default function MotesartOS() {
             padding: 14px !important;
           }
           .os-pa-pill {
-            bottom: calc(68px + env(safe-area-inset-bottom)) !important;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 64px) !important;
             right: max(14px, env(safe-area-inset-right)) !important;
             font-size: 11px !important;
             padding: 10px 16px 10px 14px !important;
