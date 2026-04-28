@@ -3452,7 +3452,7 @@ export default function MotesartOS() {
             padding: 4px 8px !important;
             flex: 1 !important;
             overflow-x: auto !important;
-            display: flex !important;
+            display: none !important;
             align-items: center !important;
             height: 100% !important;
             white-space: nowrap !important;
@@ -3477,6 +3477,8 @@ export default function MotesartOS() {
             height: 100% !important;
             overflow: hidden !important;
             white-space: nowrap !important;
+            flex: 1 !important;
+            justify-content: space-around !important;
           }
           .os-main {
             padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 64px) !important;
