@@ -3020,7 +3020,7 @@ export default function MotesartOS() {
         {/* Topbar */}
         <div style={{ borderBottom: `1px solid ${T.border}`, padding: "12px 22px", background: T.surface, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button className="os-back-btn" onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, minWidth: 36, minHeight: 36, paddingTop: "env(safe-area-inset-top, 44px)", paddingLeft: 0, flexShrink: 0 }}>‹</button>
+            <button className="os-back-btn" onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, minWidth: 36, minHeight: 36, paddingTop: 0, paddingLeft: 0, flexShrink: 0 }}>‹</button>
             <div style={{ width: 3, height: 22, background: biz.color, borderRadius: 2 }} />
             <div>
               <div style={{ fontSize: 15, fontWeight: 800, color: T.white, letterSpacing: "-0.02em" }}>{biz.full}</div>
@@ -3072,19 +3072,19 @@ export default function MotesartOS() {
 
           {/* Book Manager Executive Dashboard */}
           {isBook && (
-            <div style={{ margin: -22, height: "calc(100% + 44px)", display: "flex", flexDirection: "column" }}>
+            <div className="os-book-panel" style={{ margin: -22, height: "calc(100% + 44px)", display: "flex", flexDirection: "column" }}>
               <BookManagerPanel />
             </div>
           )}
 
           {/* FM Travel Builder Tab */}
           {isFM && activeTab === "travel builder" && (
-            <TravelBuilderPanel />
+            <div className="os-travel-panel"><TravelBuilderPanel /></div>
           )}
 
           {/* Personal Main View */}
           {isPersonal && !isJean && (
-            <PersonalMainView
+            <div className="os-personal-view"><PersonalMainView
               onScheduleTask={(task) => {
                 setChatOpen(true);
                 setTimeout(() => {
@@ -3099,7 +3099,7 @@ export default function MotesartOS() {
                   window.dispatchEvent(new CustomEvent("pa-schedule-task", { detail: "Give me a finance brief" }));
                 }, 100);
               }}
-            />
+            /></div>
           )}
 
           {/* Jean Main View */}
@@ -3378,7 +3378,7 @@ export default function MotesartOS() {
       {/* Floating MYA pill button */}
       {!chatOpen && (
         <button onClick={() => setChatOpen(true)} className="os-pa-pill" style={{
-          position: "fixed", bottom: "calc(env(safe-area-inset-bottom, 20px) + 64px)", right: "max(24px, env(safe-area-inset-right))", zIndex: 150,
+          position: "fixed", bottom: "calc(env(safe-area-inset-bottom, 20px) + 76px)", right: "max(24px, env(safe-area-inset-right))", zIndex: 150,
           background: `linear-gradient(135deg, ${T.goldDim}, rgba(201,168,76,0.18))`,
           border: `1px solid ${T.borderHi}`,
           borderRadius: "50%", width: 50, height: 50,
@@ -3464,6 +3464,8 @@ export default function MotesartOS() {
             display: flex !important;
             align-items: center !important;
             white-space: nowrap !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
           }
           .os-sidebar > *:last-child {
             flex-direction: row !important;
@@ -3473,12 +3475,21 @@ export default function MotesartOS() {
             gap: 2px !important;
             align-items: center !important;
             height: 100% !important;
+            overflow: hidden !important;
+            white-space: nowrap !important;
           }
           .os-main {
             padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 64px) !important;
           }
           .os-main .os-content-area {
             padding: 14px !important;
+          }
+          .os-book-panel {
+            height: calc(100dvh - calc(56px + env(safe-area-inset-bottom, 20px))) !important;
+            margin: 0 !important;
+          }
+          .os-personal-view, .os-travel-panel {
+            padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 64px) !important;
           }
           .os-pa-pill {
             bottom: calc(env(safe-area-inset-bottom, 20px) + 64px) !important;
