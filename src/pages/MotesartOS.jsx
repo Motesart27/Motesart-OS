@@ -3482,6 +3482,12 @@ export default function MotesartOS() {
           .os-content-area {
             display: flex !important;
             flex-direction: column !important;
+            width: 100% !important;
+          }
+          .os-content-area > * {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
           }
           .os-topbar-title {
             font-size: 13px !important;
