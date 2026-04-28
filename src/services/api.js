@@ -7,7 +7,7 @@ export function clearToken() { localStorage.removeItem('som_token'); localStorag
 
 const api = {
   async login(email, password) {
-    const res = await fetch('/api/login', {
+    const res = await fetch(`${SOM_API}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -118,8 +118,6 @@ const api = {
     }).then(r => { if (!r.ok) throw new Error(`patchDispatchTask ${r.status}`); return r.json() })
   },
   // ─── Phase 3B — Executive runner ─────────────────────
-  // POST /api/executives/{name}/run
-  // Body: {} for top-priority selection, or { task_id, dry_run } per Phase 3A handoff
   runExecutive(name, body = {}) {
     return api.post(`/api/executives/${name}/run`, body)
   },
