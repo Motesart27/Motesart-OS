@@ -767,7 +767,7 @@ function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen
           {open && <span style={{ fontSize: 12, fontWeight: 700, color: onPersonalActive ? T.green : T.muted }}>Personal</span>}
           {open && <NotifDot count={1} color={T.green} />}
         </button>
-        <button onClick={onPAOpen} style={{
+        <button onClick={onDispatchOpen} style={{
           width: "100%", background: T.goldDim, border: `1px solid ${T.borderHi}`,
           borderRadius: 8, padding: open ? "9px 10px" : "9px",
           cursor: "pointer", display: "flex", alignItems: "center",
