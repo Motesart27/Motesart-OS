@@ -80,6 +80,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [awaitingClarification, setAwaitingClarification] = useState(false);
   const [clarificationQuestions, setClarificationQuestions] = useState([]);
   const [myaMessage, setMyaMessage] = useState(null);
+  const [conversationHistory, setConversationHistory] = useState([]);
   const fileRef = useRef(null);
   const imgRef = useRef(null);
   const bodyRef = useRef(null);
@@ -97,6 +98,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     setPendingDispatch(null);
     setClarificationQuestions([]);
     setVoiceResult(null);
+    setConversationHistory([]);
     setVoiceState('idle');
     if (recorderRef.current) {
       try { recorderRef.current.stop(); recorderRef.current.stream.getTracks().forEach(t => t.stop()); } catch {}
@@ -263,6 +265,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
       const form = new FormData();
       form.append('audio', blob, 'recording.webm');
+      form.append('conversation_history', JSON.stringify(conversationHistory));
       const base = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
       let willSpeak = false;
       try {
@@ -271,6 +274,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         if (!res.ok) throw new Error(data?.detail?.error || 'voice error');
         if (data.transcript) setMsg(data.transcript);
         else setMsg('');
+        if (data.conversation_history) setConversationHistory(data.conversation_history);
         setVoiceResult(data);
         if (data.audio_base64) {
           const bytes = atob(data.audio_base64);
