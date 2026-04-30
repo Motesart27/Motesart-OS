@@ -70,7 +70,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [previews, setPreviews] = useState([]);
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState({ text: '', color: T.t3 });
-  const [voiceState, setVoiceState] = useState('idle'); // 'idle' | 'recording' | 'processing'
+  const [voiceState, setVoiceState] = useState('idle'); // 'idle' | 'recording' | 'processing' | 'speaking'
   const [voiceResult, setVoiceResult] = useState(null);
   const [receipt, setReceipt] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -270,7 +270,10 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           const bytes = atob(data.audio_base64);
           const arr = new Uint8Array(bytes.length);
           for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-          new Audio(URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }))).play().catch(() => {});
+          const aud = new Audio(URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' })));
+          aud.onended = () => setVoiceState('idle');
+          setVoiceState('speaking');
+          aud.play().catch(() => setVoiceState('idle'));
         }
       } catch (err) {
         setStatus({ text: `⚠ Voice: ${err.message.slice(0, 40)}`, color: T.red });
@@ -298,6 +301,14 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 
   return (
     <div style={S.overlay}>
+      <style>{`
+        @keyframes pulse-ring { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(1.8);opacity:0} }
+        @keyframes pulse-ring2 { 0%{transform:scale(1);opacity:0.4} 100%{transform:scale(2.2);opacity:0} }
+        @keyframes wave-bar { 0%,100%{height:6px} 50%{height:20px} }
+        @keyframes jarvis-spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+        @keyframes jarvis-inner { 0%{transform:rotate(0deg)} 100%{transform:rotate(-360deg)} }
+        @keyframes dot-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+      `}</style>
       <div style={S.panel}>
         {/* HEADER */}
         <div style={S.header}>
@@ -469,19 +480,6 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                   <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.xlsx,.csv" style={{ display: 'none' }} onChange={handleFiles} />
                   <div style={S.attachBtn} onClick={() => imgRef.current?.click()}>📷 Photo</div>
                   <input ref={imgRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
-                  <button
-                    onClick={handleVoice}
-                    disabled={voiceState === 'processing'}
-                    style={{
-                      ...S.attachBtn,
-                      background: voiceState === 'recording' ? 'rgba(239,83,80,0.10)' : 'transparent',
-                      border: `1.5px dashed ${voiceState === 'recording' ? T.red : voiceState === 'processing' ? T.teal : T.border2}`,
-                      color: voiceState === 'recording' ? T.red : voiceState === 'processing' ? T.teal : T.t3,
-                      cursor: voiceState === 'processing' ? 'default' : 'pointer',
-                    }}
-                  >
-                    {voiceState === 'recording' ? '⏹ Stop' : voiceState === 'processing' ? '⏳ Sending…' : '🎙 Voice'}
-                  </button>
                 </div>
                 {previews.length > 0 && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
@@ -596,6 +594,81 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
             </div>
           )}
         </div>
+
+        {/* Voice bottom bar — always visible */}
+        <div style={{ display:'flex',alignItems:'center',gap:14,padding:'12px 20px',
+          paddingBottom:'max(12px, env(safe-area-inset-bottom))',
+          borderTop:`1px solid ${T.border}`,background:T.bg2,flexShrink:0 }}>
+          <div style={{ position:'relative',width:44,height:44,flexShrink:0 }}>
+            {voiceState==='recording' && <>
+              <div style={{ position:'absolute',inset:0,borderRadius:'50%',
+                border:'1.5px solid rgba(239,68,68,0.5)',animation:'pulse-ring 1.2s ease-out infinite',zIndex:0 }}/>
+              <div style={{ position:'absolute',inset:0,borderRadius:'50%',
+                border:'1.5px solid rgba(239,68,68,0.3)',animation:'pulse-ring2 1.2s ease-out 0.3s infinite',zIndex:0 }}/>
+            </>}
+            {voiceState==='speaking' && <>
+              <div style={{ position:'absolute',inset:0,borderRadius:'50%',
+                border:'1.5px dashed rgba(20,184,166,0.4)',animation:'jarvis-spin 4s linear infinite',zIndex:0 }}/>
+              <div style={{ position:'absolute',inset:6,borderRadius:'50%',
+                border:'1px dashed rgba(20,184,166,0.3)',animation:'jarvis-inner 3s linear infinite',zIndex:0 }}/>
+            </>}
+            <button onClick={handleVoice}
+              disabled={voiceState==='processing'||voiceState==='speaking'}
+              style={{ position:'relative',zIndex:1,width:44,height:44,borderRadius:'50%',
+                display:'flex',alignItems:'center',justifyContent:'center',
+                border: voiceState==='recording' ? '1.5px solid rgba(239,68,68,0.7)' : '1.5px solid rgba(20,184,166,0.4)',
+                background: voiceState==='recording' ? 'rgba(239,68,68,0.15)'
+                  : voiceState==='processing' ? 'rgba(20,184,166,0.08)' : 'rgba(20,184,166,0.12)',
+                cursor: voiceState==='processing'||voiceState==='speaking' ? 'default' : 'pointer',
+                flexShrink:0 }}>
+              {voiceState==='idle' && (
+                <svg width='18' height='18' viewBox='0 0 18 18' fill='none'>
+                  <rect x='6' y='1' width='6' height='9' rx='3' fill='rgba(20,184,166,0.9)'/>
+                  <path d='M3 9a6 6 0 0 0 12 0' stroke='rgba(20,184,166,0.9)' strokeWidth='1.5' strokeLinecap='round' fill='none'/>
+                  <line x1='9' y1='15' x2='9' y2='17' stroke='rgba(20,184,166,0.9)' strokeWidth='1.5' strokeLinecap='round'/>
+                  <line x1='6' y1='17' x2='12' y2='17' stroke='rgba(20,184,166,0.9)' strokeWidth='1.5' strokeLinecap='round'/>
+                </svg>
+              )}
+              {voiceState==='recording' && (
+                <div style={{ display:'flex',alignItems:'center',gap:2,height:20 }}>
+                  {[0,0.1,0.2,0.1,0].map((d,i) => (
+                    <div key={i} style={{ width:3,height:6,borderRadius:2,background:'#ef4444',
+                      animation:`wave-bar 0.6s ease-in-out ${d}s infinite` }}/>
+                  ))}
+                </div>
+              )}
+              {voiceState==='processing' && <span style={{ fontSize:16 }}>⏳</span>}
+              {voiceState==='speaking' && (
+                <div style={{ display:'flex',alignItems:'center',gap:2,height:20 }}>
+                  {[0,0.08,0.16,0.08,0].map((d,i) => (
+                    <div key={i} style={{ width:3,height:6,borderRadius:2,background:'rgba(20,184,166,0.9)',
+                      animation:`wave-bar 0.4s ease-in-out ${d}s infinite` }}/>
+                  ))}
+                </div>
+              )}
+            </button>
+          </div>
+          <div style={{ display:'flex',alignItems:'center',gap:6 }}>
+            {voiceState==='recording' && (
+              <span style={{ width:6,height:6,borderRadius:'50%',background:T.red,
+                animation:'dot-blink 1s ease-in-out infinite',display:'inline-block' }}/>
+            )}
+            {voiceState==='speaking' && (
+              <span style={{ width:6,height:6,borderRadius:'50%',background:'rgba(20,184,166,0.9)',
+                boxShadow:'0 0 6px rgba(20,184,166,0.6)',display:'inline-block' }}/>
+            )}
+            <span style={{ fontSize:12,fontWeight:700,
+              color: voiceState==='recording' ? T.red
+                : voiceState==='speaking' ? 'rgba(20,184,166,0.9)'
+                : voiceState==='processing' ? T.teal : T.t2 }}>
+              {voiceState==='idle' ? 'Speak to Mya'
+                : voiceState==='recording' ? 'Recording — tap to send'
+                : voiceState==='processing' ? 'Sending to Mya…'
+                : 'Mya is speaking'}
+            </span>
+          </div>
+        </div>
+
       </div>
     </div>
   );
