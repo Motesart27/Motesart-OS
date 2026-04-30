@@ -70,6 +70,8 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [previews, setPreviews] = useState([]);
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState({ text: '', color: T.t3 });
+  const [voiceState, setVoiceState] = useState('idle'); // 'idle' | 'recording' | 'processing'
+  const [voiceResult, setVoiceResult] = useState(null);
   const [receipt, setReceipt] = useState(null);
   const [filter, setFilter] = useState('all');
   const [online, setOnline] = useState(navigator.onLine);
@@ -80,6 +82,8 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const fileRef = useRef(null);
   const imgRef = useRef(null);
   const bodyRef = useRef(null);
+  const recorderRef = useRef(null);
+  const chunksRef = useRef([]);
 
   // Load data on open — backend is source of truth, localStorage is fallback
   useEffect(() => {
@@ -89,6 +93,12 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     setAwaitingClarification(false);
     setPendingDispatch(null);
     setClarificationQuestions([]);
+    setVoiceResult(null);
+    setVoiceState('idle');
+    if (recorderRef.current) {
+      try { recorderRef.current.stop(); recorderRef.current.stream.getTracks().forEach(t => t.stop()); } catch {}
+      recorderRef.current = null;
+    }
     setQueue(loadQueue());
     loadDispatchesFromBackend()
       .then(list => setDispatches(list))
@@ -205,6 +215,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     setPrio('normal');
     setAttachments([]);
     setPreviews([]);
+    setVoiceResult(null);
   };
 
   // ── FILES ────────────────────────────────────────
@@ -235,6 +246,49 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 
   const handleDrop = (idx) => {
     dropQueueItem(idx, { dispatches, queue, onUpdate: handleUpdate });
+  };
+
+  const handleVoice = async () => {
+    if (voiceState === 'recording') {
+      const rec = recorderRef.current;
+      if (!rec) return;
+      rec.stop();
+      rec.stream.getTracks().forEach(t => t.stop());
+      setVoiceState('processing');
+      await new Promise(r => { rec.onstop = r; });
+      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+      const form = new FormData();
+      form.append('audio', blob, 'recording.webm');
+      const base = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
+      try {
+        const res = await fetch(`${base}/api/mya/voice`, { method: 'POST', body: form });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.detail?.error || 'voice error');
+        if (data.transcript) setMsg(data.transcript);
+        setVoiceResult(data);
+        if (data.audio_base64) {
+          const bytes = atob(data.audio_base64);
+          const arr = new Uint8Array(bytes.length);
+          for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+          new Audio(URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }))).play().catch(() => {});
+        }
+      } catch (err) {
+        setStatus({ text: `⚠ Voice: ${err.message.slice(0, 40)}`, color: T.red });
+      }
+      setVoiceState('idle');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunksRef.current = [];
+      const rec = new MediaRecorder(stream);
+      rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      rec.start();
+      recorderRef.current = rec;
+      setVoiceState('recording');
+    } catch {
+      setStatus({ text: '⚠ Mic access denied', color: T.red });
+    }
   };
 
   // ── RENDER ───────────────────────────────────────
@@ -415,7 +469,19 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                   <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.doc,.docx,.xlsx,.csv" style={{ display: 'none' }} onChange={handleFiles} />
                   <div style={S.attachBtn} onClick={() => imgRef.current?.click()}>📷 Photo</div>
                   <input ref={imgRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFiles} />
-                  <div style={S.voiceBtn}>🎙 Voice <span style={S.voiceSoon}>PHASE 1.5</span></div>
+                  <button
+                    onClick={handleVoice}
+                    disabled={voiceState === 'processing'}
+                    style={{
+                      ...S.attachBtn,
+                      background: voiceState === 'recording' ? 'rgba(239,83,80,0.10)' : 'transparent',
+                      border: `1.5px dashed ${voiceState === 'recording' ? T.red : voiceState === 'processing' ? T.teal : T.border2}`,
+                      color: voiceState === 'recording' ? T.red : voiceState === 'processing' ? T.teal : T.t3,
+                      cursor: voiceState === 'processing' ? 'default' : 'pointer',
+                    }}
+                  >
+                    {voiceState === 'recording' ? '⏹ Stop' : voiceState === 'processing' ? '⏳ Sending…' : '🎙 Voice'}
+                  </button>
                 </div>
                 {previews.length > 0 && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
@@ -436,6 +502,22 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                 )}
               </div>
               </>)}
+
+              {/* Voice response card */}
+              {voiceResult && (
+                <div style={{
+                  background: 'rgba(58,175,142,0.08)', border: '1px solid rgba(58,175,142,0.22)',
+                  borderRadius: 10, padding: '12px 14px', marginTop: 14,
+                }}>
+                  {voiceResult.transcript && (
+                    <div style={{ fontSize: 11, color: T.t2, marginBottom: 6, fontFamily: T.mono }}>
+                      YOU: {voiceResult.transcript}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 13, color: T.teal, lineHeight: 1.6 }}>&#9671; {voiceResult.response_text}</div>
+                  <button onClick={() => setVoiceResult(null)} style={{ marginTop: 8, background: 'none', border: 'none', color: T.t3, fontSize: 11, cursor: 'pointer', padding: 0 }}>dismiss</button>
+                </div>
+              )}
 
               {/* Submit */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 22 }}>
