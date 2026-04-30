@@ -70,8 +70,9 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [previews, setPreviews] = useState([]);
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState({ text: '', color: T.t3 });
-  const [voiceState, setVoiceState] = useState('idle'); // 'idle' | 'recording' | 'processing' | 'speaking'
+  const [voiceState, setVoiceState] = useState('idle'); // 'idle' | 'recording' | 'processing' | 'speaking' | 'replay'
   const [voiceResult, setVoiceResult] = useState(null);
+  const [lastAudioUrl, setLastAudioUrl] = useState(null);
   const [receipt, setReceipt] = useState(null);
   const [filter, setFilter] = useState('all');
   const [online, setOnline] = useState(navigator.onLine);
@@ -275,8 +276,10 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           const bytes = atob(data.audio_base64);
           const arr = new Uint8Array(bytes.length);
           for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-          const aud = new Audio(URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' })));
-          aud.onended = () => { setVoiceState('idle'); if (isOpenRef.current) setTimeout(() => handleVoice(), 500); };
+          const url = URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }));
+          setLastAudioUrl(url);
+          const aud = new Audio(url);
+          aud.onended = () => { setVoiceState('replay'); if (isOpenRef.current) setTimeout(() => handleVoice(), 500); };
           setVoiceState('speaking');
           aud.play().catch(() => setVoiceState('idle'));
           willSpeak = true;
@@ -325,6 +328,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         @keyframes jarvis-spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
         @keyframes jarvis-inner { 0%{transform:rotate(0deg)} 100%{transform:rotate(-360deg)} }
         @keyframes dot-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        @keyframes amber-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(239,159,39,0.5)} 50%{box-shadow:0 0 0 6px rgba(239,159,39,0)} }
       `}</style>
       <div style={S.panel}>
         {/* HEADER */}
@@ -612,77 +616,173 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           )}
         </div>
 
-        {/* Voice bottom bar — always visible */}
-        <div style={{ display:'flex',alignItems:'center',gap:14,padding:'12px 20px',
-          paddingBottom:'max(12px, env(safe-area-inset-bottom))',
-          borderTop:`1px solid ${T.border}`,background:T.bg2,flexShrink:0 }}>
-          <div style={{ position:'relative',width:44,height:44,flexShrink:0 }}>
-            {voiceState==='recording' && <>
-              <div style={{ position:'absolute',inset:0,borderRadius:'50%',
-                border:'1.5px solid rgba(239,68,68,0.5)',animation:'pulse-ring 1.2s ease-out infinite',zIndex:0 }}/>
-              <div style={{ position:'absolute',inset:0,borderRadius:'50%',
-                border:'1.5px solid rgba(239,68,68,0.3)',animation:'pulse-ring2 1.2s ease-out 0.3s infinite',zIndex:0 }}/>
+        {/* ── Voice bottom bar ── always visible, fixed above keyboard */}
+        <div style={{
+          display:'flex', alignItems:'center', gap:12, padding:'10px 16px',
+          paddingBottom:'max(10px, env(safe-area-inset-bottom))',
+          borderTop:`1px solid ${T.border}`, background:T.bg2, flexShrink:0
+        }}>
+
+          {/* LEFT: replay button (amber) — only when voiceState === 'replay' */}
+          {voiceState === 'replay' && (
+            <button
+              onClick={() => { if (lastAudioUrl) new Audio(lastAudioUrl).play(); }}
+              style={{
+                width:44, height:44, borderRadius:'50%', flexShrink:0, cursor:'pointer',
+                background:'rgba(239,159,39,0.12)',
+                border:'1.5px solid rgba(239,159,39,0.6)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                animation:'amber-pulse 2s ease-in-out infinite',
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M9 2L9 10" stroke="rgba(239,159,39,0.9)" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M5 6L9 2L13 6" stroke="rgba(239,159,39,0.9)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                <path d="M3 14h12" stroke="rgba(239,159,39,0.9)" strokeWidth="1.5" strokeLinecap="round"/>
+                <path d="M3 14 Q3 17 6 17 h6 Q15 17 15 14" stroke="rgba(239,159,39,0.9)" strokeWidth="1.5" fill="none"/>
+              </svg>
+            </button>
+          )}
+
+          {/* CENTER: label */}
+          <div style={{ flex:1, display:'flex', alignItems:'center', gap:6 }}>
+            {voiceState === 'recording' && (
+              <span style={{
+                width:6, height:6, borderRadius:'50%', background:'#ef5350',
+                animation:'dot-blink 1s ease-in-out infinite', display:'inline-block', flexShrink:0
+              }}/>
+            )}
+            {voiceState === 'speaking' && (
+              <span style={{
+                width:6, height:6, borderRadius:'50%',
+                background:'rgba(20,184,166,0.9)', display:'inline-block', flexShrink:0
+              }}/>
+            )}
+            {voiceState === 'replay' && (
+              <span style={{
+                width:6, height:6, borderRadius:'50%',
+                background:'rgba(239,159,39,0.9)', display:'inline-block', flexShrink:0
+              }}/>
+            )}
+            <span style={{
+              fontSize:12, fontWeight:700,
+              color: voiceState === 'recording' ? '#ef5350'
+                   : voiceState === 'speaking'  ? 'rgba(20,184,166,0.9)'
+                   : voiceState === 'replay'    ? 'rgba(239,159,39,0.9)'
+                   : voiceState === 'processing'? T.teal
+                   : T.t2
+            }}>
+              {voiceState === 'idle'       ? 'Speak to Mya'
+             : voiceState === 'recording'  ? 'Recording — tap to stop'
+             : voiceState === 'processing' ? 'Sending to Mya…'
+             : voiceState === 'speaking'   ? 'Mya is speaking'
+             :                               'Tap to replay · or speak'}
+            </span>
+          </div>
+
+          {/* RIGHT: main mic circle — all 5 states */}
+          <div style={{ position:'relative', width:44, height:44, flexShrink:0 }}>
+            {/* Pulse rings — recording */}
+            {voiceState === 'recording' && <>
+              <div style={{
+                position:'absolute', inset:0, borderRadius:'50%',
+                border:'1.5px solid rgba(239,68,68,0.5)',
+                animation:'pulse-ring 1.2s ease-out infinite', zIndex:0
+              }}/>
+              <div style={{
+                position:'absolute', inset:0, borderRadius:'50%',
+                border:'1.5px solid rgba(239,68,68,0.3)',
+                animation:'pulse-ring2 1.2s ease-out 0.3s infinite', zIndex:0
+              }}/>
             </>}
-            {voiceState==='speaking' && <>
-              <div style={{ position:'absolute',inset:0,borderRadius:'50%',
-                border:'1.5px dashed rgba(20,184,166,0.4)',animation:'jarvis-spin 4s linear infinite',zIndex:0 }}/>
-              <div style={{ position:'absolute',inset:6,borderRadius:'50%',
-                border:'1px dashed rgba(20,184,166,0.3)',animation:'jarvis-inner 3s linear infinite',zIndex:0 }}/>
+            {/* Orbit rings — speaking */}
+            {voiceState === 'speaking' && <>
+              <div style={{
+                position:'absolute', inset:0, borderRadius:'50%',
+                border:'1.5px dashed rgba(20,184,166,0.4)',
+                animation:'jarvis-spin 4s linear infinite', zIndex:0
+              }}/>
+              <div style={{
+                position:'absolute', inset:6, borderRadius:'50%',
+                border:'1px dashed rgba(20,184,166,0.3)',
+                animation:'jarvis-inner 3s linear infinite', zIndex:0
+              }}/>
             </>}
-            <button onClick={handleVoice}
-              disabled={voiceState==='processing'||voiceState==='speaking'}
-              style={{ position:'relative',zIndex:1,width:44,height:44,borderRadius:'50%',
-                display:'flex',alignItems:'center',justifyContent:'center',
-                border: voiceState==='recording' ? '1.5px solid rgba(239,68,68,0.7)' : '1.5px solid rgba(20,184,166,0.4)',
-                background: voiceState==='recording' ? 'rgba(239,68,68,0.15)'
-                  : voiceState==='processing' ? 'rgba(20,184,166,0.08)' : 'rgba(20,184,166,0.12)',
-                cursor: voiceState==='processing'||voiceState==='speaking' ? 'default' : 'pointer',
-                flexShrink:0 }}>
-              {voiceState==='idle' && (
-                <svg width='18' height='18' viewBox='0 0 18 18' fill='none'>
-                  <rect x='6' y='1' width='6' height='9' rx='3' fill='rgba(20,184,166,0.9)'/>
-                  <path d='M3 9a6 6 0 0 0 12 0' stroke='rgba(20,184,166,0.9)' strokeWidth='1.5' strokeLinecap='round' fill='none'/>
-                  <line x1='9' y1='15' x2='9' y2='17' stroke='rgba(20,184,166,0.9)' strokeWidth='1.5' strokeLinecap='round'/>
-                  <line x1='6' y1='17' x2='12' y2='17' stroke='rgba(20,184,166,0.9)' strokeWidth='1.5' strokeLinecap='round'/>
+            <button
+              onClick={handleVoice}
+              disabled={voiceState === 'processing' || voiceState === 'speaking'}
+              style={{
+                position:'relative', zIndex:1,
+                width:44, height:44, borderRadius:'50%',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                border: voiceState === 'recording' ? '1.5px solid rgba(239,68,68,0.7)'
+                      : voiceState === 'replay'    ? '1px solid rgba(20,184,166,0.3)'
+                      : '1.5px solid rgba(20,184,166,0.4)',
+                background: voiceState === 'recording'  ? 'rgba(239,68,68,0.15)'
+                          : voiceState === 'processing'  ? 'rgba(20,184,166,0.08)'
+                          : voiceState === 'replay'      ? 'rgba(20,184,166,0.06)'
+                          : 'rgba(20,184,166,0.12)',
+                cursor: voiceState === 'processing' || voiceState === 'speaking'
+                      ? 'default' : 'pointer',
+                flexShrink:0,
+              }}
+            >
+              {/* Idle + Replay: mic icon (smaller in replay) */}
+              {(voiceState === 'idle' || voiceState === 'replay') && (
+                <svg
+                  width={voiceState === 'replay' ? 14 : 18}
+                  height={voiceState === 'replay' ? 14 : 18}
+                  viewBox="0 0 18 18" fill="none"
+                >
+                  <rect x="6" y="1" width="6" height="9" rx="3"
+                    fill={voiceState === 'replay'
+                      ? 'rgba(20,184,166,0.5)'
+                      : 'rgba(20,184,166,0.9)'}/>
+                  <path d="M3 9a6 6 0 0 0 12 0"
+                    stroke={voiceState === 'replay'
+                      ? 'rgba(20,184,166,0.5)'
+                      : 'rgba(20,184,166,0.9)'}
+                    strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+                  <line x1="9" y1="15" x2="9" y2="17"
+                    stroke={voiceState === 'replay'
+                      ? 'rgba(20,184,166,0.5)'
+                      : 'rgba(20,184,166,0.9)'}
+                    strokeWidth="1.5" strokeLinecap="round"/>
+                  <line x1="6" y1="17" x2="12" y2="17"
+                    stroke={voiceState === 'replay'
+                      ? 'rgba(20,184,166,0.5)'
+                      : 'rgba(20,184,166,0.9)'}
+                    strokeWidth="1.5" strokeLinecap="round"/>
                 </svg>
               )}
-              {voiceState==='recording' && (
-                <div style={{ display:'flex',alignItems:'center',gap:2,height:20 }}>
-                  {[0,0.1,0.2,0.1,0].map((d,i) => (
-                    <div key={i} style={{ width:3,height:6,borderRadius:2,background:'#ef4444',
-                      animation:`wave-bar 0.6s ease-in-out ${d}s infinite` }}/>
+              {/* Recording: red waveform bars */}
+              {voiceState === 'recording' && (
+                <div style={{ display:'flex', alignItems:'center', gap:2, height:20 }}>
+                  {[0, 0.1, 0.2, 0.1, 0].map((d, i) => (
+                    <div key={i} style={{
+                      width:3, height:6, borderRadius:2, background:'#ef4444',
+                      animation:`wave-bar 0.6s ease-in-out ${d}s infinite`
+                    }}/>
                   ))}
                 </div>
               )}
-              {voiceState==='processing' && <span style={{ fontSize:16 }}>⏳</span>}
-              {voiceState==='speaking' && (
-                <div style={{ display:'flex',alignItems:'center',gap:2,height:20 }}>
-                  {[0,0.08,0.16,0.08,0].map((d,i) => (
-                    <div key={i} style={{ width:3,height:6,borderRadius:2,background:'rgba(20,184,166,0.9)',
-                      animation:`wave-bar 0.4s ease-in-out ${d}s infinite` }}/>
+              {/* Speaking: teal waveform bars */}
+              {voiceState === 'speaking' && (
+                <div style={{ display:'flex', alignItems:'center', gap:2, height:20 }}>
+                  {[0, 0.08, 0.16, 0.08, 0].map((d, i) => (
+                    <div key={i} style={{
+                      width:3, height:6, borderRadius:2,
+                      background:'rgba(20,184,166,0.9)',
+                      animation:`wave-bar 0.4s ease-in-out ${d}s infinite`
+                    }}/>
                   ))}
                 </div>
+              )}
+              {/* Processing: spinner */}
+              {voiceState === 'processing' && (
+                <span style={{ fontSize:16 }}>⏳</span>
               )}
             </button>
-          </div>
-          <div style={{ display:'flex',alignItems:'center',gap:6 }}>
-            {voiceState==='recording' && (
-              <span style={{ width:6,height:6,borderRadius:'50%',background:T.red,
-                animation:'dot-blink 1s ease-in-out infinite',display:'inline-block' }}/>
-            )}
-            {voiceState==='speaking' && (
-              <span style={{ width:6,height:6,borderRadius:'50%',background:'rgba(20,184,166,0.9)',
-                boxShadow:'0 0 6px rgba(20,184,166,0.6)',display:'inline-block' }}/>
-            )}
-            <span style={{ fontSize:12,fontWeight:700,
-              color: voiceState==='recording' ? T.red
-                : voiceState==='speaking' ? 'rgba(20,184,166,0.9)'
-                : voiceState==='processing' ? T.teal : T.t2 }}>
-              {voiceState==='idle' ? 'Speak to Mya'
-                : voiceState==='recording' ? 'Recording — tap to send'
-                : voiceState==='processing' ? 'Sending to Mya…'
-                : 'Mya is speaking'}
-            </span>
           </div>
         </div>
 
