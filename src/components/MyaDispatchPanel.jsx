@@ -84,9 +84,11 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const bodyRef = useRef(null);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const isOpenRef = useRef(false);
 
   // Load data on open — backend is source of truth, localStorage is fallback
   useEffect(() => {
+    isOpenRef.current = open;
     if (!open) return;
     setReceipt(null);
     setMyaMessage(null);
@@ -252,6 +254,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     if (voiceState === 'recording') {
       const rec = recorderRef.current;
       if (!rec) return;
+      if (rec._vadStop) rec._vadStop();
       rec.stop();
       rec.stream.getTracks().forEach(t => t.stop());
       setVoiceState('processing');
@@ -260,25 +263,28 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       const form = new FormData();
       form.append('audio', blob, 'recording.webm');
       const base = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
+      let willSpeak = false;
       try {
         const res = await fetch(`${base}/api/mya/voice`, { method: 'POST', body: form });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.detail?.error || 'voice error');
         if (data.transcript) setMsg(data.transcript);
+        else setMsg('');
         setVoiceResult(data);
         if (data.audio_base64) {
           const bytes = atob(data.audio_base64);
           const arr = new Uint8Array(bytes.length);
           for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
           const aud = new Audio(URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' })));
-          aud.onended = () => setVoiceState('idle');
+          aud.onended = () => { setVoiceState('idle'); if (isOpenRef.current) setTimeout(() => handleVoice(), 500); };
           setVoiceState('speaking');
           aud.play().catch(() => setVoiceState('idle'));
+          willSpeak = true;
         }
       } catch (err) {
         setStatus({ text: `⚠ Voice: ${err.message.slice(0, 40)}`, color: T.red });
       }
-      setVoiceState('idle');
+      if (!willSpeak) setVoiceState('idle');
       return;
     }
     try {
@@ -287,8 +293,19 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       const rec = new MediaRecorder(stream);
       rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       rec.start();
+      const _vadCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const _src = _vadCtx.createMediaStreamSource(stream);
+      const _analyser = _vadCtx.createAnalyser();
+      _analyser.fftSize = 512;
+      _src.connect(_analyser);
+      const _vadBuf = new Uint8Array(_analyser.frequencyBinCount);
+      let _sTimer = null; let _vadOn = true;
+      rec._vadStop = () => { _vadOn = false; if (_sTimer) clearTimeout(_sTimer); _vadCtx.close(); };
+      const _vad = () => { if (!_vadOn) return; _analyser.getByteFrequencyData(_vadBuf); const rms = Math.sqrt(_vadBuf.reduce((s,v) => s+v*v, 0)/_vadBuf.length); if (rms < 8) { if (!_sTimer) _sTimer = setTimeout(() => { if (_vadOn) handleVoice(); }, 1500); } else { if (_sTimer) { clearTimeout(_sTimer); _sTimer = null; } } requestAnimationFrame(_vad); };
+      requestAnimationFrame(_vad);
       recorderRef.current = rec;
       setVoiceState('recording');
+      setMsg('Listening...');
     } catch {
       setStatus({ text: '⚠ Mic access denied', color: T.red });
     }
