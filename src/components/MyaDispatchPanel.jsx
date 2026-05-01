@@ -520,7 +520,6 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
             willSpeak = true;
           } else if (data.response_text) {
             setAudioStatus('error');
-            setStatus({ text: "Voice unavailable — read Mya's response above", color: T.amber });
           }
         } catch (err) {
           setPendingAction(null);
@@ -918,13 +917,15 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                    : voiceState === 'speaking'  ? 'rgba(20,184,166,0.9)'
                    : voiceState === 'replay'    ? 'rgba(239,159,39,0.9)'
                    : voiceState === 'processing'? T.teal
+                   : audioStatus === 'error'    ? T.amber
                    : T.t2
             }}>
-              {voiceState === 'idle'       ? 'Speak to Mya'
-             : voiceState === 'recording'  ? 'Recording — tap to stop'
+              {voiceState === 'recording'  ? 'Recording — tap to stop'
              : voiceState === 'processing' ? 'Sending to Mya…'
              : voiceState === 'speaking'   ? 'Mya is speaking'
-             : audioStatus === 'blocked'    ? (msg === 'Tap replay to hear greeting' ? 'Tap replay to hear greeting' : 'Tap replay to hear Mya')
+             : audioStatus === 'error'     ? "Voice unavailable — read Mya's response above"
+             : audioStatus === 'blocked'   ? (msg === 'Tap replay to hear greeting' ? 'Tap replay to hear greeting' : 'Tap replay to hear Mya')
+             : voiceState === 'idle'       ? 'Speak to Mya'
              :                               'Tap to replay · or speak'}
             </span>
           </div>
@@ -1053,13 +1054,21 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
             fontWeight: 800,
             cursor: 'pointer',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             textAlign: 'center',
             padding: 24,
+            gap: 20,
           }}
         >
           Tap anywhere to enable Mya&apos;s voice
+          <span
+            onClick={e => { e.stopPropagation(); setShowAudioUnlock(false); }}
+            style={{ fontSize: 13, fontWeight: 500, color: T.t2, textDecoration: 'underline', cursor: 'pointer' }}
+          >
+            Skip audio
+          </span>
         </button>
       )}
     </div>
