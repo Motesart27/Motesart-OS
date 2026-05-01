@@ -82,6 +82,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [voiceResult, setVoiceResult] = useState(null);
   const [lastAudioUrl, setLastAudioUrl] = useState(null);
   const [audioStatus, setAudioStatus] = useState('idle'); // 'idle' | 'playing' | 'blocked' | 'error'
+  const [showAudioUnlock, setShowAudioUnlock] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [filter, setFilter] = useState('all');
   const [online, setOnline] = useState(navigator.onLine);
@@ -100,6 +101,15 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const isOpenRef = useRef(false);
   const lastAudioUrlRef = useRef(null);
   const activeAudioRef = useRef(null);
+  const audioUnlockedRef = useRef(false);
+  const replayTimerRef = useRef(null);
+
+  const clearReplayTimer = useCallback(() => {
+    if (replayTimerRef.current) {
+      clearTimeout(replayTimerRef.current);
+      replayTimerRef.current = null;
+    }
+  }, []);
 
   const replaceLastAudioUrl = useCallback((url) => {
     if (lastAudioUrlRef.current && lastAudioUrlRef.current !== url) {
@@ -111,6 +121,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 
   const playAudioUrl = useCallback((url, { onEndState = 'replay', blockedMessage = 'Tap replay to hear Mya' } = {}) => {
     if (!url) return;
+    clearReplayTimer();
     if (activeAudioRef.current) {
       activeAudioRef.current.pause();
       activeAudioRef.current = null;
@@ -142,33 +153,14 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     } else {
       setAudioStatus('playing');
     }
-  }, []);
+  }, [clearReplayTimer]);
 
-  // Load data on open — backend is source of truth, localStorage is fallback
-  useEffect(() => {
-    isOpenRef.current = open;
-    if (!open) {
-      setGreeting('');
-      setAudioStatus('idle');
-      if (activeAudioRef.current) {
-        activeAudioRef.current.pause();
-        activeAudioRef.current = null;
-      }
-      if (lastAudioUrlRef.current) {
-        URL.revokeObjectURL(lastAudioUrlRef.current);
-        lastAudioUrlRef.current = null;
-      }
-      setLastAudioUrl(null);
-      return;
-    }
-    const _greetText = getGreeting();
-    setGreeting(_greetText);
-    // Audio greeting — best-effort immediately after gesture (iOS 15+)
+  const playGreetingAudio = useCallback((text) => {
     const baseUrl = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
     fetch(`${baseUrl}/api/mya/tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: _greetText }),
+      body: JSON.stringify({ text }),
     })
       .then(r => { if (!r.ok) throw new Error('tts failed'); return r.json(); })
       .then(data => {
@@ -201,6 +193,47 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         }
       })
       .catch(() => {});
+  }, [replaceLastAudioUrl]);
+
+  const unlockAudio = useCallback(() => {
+    if (audioUnlockedRef.current) return;
+    const silent = new Audio('data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQ4AAAAAAAAAAAAAAAAAAA==');
+    silent.volume = 0;
+    silent.play()
+      .catch(() => {})
+      .finally(() => {
+        audioUnlockedRef.current = true;
+        setShowAudioUnlock(false);
+        if (greeting) playGreetingAudio(greeting);
+      });
+  }, [greeting, playGreetingAudio]);
+
+  // Load data on open — backend is source of truth, localStorage is fallback
+  useEffect(() => {
+    isOpenRef.current = open;
+    if (!open) {
+      setGreeting('');
+      setAudioStatus('idle');
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
+      if (lastAudioUrlRef.current) {
+        URL.revokeObjectURL(lastAudioUrlRef.current);
+        lastAudioUrlRef.current = null;
+      }
+      setLastAudioUrl(null);
+      setShowAudioUnlock(false);
+      clearReplayTimer();
+      return;
+    }
+    const _greetText = getGreeting();
+    setGreeting(_greetText);
+    if (audioUnlockedRef.current) {
+      playGreetingAudio(_greetText);
+    } else {
+      setShowAudioUnlock(true);
+    }
     setReceipt(null);
     setMyaMessage(null);
     setAwaitingClarification(false);
@@ -218,10 +251,11 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     loadDispatchesFromBackend()
       .then(list => setDispatches(list))
       .catch(() => setDispatches(loadDispatches()));
-  }, [open, replaceLastAudioUrl]);
+  }, [open, playGreetingAudio, clearReplayTimer]);
 
   useEffect(() => {
     return () => {
+      clearReplayTimer();
       if (activeAudioRef.current) {
         activeAudioRef.current.pause();
         activeAudioRef.current = null;
@@ -231,7 +265,18 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         lastAudioUrlRef.current = null;
       }
     };
-  }, []);
+  }, [clearReplayTimer]);
+
+  useEffect(() => {
+    clearReplayTimer();
+    if (voiceState === 'replay') {
+      replayTimerRef.current = setTimeout(() => {
+        setVoiceState(prev => prev === 'replay' ? 'idle' : prev);
+        replayTimerRef.current = null;
+      }, 30000);
+    }
+    return clearReplayTimer;
+  }, [voiceState, clearReplayTimer]);
 
   // Online/offline
   useEffect(() => {
@@ -377,6 +422,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   };
 
   const handleVoice = async () => {
+    clearReplayTimer();
     // Manual stop: user tapped mic while recording
     if (voiceState === 'recording') {
       const rec = recorderRef.current;
@@ -472,6 +518,9 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
             replaceLastAudioUrl(url);
             playAudioUrl(url);
             willSpeak = true;
+          } else if (data.response_text) {
+            setAudioStatus('error');
+            setStatus({ text: "Voice unavailable — read Mya's response above", color: T.amber });
           }
         } catch (err) {
           setPendingAction(null);
@@ -988,6 +1037,31 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         </div>
 
       </div>
+      {showAudioUnlock && (
+        <button
+          type="button"
+          onClick={unlockAudio}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            border: 'none',
+            background: 'rgba(10,11,15,0.82)',
+            color: T.text,
+            fontFamily: T.sans,
+            fontSize: 16,
+            fontWeight: 800,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            padding: 24,
+          }}
+        >
+          Tap anywhere to enable Mya&apos;s voice
+        </button>
+      )}
     </div>
   );
 }
