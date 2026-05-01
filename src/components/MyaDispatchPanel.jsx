@@ -323,7 +323,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         if (!_vadOn) return;
         _analyser.getByteFrequencyData(_vadBuf);
         const rms = Math.sqrt(_vadBuf.reduce((s, v) => s + v * v, 0) / _vadBuf.length);
-        if (rms < 8) {
+        if (rms < 15) {
           if (!_sTimer) _sTimer = setTimeout(() => {
             const r = recorderRef.current;
             if (r && r.state === 'recording') {
@@ -418,6 +418,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         @keyframes myaFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
         @keyframes myaBounce { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
         @keyframes myaPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.65;transform:scale(0.93)} }
+        @keyframes myaDot { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
         @keyframes myaBreathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
       `}</style>
       <div style={S.panel}>
@@ -878,7 +879,16 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
               )}
               {/* Processing: spinner */}
               {voiceState === 'processing' && (
-                <span style={{ fontSize:16 }}>⏳</span>
+                <span style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                  {[0,1,2].map(i => (
+                    <span key={i} style={{
+                      width: 5, height: 5, borderRadius: '50%',
+                      background: '#F97316',
+                      animation: `myaDot 1s ease-in-out ${i * 0.2}s infinite`,
+                      display: 'inline-block'
+                    }}/>
+                  ))}
+                </span>
               )}
             </button>
           </div>
