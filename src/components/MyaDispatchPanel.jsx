@@ -59,10 +59,10 @@ const T = {
 
 function getGreeting() {
   const hour = new Date().getHours();
+  if (hour < 6)  return "Still at it, Motes? What we got?";
   if (hour < 12) return "Hey Motes, I'm here. What do you need?";
   if (hour < 18) return "What do you have cooking, Motes?";
-  if (hour < 22) return "What's shaking, Motes?";
-  return "Still at it, Motes? What we got?";
+  return "What's shaking, Motes?";
 }
 
 // ── COMPONENT ────────────────────────────────────────
@@ -105,13 +105,13 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     const _greetText = getGreeting();
     setGreeting(_greetText);
     // Audio greeting — best-effort immediately after gesture (iOS 15+)
-    const _gBase = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
-    const _gForm = new FormData();
-    _gForm.append('text', _greetText);
-    _gForm.append('conversation_history', '[]');
-    _gForm.append('pending_action_id', '');
-    fetch(_gBase + '/api/mya/voice', { method: 'POST', body: _gForm })
-      .then(r => r.ok ? r.json() : null)
+    const baseUrl = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
+    fetch(`${baseUrl}/api/mya/tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: _greetText }),
+    })
+      .then(r => { if (!r.ok) throw new Error('tts failed'); return r.json(); })
       .then(data => {
         if (data && data.audio_base64) {
           const bytes = atob(data.audio_base64);
