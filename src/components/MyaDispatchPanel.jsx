@@ -57,6 +57,14 @@ const T = {
   rsm:      '10px',
 };
 
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Hey Motes, I'm here. What do you need?";
+  if (hour < 18) return "What do you have cooking, Motes?";
+  if (hour < 22) return "What's shaking, Motes?";
+  return "Still at it, Motes? What we got?";
+}
+
 // ── COMPONENT ────────────────────────────────────────
 
 export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }) {
@@ -82,6 +90,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [myaMessage, setMyaMessage] = useState(null);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [pendingAction, setPendingAction] = useState(null);
+  const [greeting, setGreeting] = useState('');
   const fileRef = useRef(null);
   const imgRef = useRef(null);
   const bodyRef = useRef(null);
@@ -92,7 +101,29 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   // Load data on open — backend is source of truth, localStorage is fallback
   useEffect(() => {
     isOpenRef.current = open;
-    if (!open) return;
+    if (!open) { setGreeting(''); return; }
+    const _greetText = getGreeting();
+    setGreeting(_greetText);
+    // Audio greeting — best-effort immediately after gesture (iOS 15+)
+    const _gBase = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
+    const _gForm = new FormData();
+    _gForm.append('text', _greetText);
+    _gForm.append('conversation_history', '[]');
+    _gForm.append('pending_action_id', '');
+    fetch(_gBase + '/api/mya/voice', { method: 'POST', body: _gForm })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.audio_base64) {
+          const bytes = atob(data.audio_base64);
+          const arr = new Uint8Array(bytes.length);
+          for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+          const url = URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }));
+          const aud = new Audio(url);
+          aud.onended = () => URL.revokeObjectURL(url);
+          aud.play().catch(() => {});
+        }
+      })
+      .catch(() => {});
     setReceipt(null);
     setMyaMessage(null);
     setAwaitingClarification(false);
@@ -457,6 +488,22 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           {/* ═══ COMPOSE ═══ */}
           {tab === 'compose' && (
             <div style={S.form}>
+              {greeting && (
+                <div style={{
+                  marginBottom: 18, padding: '12px 16px',
+                  background: 'rgba(201,166,68,0.06)',
+                  border: '1px solid rgba(201,166,68,0.18)',
+                  borderRadius: 12, display: 'flex', gap: 10, alignItems: 'flex-start',
+                }}>
+                  <div style={{
+                    flexShrink: 0, width: 26, height: 26,
+                    background: 'linear-gradient(135deg, #c9a644, #a08530)',
+                    borderRadius: 8, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 12, color: '#fff',
+                  }}>&#9671;</div>
+                  <div style={{ fontSize: 14, color: '#e5e3de', lineHeight: 1.6 }}>{greeting}</div>
+                </div>
+              )}
               {receipt ? (
                 <DispatchReceipt
                   receipt={receipt}
