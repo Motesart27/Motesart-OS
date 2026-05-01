@@ -283,7 +283,8 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           const url = URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }));
           setLastAudioUrl(url);
           const aud = new Audio(url);
-          aud.onended = () => { setVoiceState('replay'); if (isOpenRef.current) setTimeout(() => handleVoice(), 500); };
+          aud.onended = () => { URL.revokeObjectURL(url); setVoiceState('idle'); };
+          aud.onerror = () => { URL.revokeObjectURL(url); setVoiceState('idle'); };
           setVoiceState('speaking');
           aud.play().catch(() => setVoiceState('idle'));
           willSpeak = true;
@@ -294,6 +295,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       if (!willSpeak) setVoiceState('idle');
       return;
     }
+    if (voiceState !== 'idle') return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
