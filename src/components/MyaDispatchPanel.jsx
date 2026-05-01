@@ -254,46 +254,18 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   };
 
   const handleVoice = async () => {
+    // Manual stop: user tapped mic while recording
     if (voiceState === 'recording') {
       const rec = recorderRef.current;
       if (!rec) return;
       if (rec._vadStop) rec._vadStop();
-      rec.stop();
-      rec.stream.getTracks().forEach(t => t.stop());
-      setVoiceState('processing');
-      await new Promise(r => { rec.onstop = r; });
-      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-      const form = new FormData();
-      form.append('audio', blob, 'recording.webm');
-      form.append('conversation_history', JSON.stringify(conversationHistory));
-      const base = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
-      let willSpeak = false;
-      try {
-        const res = await fetch(`${base}/api/mya/voice`, { method: 'POST', body: form });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.detail?.error || 'voice error');
-        if (data.transcript) setMsg(data.transcript);
-        else setMsg('');
-        if (data.conversation_history) setConversationHistory(data.conversation_history);
-        setVoiceResult(data);
-        if (data.audio_base64) {
-          const bytes = atob(data.audio_base64);
-          const arr = new Uint8Array(bytes.length);
-          for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-          const url = URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }));
-          setLastAudioUrl(url);
-          const aud = new Audio(url);
-          aud.onended = () => { URL.revokeObjectURL(url); setVoiceState('idle'); };
-          aud.onerror = () => { URL.revokeObjectURL(url); setVoiceState('idle'); };
-          setVoiceState('speaking');
-          aud.play().catch(() => setVoiceState('idle'));
-          willSpeak = true;
-        }
-      } catch (err) {
-        setStatus({ text: `⚠ Voice: ${err.message.slice(0, 40)}`, color: T.red });
+      if (rec.state !== 'inactive') {
+        rec.stop();
+        rec.stream.getTracks().forEach(t => t.stop());
       }
-      if (!willSpeak) setVoiceState('idle');
-      return;
+      setVoiceState('processing');
+      setMsg('Processing...');
+      return; // onstop handler takes it from here
     }
     if (voiceState !== 'idle') return;
     try {
@@ -301,17 +273,91 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       chunksRef.current = [];
       const rec = new MediaRecorder(stream);
       rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      rec.start();
+
+      // PATCH 3: store AudioContext on rec so onstop can tear it down
       const _vadCtx = new (window.AudioContext || window.webkitAudioContext)();
+      rec._vadCtx = _vadCtx;
       const _src = _vadCtx.createMediaStreamSource(stream);
       const _analyser = _vadCtx.createAnalyser();
       _analyser.fftSize = 512;
       _src.connect(_analyser);
       const _vadBuf = new Uint8Array(_analyser.frequencyBinCount);
-      let _sTimer = null; let _vadOn = true;
-      rec._vadStop = () => { _vadOn = false; if (_sTimer) clearTimeout(_sTimer); _vadCtx.close(); };
-      const _vad = () => { if (!_vadOn) return; _analyser.getByteFrequencyData(_vadBuf); const rms = Math.sqrt(_vadBuf.reduce((s,v) => s+v*v, 0)/_vadBuf.length); if (rms < 8) { if (!_sTimer) _sTimer = setTimeout(() => { if (_vadOn) handleVoice(); }, 1500); } else { if (_sTimer) { clearTimeout(_sTimer); _sTimer = null; } } requestAnimationFrame(_vad); };
+      let _sTimer = null;
+      let _vadOn = true;
+      // _vadStop no longer closes ctx — onstop handles AudioContext teardown
+      rec._vadStop = () => { _vadOn = false; if (_sTimer) { clearTimeout(_sTimer); _sTimer = null; } };
+      const _vad = () => {
+        if (!_vadOn) return;
+        _analyser.getByteFrequencyData(_vadBuf);
+        const rms = Math.sqrt(_vadBuf.reduce((s, v) => s + v * v, 0) / _vadBuf.length);
+        if (rms < 8) {
+          if (!_sTimer) _sTimer = setTimeout(() => {
+            const r = recorderRef.current;
+            if (r && r.state === 'recording') {
+              rec._vadStop();
+              setVoiceState('processing');
+              setMsg('Processing...');
+              r.stop();
+              r.stream.getTracks().forEach(t => t.stop());
+            }
+          }, 1500);
+        } else {
+          if (_sTimer) { clearTimeout(_sTimer); _sTimer = null; }
+        }
+        requestAnimationFrame(_vad);
+      };
       requestAnimationFrame(_vad);
+
+      // PATCH 2: fetch + playback moved from recording branch into onstop
+      rec.onstop = async () => {
+        // PATCH 3: tear down VAD AudioContext before TTS playback
+        if (rec._vadCtx) {
+          try { await rec._vadCtx.close(); } catch (e) {}
+          rec._vadCtx = null;
+        }
+
+        // PATCH 1: empty recording guard — reject sub-200ms noise/echo captures
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        if (blob.size < 2000) {
+          setVoiceState('idle');
+          setMsg("Didn't catch that — tap the mic to try again");
+          chunksRef.current = [];
+          return;
+        }
+
+        const form = new FormData();
+        form.append('audio', blob, 'recording.webm');
+        form.append('conversation_history', JSON.stringify(conversationHistory));
+        const base = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
+        let willSpeak = false;
+        try {
+          const res = await fetch(`${base}/api/mya/voice`, { method: 'POST', body: form });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.detail?.error || 'voice error');
+          if (data.transcript) setMsg(data.transcript);
+          else setMsg('');
+          if (data.conversation_history) setConversationHistory(data.conversation_history);
+          setVoiceResult(data);
+          if (data.audio_base64) {
+            const bytes = atob(data.audio_base64);
+            const arr = new Uint8Array(bytes.length);
+            for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+            const url = URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }));
+            setLastAudioUrl(url);
+            const aud = new Audio(url);
+            aud.onended = () => { URL.revokeObjectURL(url); setVoiceState('idle'); };
+            aud.onerror = () => { URL.revokeObjectURL(url); setVoiceState('idle'); };
+            setVoiceState('speaking');
+            aud.play().catch(() => setVoiceState('idle'));
+            willSpeak = true;
+          }
+        } catch (err) {
+          setStatus({ text: `⚠ Voice: ${err.message.slice(0, 40)}`, color: T.red });
+        }
+        if (!willSpeak) setVoiceState('idle');
+      };
+
+      rec.start();
       recorderRef.current = rec;
       setVoiceState('recording');
       setMsg('Listening...');
@@ -335,6 +381,10 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         @keyframes jarvis-inner { 0%{transform:rotate(0deg)} 100%{transform:rotate(-360deg)} }
         @keyframes dot-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes amber-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(239,159,39,0.5)} 50%{box-shadow:0 0 0 6px rgba(239,159,39,0)} }
+        @keyframes myaFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+        @keyframes myaRipple { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(2);opacity:0} }
+        @keyframes myaSpin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+        @keyframes myaBounce { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
       `}</style>
       <div style={S.panel}>
         {/* HEADER */}
@@ -687,7 +737,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           </div>
 
           {/* RIGHT: main mic circle — all 5 states */}
-          <div style={{ position:'relative', width:44, height:44, flexShrink:0 }}>
+          <div style={{ position:'relative', width:44, height:44, flexShrink:0, animation: voiceState === 'recording' ? 'none' : voiceState === 'processing' ? 'myaSpin 1.2s linear infinite' : voiceState === 'speaking' ? 'myaBounce 0.5s ease-in-out infinite' : 'myaFloat 3s ease-in-out infinite' }}>
             {/* Pulse rings — recording */}
             {voiceState === 'recording' && <>
               <div style={{
