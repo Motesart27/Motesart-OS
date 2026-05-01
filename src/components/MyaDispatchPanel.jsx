@@ -81,6 +81,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [voiceState, setVoiceState] = useState('idle'); // 'idle' | 'recording' | 'processing' | 'speaking' | 'replay'
   const [voiceResult, setVoiceResult] = useState(null);
   const [lastAudioUrl, setLastAudioUrl] = useState(null);
+  const [audioStatus, setAudioStatus] = useState('idle'); // 'idle' | 'playing' | 'blocked' | 'error'
   const [receipt, setReceipt] = useState(null);
   const [filter, setFilter] = useState('all');
   const [online, setOnline] = useState(navigator.onLine);
@@ -97,11 +98,69 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const isOpenRef = useRef(false);
+  const lastAudioUrlRef = useRef(null);
+  const activeAudioRef = useRef(null);
+
+  const replaceLastAudioUrl = useCallback((url) => {
+    if (lastAudioUrlRef.current && lastAudioUrlRef.current !== url) {
+      URL.revokeObjectURL(lastAudioUrlRef.current);
+    }
+    lastAudioUrlRef.current = url;
+    setLastAudioUrl(url);
+  }, []);
+
+  const playAudioUrl = useCallback((url, { onEndState = 'replay', blockedMessage = 'Tap replay to hear Mya' } = {}) => {
+    if (!url) return;
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current = null;
+    }
+    const aud = new Audio(url);
+    activeAudioRef.current = aud;
+    aud.onended = () => {
+      if (activeAudioRef.current === aud) activeAudioRef.current = null;
+      setVoiceState(onEndState);
+      setAudioStatus('idle');
+    };
+    aud.onerror = () => {
+      if (activeAudioRef.current === aud) activeAudioRef.current = null;
+      setVoiceState(onEndState);
+      setAudioStatus('blocked');
+      setMsg(blockedMessage);
+    };
+    setVoiceState('speaking');
+    const playPromise = aud.play();
+    if (playPromise && typeof playPromise.then === 'function') {
+      playPromise
+        .then(() => setAudioStatus('playing'))
+        .catch(() => {
+          if (activeAudioRef.current === aud) activeAudioRef.current = null;
+          setVoiceState(onEndState);
+          setAudioStatus('blocked');
+          setMsg(blockedMessage);
+        });
+    } else {
+      setAudioStatus('playing');
+    }
+  }, []);
 
   // Load data on open — backend is source of truth, localStorage is fallback
   useEffect(() => {
     isOpenRef.current = open;
-    if (!open) { setGreeting(''); return; }
+    if (!open) {
+      setGreeting('');
+      setAudioStatus('idle');
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
+      if (lastAudioUrlRef.current) {
+        URL.revokeObjectURL(lastAudioUrlRef.current);
+        lastAudioUrlRef.current = null;
+      }
+      setLastAudioUrl(null);
+      return;
+    }
     const _greetText = getGreeting();
     setGreeting(_greetText);
     // Audio greeting — best-effort immediately after gesture (iOS 15+)
@@ -118,9 +177,27 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           const arr = new Uint8Array(bytes.length);
           for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
           const url = URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }));
+          replaceLastAudioUrl(url);
           const aud = new Audio(url);
-          aud.onended = () => URL.revokeObjectURL(url);
-          aud.play().catch(() => {});
+          activeAudioRef.current = aud;
+          aud.onended = () => {
+            if (activeAudioRef.current === aud) activeAudioRef.current = null;
+            setAudioStatus('idle');
+          };
+          aud.onerror = () => {
+            if (activeAudioRef.current === aud) activeAudioRef.current = null;
+            setVoiceState('replay');
+            setAudioStatus('blocked');
+            setMsg('Tap replay to hear greeting');
+          };
+          aud.play()
+            .then(() => setAudioStatus('playing'))
+            .catch(() => {
+              if (activeAudioRef.current === aud) activeAudioRef.current = null;
+              setVoiceState('replay');
+              setAudioStatus('blocked');
+              setMsg('Tap replay to hear greeting');
+            });
         }
       })
       .catch(() => {});
@@ -141,7 +218,20 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     loadDispatchesFromBackend()
       .then(list => setDispatches(list))
       .catch(() => setDispatches(loadDispatches()));
-  }, [open]);
+  }, [open, replaceLastAudioUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current = null;
+      }
+      if (lastAudioUrlRef.current) {
+        URL.revokeObjectURL(lastAudioUrlRef.current);
+        lastAudioUrlRef.current = null;
+      }
+    };
+  }, []);
 
   // Online/offline
   useEffect(() => {
@@ -300,8 +390,9 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       setMsg('Processing...');
       return; // onstop handler takes it from here
     }
-    if (voiceState !== 'idle') return;
+    if (voiceState !== 'idle' && voiceState !== 'replay') return;
     try {
+      setAudioStatus('idle');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
       const rec = new MediaRecorder(stream);
@@ -378,16 +469,13 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
             const arr = new Uint8Array(bytes.length);
             for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
             const url = URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }));
-            setLastAudioUrl(url);
-            const aud = new Audio(url);
-            aud.onended = () => { URL.revokeObjectURL(url); setVoiceState('idle'); };
-            aud.onerror = () => { URL.revokeObjectURL(url); setVoiceState('idle'); };
-            setVoiceState('speaking');
-            aud.play().catch(() => setVoiceState('idle'));
+            replaceLastAudioUrl(url);
+            playAudioUrl(url);
             willSpeak = true;
           }
         } catch (err) {
           setPendingAction(null);
+          setAudioStatus('error');
           setStatus({ text: `⚠ Voice: ${err.message.slice(0, 40)}`, color: T.red });
         }
         if (!willSpeak) setVoiceState('idle');
@@ -731,9 +819,13 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         }}>
 
           {/* LEFT: replay button (amber) — only when voiceState === 'replay' */}
-          {voiceState === 'replay' && (
+          {voiceState === 'replay' && lastAudioUrl && (
             <button
-              onClick={() => { if (lastAudioUrl) new Audio(lastAudioUrl).play(); }}
+              onClick={() => playAudioUrl(lastAudioUrl, {
+                blockedMessage: msg === 'Tap replay to hear greeting'
+                  ? 'Tap replay to hear greeting'
+                  : 'Tap replay to hear Mya'
+              })}
               style={{
                 width:44, height:44, borderRadius:'50%', flexShrink:0, cursor:'pointer',
                 background:'rgba(239,159,39,0.12)',
@@ -783,6 +875,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
              : voiceState === 'recording'  ? 'Recording — tap to stop'
              : voiceState === 'processing' ? 'Sending to Mya…'
              : voiceState === 'speaking'   ? 'Mya is speaking'
+             : audioStatus === 'blocked'    ? (msg === 'Tap replay to hear greeting' ? 'Tap replay to hear greeting' : 'Tap replay to hear Mya')
              :                               'Tap to replay · or speak'}
             </span>
           </div>
