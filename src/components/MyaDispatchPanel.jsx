@@ -330,7 +330,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         const form = new FormData();
         form.append('audio', blob, 'recording.webm');
         form.append('conversation_history', JSON.stringify(conversationHistory));
-        form.append('pending_action', JSON.stringify(pendingAction));
+        form.append('pending_action_id', pendingAction || '');
         const base = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
         let willSpeak = false;
         try {
@@ -340,7 +340,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           if (data.transcript) setMsg(data.transcript);
           else setMsg('');
           if (data.conversation_history) setConversationHistory(data.conversation_history);
-          setPendingAction(data.pending_action || null);
+          setPendingAction(data.pending_action_id || null);
           setVoiceResult(data);
           if (data.audio_base64) {
             const bytes = atob(data.audio_base64);
@@ -356,6 +356,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
             willSpeak = true;
           }
         } catch (err) {
+          setPendingAction(null);
           setStatus({ text: `⚠ Voice: ${err.message.slice(0, 40)}`, color: T.red });
         }
         if (!willSpeak) setVoiceState('idle');
