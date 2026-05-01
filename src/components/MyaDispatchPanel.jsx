@@ -418,9 +418,9 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         @keyframes dot-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes amber-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(239,159,39,0.5)} 50%{box-shadow:0 0 0 6px rgba(239,159,39,0)} }
         @keyframes myaFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
-        @keyframes myaRipple { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(2);opacity:0} }
-        @keyframes myaSpin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
         @keyframes myaBounce { 0%,100%{transform:scale(1)} 50%{transform:scale(1.15)} }
+        @keyframes myaPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.65;transform:scale(0.93)} }
+        @keyframes myaBreathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
       `}</style>
       <div style={S.panel}>
         {/* HEADER */}
@@ -789,7 +789,12 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           </div>
 
           {/* RIGHT: main mic circle — all 5 states */}
-          <div style={{ position:'relative', width:44, height:44, flexShrink:0, animation: voiceState === 'recording' ? 'none' : voiceState === 'processing' ? 'myaSpin 1.2s linear infinite' : voiceState === 'speaking' ? 'myaBounce 0.5s ease-in-out infinite' : 'myaFloat 3s ease-in-out infinite' }}>
+          <div style={{ position:'relative', width:44, height:44, flexShrink:0, borderRadius:'50%',
+            background: voiceState === 'processing' ? 'rgba(217,119,6,0.18)' : 'transparent',
+            animation: voiceState === 'recording' ? 'none'
+                     : voiceState === 'processing' ? 'myaPulse 1.2s ease-in-out infinite'
+                     : voiceState === 'speaking' ? 'myaBreathe 1.4s ease-in-out infinite'
+                     : 'myaFloat 3s ease-in-out infinite' }}>
             {/* Pulse rings — recording */}
             {voiceState === 'recording' && <>
               <div style={{
@@ -827,7 +832,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                       : voiceState === 'replay'    ? '1px solid rgba(20,184,166,0.3)'
                       : '1.5px solid rgba(20,184,166,0.4)',
                 background: voiceState === 'recording'  ? 'rgba(239,68,68,0.15)'
-                          : voiceState === 'processing'  ? 'rgba(20,184,166,0.08)'
+                          : voiceState === 'processing'  ? 'rgba(217,119,6,0.12)'
                           : voiceState === 'replay'      ? 'rgba(20,184,166,0.06)'
                           : 'rgba(20,184,166,0.12)',
                 cursor: voiceState === 'processing' || voiceState === 'speaking'
