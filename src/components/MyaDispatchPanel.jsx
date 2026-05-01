@@ -413,8 +413,6 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         @keyframes pulse-ring { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(1.8);opacity:0} }
         @keyframes pulse-ring2 { 0%{transform:scale(1);opacity:0.4} 100%{transform:scale(2.2);opacity:0} }
         @keyframes wave-bar { 0%,100%{height:6px} 50%{height:20px} }
-        @keyframes jarvis-spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
-        @keyframes jarvis-inner { 0%{transform:rotate(0deg)} 100%{transform:rotate(-360deg)} }
         @keyframes dot-blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes amber-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(239,159,39,0.5)} 50%{box-shadow:0 0 0 6px rgba(239,159,39,0)} }
         @keyframes myaFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
@@ -806,19 +804,6 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                 position:'absolute', inset:0, borderRadius:'50%',
                 border:'1.5px solid rgba(239,68,68,0.3)',
                 animation:'pulse-ring2 1.2s ease-out 0.3s infinite', zIndex:0
-              }}/>
-            </>}
-            {/* Orbit rings — speaking */}
-            {voiceState === 'speaking' && <>
-              <div style={{
-                position:'absolute', inset:0, borderRadius:'50%',
-                border:'1.5px dashed rgba(20,184,166,0.4)',
-                animation:'jarvis-spin 4s linear infinite', zIndex:0
-              }}/>
-              <div style={{
-                position:'absolute', inset:6, borderRadius:'50%',
-                border:'1px dashed rgba(20,184,166,0.3)',
-                animation:'jarvis-inner 3s linear infinite', zIndex:0
               }}/>
             </>}
             <button
