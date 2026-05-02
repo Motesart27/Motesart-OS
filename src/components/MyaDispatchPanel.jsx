@@ -57,6 +57,9 @@ const T = {
   rsm:      '10px',
 };
 
+const VAD_RMS_THRESHOLD = 15;
+const VAD_SILENCE_MS = 750;
+
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 6)  return "Still at it, Motes? What we got?";
@@ -155,57 +158,44 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     }
   }, [clearReplayTimer]);
 
-  const playGreetingAudio = useCallback((text) => {
+  const playGreetingAudio = useCallback(async (text) => {
+    if (!text) return;
     const baseUrl = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
-    fetch(`${baseUrl}/api/mya/tts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    })
-      .then(r => { if (!r.ok) throw new Error('tts failed'); return r.json(); })
-      .then(data => {
-        if (data && data.audio_base64) {
-          const bytes = atob(data.audio_base64);
-          const arr = new Uint8Array(bytes.length);
-          for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-          const url = URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }));
-          replaceLastAudioUrl(url);
-          const aud = new Audio(url);
-          activeAudioRef.current = aud;
-          aud.onended = () => {
-            if (activeAudioRef.current === aud) activeAudioRef.current = null;
-            setAudioStatus('idle');
-          };
-          aud.onerror = () => {
-            if (activeAudioRef.current === aud) activeAudioRef.current = null;
-            setVoiceState('replay');
-            setAudioStatus('blocked');
-            setMsg('Tap replay to hear greeting');
-          };
-          aud.play()
-            .then(() => setAudioStatus('playing'))
-            .catch(() => {
-              if (activeAudioRef.current === aud) activeAudioRef.current = null;
-              setVoiceState('replay');
-              setAudioStatus('blocked');
-              setMsg('Tap replay to hear greeting');
-            });
-        }
-      })
-      .catch(() => {});
-  }, [replaceLastAudioUrl]);
+    try {
+      const res = await fetch(`${baseUrl}/api/mya/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error('tts failed');
+      const data = await res.json();
+      if (!data?.audio_base64) throw new Error('tts missing audio');
+      const bytes = atob(data.audio_base64);
+      const arr = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([arr], { type: 'audio/mpeg' }));
+      replaceLastAudioUrl(url);
+      playAudioUrl(url, { onEndState: 'idle', blockedMessage: 'Tap replay to hear Mya' });
+    } catch {
+      setAudioStatus('error');
+      setVoiceState('idle');
+    }
+  }, [playAudioUrl, replaceLastAudioUrl]);
 
-  const unlockAudio = useCallback(() => {
-    if (audioUnlockedRef.current) return;
+  const unlockAudio = useCallback(async () => {
+    if (audioUnlockedRef.current) {
+      setShowAudioUnlock(false);
+      if (greeting) await playGreetingAudio(greeting);
+      return;
+    }
     const silent = new Audio('data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQ4AAAAAAAAAAAAAAAAAAA==');
     silent.volume = 0;
-    silent.play()
-      .catch(() => {})
-      .finally(() => {
-        audioUnlockedRef.current = true;
-        setShowAudioUnlock(false);
-        if (greeting) playGreetingAudio(greeting);
-      });
+    try {
+      await silent.play();
+    } catch {}
+    audioUnlockedRef.current = true;
+    setShowAudioUnlock(false);
+    if (greeting) await playGreetingAudio(greeting);
   }, [greeting, playGreetingAudio]);
 
   // Load data on open — backend is source of truth, localStorage is fallback
@@ -460,7 +450,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         if (!_vadOn) return;
         _analyser.getByteFrequencyData(_vadBuf);
         const rms = Math.sqrt(_vadBuf.reduce((s, v) => s + v * v, 0) / _vadBuf.length);
-        if (rms < 15) {
+        if (rms < VAD_RMS_THRESHOLD) {
           if (!_sTimer) _sTimer = setTimeout(() => {
             const r = recorderRef.current;
             if (r && r.state === 'recording') {
@@ -470,7 +460,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
               r.stop();
               r.stream.getTracks().forEach(t => t.stop());
             }
-          }, 1500);
+          }, VAD_SILENCE_MS);
         } else {
           if (_sTimer) { clearTimeout(_sTimer); _sTimer = null; }
         }
@@ -870,9 +860,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
           {voiceState === 'replay' && lastAudioUrl && (
             <button
               onClick={() => playAudioUrl(lastAudioUrl, {
-                blockedMessage: msg === 'Tap replay to hear greeting'
-                  ? 'Tap replay to hear greeting'
-                  : 'Tap replay to hear Mya'
+                blockedMessage: 'Tap replay to hear Mya'
               })}
               style={{
                 width:44, height:44, borderRadius:'50%', flexShrink:0, cursor:'pointer',
@@ -924,7 +912,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
              : voiceState === 'processing' ? 'Sending to Mya…'
              : voiceState === 'speaking'   ? 'Mya is speaking'
              : audioStatus === 'error'     ? "Voice unavailable — read Mya's response above"
-             : audioStatus === 'blocked'   ? (msg === 'Tap replay to hear greeting' ? 'Tap replay to hear greeting' : 'Tap replay to hear Mya')
+             : audioStatus === 'blocked'   ? 'Tap replay to hear Mya'
              : voiceState === 'idle'       ? 'Speak to Mya'
              :                               'Tap to replay · or speak'}
             </span>
