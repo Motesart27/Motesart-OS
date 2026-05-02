@@ -57,8 +57,9 @@ const T = {
   rsm:      '10px',
 };
 
-const VAD_RMS_THRESHOLD = 15;
+const VAD_RMS_THRESHOLD = 30;
 const VAD_SILENCE_MS = 750;
+const VAD_MAX_MS = 45000;
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -446,6 +447,15 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       let _vadOn = true;
       // _vadStop no longer closes ctx — onstop handles AudioContext teardown
       rec._vadStop = () => { _vadOn = false; if (_sTimer) { clearTimeout(_sTimer); _sTimer = null; } };
+      rec._maxTimer = setTimeout(() => {
+        const r = recorderRef.current;
+        if (r !== rec || rec.state !== 'recording') return;
+        rec._vadStop();
+        setVoiceState('processing');
+        setMsg('Processing...');
+        rec.stop();
+        rec.stream.getTracks().forEach(t => t.stop());
+      }, VAD_MAX_MS);
       const _vad = () => {
         if (!_vadOn) return;
         _analyser.getByteFrequencyData(_vadBuf);
@@ -470,6 +480,11 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 
       // PATCH 2: fetch + playback moved from recording branch into onstop
       rec.onstop = async () => {
+        if (rec._maxTimer) {
+          clearTimeout(rec._maxTimer);
+          rec._maxTimer = null;
+        }
+
         // PATCH 3: tear down VAD AudioContext before TTS playback
         if (rec._vadCtx) {
           try { await rec._vadCtx.close(); } catch (e) {}
