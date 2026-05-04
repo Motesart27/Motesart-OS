@@ -2513,6 +2513,13 @@ function TravelBuilderPanel() {
   const [resetModal,setResetModal] = useState(false);
   const [archiveModal,setArchiveModal] = useState(false);
   const [newTripModal,setNewTripModal] = useState(false);
+  const [newTripName,setNewTripName] = useState("");
+  const [newTripDestination,setNewTripDestination] = useState("");
+  const [newTripStartDate,setNewTripStartDate] = useState("");
+  const [newTripEndDate,setNewTripEndDate] = useState("");
+  const [newTripTravelers,setNewTripTravelers] = useState("");
+  const [newTripBudget,setNewTripBudget] = useState("");
+  const [newTripPurpose,setNewTripPurpose] = useState("");
   const [toast,setToast] = useState(null);
   const [aiBrief,setAiBrief] = useState("");
   const [briefLoading,setBriefLoading] = useState(false);
@@ -2890,7 +2897,30 @@ Your permanent travel history in FM.</div>
         <div role="dialog" aria-modal="true" aria-label="New Trip Builder" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
             <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:T.white}}>New Trip Builder</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:22}}>Trip creation is being staged safely. The form fields and Airtable save will come in the next build phase.</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:14}}>Trip creation is being staged safely. Preview only — saving comes in the next phase.</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Trip Name
+                <input value={newTripName} onChange={e=>setNewTripName(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Destination
+                <input value={newTripDestination} onChange={e=>setNewTripDestination(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Start Date
+                <input type="date" value={newTripStartDate} onChange={e=>setNewTripStartDate(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>End Date
+                <input type="date" value={newTripEndDate} onChange={e=>setNewTripEndDate(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Travelers
+                <input value={newTripTravelers} onChange={e=>setNewTripTravelers(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Budget
+                <input inputMode="decimal" value={newTripBudget} onChange={e=>setNewTripBudget(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{gridColumn:"1 / -1",display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Purpose / Notes
+                <textarea value={newTripPurpose} onChange={e=>setNewTripPurpose(e.target.value)} rows={3} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11,resize:"vertical"}} />
+              </label>
+            </div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button onClick={()=>setNewTripModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Close</button>
               <button onClick={()=>setNewTripModal(false)} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Continue Preview</button>
