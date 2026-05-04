@@ -2959,6 +2959,7 @@ function BizTodoList({ biz }) {
 export default function MotesartOS() {
   const [open, setOpen] = useState(typeof window !== "undefined" && window.innerWidth > 768);
   const [activeBiz, setActiveBiz] = useState("e7a");
+  const [showBizSwitcher, setShowBizSwitcher] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [chatOpen, setChatOpen] = useState(false);
@@ -3022,11 +3023,37 @@ export default function MotesartOS() {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button className="os-back-btn" onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, minWidth: 36, minHeight: 36, paddingTop: 0, paddingLeft: 0, flexShrink: 0 }}>‹</button>
             <div style={{ width: 3, height: 22, background: biz.color, borderRadius: 2 }} />
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: T.white, letterSpacing: "-0.02em" }}>{biz.full}</div>
-              <div style={{ fontSize: 9, color: T.muted, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                Motesart OS &nbsp;·&nbsp; {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-              </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <button
+                onClick={() => setShowBizSwitcher(!showBizSwitcher)}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 16, color: "#fff", letterSpacing: "-0.3px" }}>
+                  {biz.name} <span style={{ fontSize: 12, color: "#888" }}>▾</span>
+                </div>
+              </button>
+              <div style={{ fontSize: 11, color: "#666" }}>MOTESART OS · {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase()}</div>
+              {showBizSwitcher && (
+                <div style={{
+                  position: "absolute", top: "100%", left: 0, right: 0,
+                  background: "#1a1a1a", borderTop: "1px solid #333",
+                  borderBottom: "1px solid #333", zIndex: 200,
+                  display: "flex", flexDirection: "column", padding: "8px 0"
+                }}>
+                  {BUSINESSES.map(b => (
+                    <button key={b.id} onClick={() => { switchBiz(b.id); setShowBizSwitcher(false); }}
+                      style={{
+                        background: activeBiz === b.id ? "#2a2a1a" : "none",
+                        border: "none", padding: "12px 20px", cursor: "pointer",
+                        textAlign: "left", display: "flex", alignItems: "center", gap: 10,
+                        borderLeft: activeBiz === b.id ? `3px solid ${b.color}` : "3px solid transparent"
+                      }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: b.color, display: "inline-block" }}></span>
+                      <span style={{ fontSize: 14, color: "#fff", fontWeight: activeBiz === b.id ? 600 : 400 }}>{b.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {isPersonal && (
               <div style={{ display: "flex", gap: 6, marginLeft: 12 }}>
