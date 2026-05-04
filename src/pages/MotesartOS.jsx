@@ -2522,12 +2522,22 @@ function TravelBuilderPanel() {
   const pp = Math.round((tots.filled/tots.total)*100);
   const sp = Math.min(Math.round((tots.actual/tots.low)*100),150);
 
-  function setActual(id,val){const n={...actuals,[id]:val};setActuals(n);localStorage.setItem(TB_SK+"_a",JSON.stringify(n));}
-  function showToast(msg,type=""){setToast({msg,type});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2800);}
-  function doReset(){setActuals({});localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);showToast("Actuals cleared — template ready","success");}
+  function safeTravelNotice(message,type=""){setToast({msg:message,type});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2800);}
+  function safeTravelAction(actionName, callback){
+    try { callback(); }
+    catch(err) {
+      console.warn(`Travel Builder ${actionName} failed`, err);
+      safeTravelNotice(`${actionName} did not complete. Try again.`, "danger");
+    }
+  }
+  function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
+  function showToast(msg,type=""){safeTravelNotice(msg,type);}
+  function doReset(){safeTravelAction("Reset",()=>{setActuals({});localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);safeTravelNotice("Actuals cleared — template ready","success");});}
   function doArchive(){
-    const e={id:Date.now(),trip:"Chicago Graduation Trip",dates:"June 12–15 2026",budget:tots.low,actual:tots.actual,saved:tots.saved,state:{actuals,retro},archivedAt:new Date().toLocaleDateString()};
-    const n=[e,...archive];setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));setArchiveModal(false);showToast("Trip archived","success");setTab("archive");
+    safeTravelAction("Archive",()=>{
+      const e={id:Date.now(),trip:"Chicago Graduation Trip",dates:"June 12–15 2026",budget:tots.low,actual:tots.actual,saved:tots.saved,state:{actuals,retro},archivedAt:new Date().toLocaleDateString()};
+      const n=[e,...archive];setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));setArchiveModal(false);safeTravelNotice("Trip archived locally","success");setTab("archive");
+    });
   }
 
   useEffect(()=>{
@@ -2589,16 +2599,13 @@ function TravelBuilderPanel() {
           {[
             {l:"↺ Reset",fn:()=>setResetModal(true),bg:"transparent",c:T.muted,b:T.dim},
             {l:"↓ Archive",fn:()=>setArchiveModal(true),bg:T.greenDim,c:T.green,b:`${T.green}40`},
-            {l:"◼ Save",fn:()=>{localStorage.setItem(TB_SK+"_a",JSON.stringify(actuals));showToast("Saved","success");},bg:T.goldDim,c:T.gold,b:T.borderHi},
-          ].map(b=>{
-            const [bh,setBh]=useState(false);
-            return(
-              <button key={b.l} onMouseEnter={()=>setBh(true)} onMouseLeave={()=>setBh(false)} onClick={b.fn}
-                style={{background:bh?T.dim:b.bg,color:b.c,border:`1px solid ${b.b}`,borderRadius:6,padding:"7px 13px",fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
+            {l:"◼ Save",fn:()=>safeTravelAction("Save",()=>{localStorage.setItem(TB_SK+"_a",JSON.stringify(actuals));safeTravelNotice("Saved locally","success");}),bg:T.goldDim,c:T.gold,b:T.borderHi},
+          ].map(b=>(
+              <button key={b.l} onClick={b.fn}
+                style={{background:b.bg,color:b.c,border:`1px solid ${b.b}`,borderRadius:6,padding:"7px 13px",fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
                 {b.l}
               </button>
-            );
-          })}
+          ))}
         </div>
       </div>
 
@@ -2817,11 +2824,9 @@ function TravelBuilderPanel() {
 Complete a trip and click Archive.
 Your permanent travel history in FM.</div>
             :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
-              {archive.map((a,i)=>{
-                const [ah,setAh]=useState(false);
-                return(
-                  <div key={a.id} onMouseEnter={()=>setAh(true)} onMouseLeave={()=>setAh(false)}
-                    style={{background:T.card,border:`1px solid ${ah?T.borderHi:T.border}`,borderRadius:10,padding:18,position:"relative",overflow:"hidden",transform:ah?"translateY(-3px)":"none",boxShadow:ah?"0 12px 32px rgba(0,0,0,0.4)":"none",transition:"all 0.25s",cursor:"default"}}>
+              {archive.map((a,i)=>(
+                  <div key={a.id}
+                    style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:18,position:"relative",overflow:"hidden",transition:"all 0.25s",cursor:"default"}}>
                     <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${T.gold},transparent)`}}/>
                     <div style={{fontSize:14,fontWeight:700,marginBottom:4,color:T.white}}>{a.trip}</div>
                     <div style={{fontFamily:"monospace",fontSize:9,color:T.muted,marginBottom:12}}>{a.dates} · Archived {a.archivedAt}</div>
@@ -2833,11 +2838,10 @@ Your permanent travel history in FM.</div>
                     {a.state?.retro?.worked&&<div style={{fontFamily:"monospace",fontSize:9,color:T.muted,borderTop:`1px solid ${T.border}`,paddingTop:8,marginBottom:10}}><span style={{color:T.green}}>Worked: </span>{a.state.retro.worked.substring(0,80)}...</div>}
                     <div style={{display:"flex",gap:6}}>
                       <button onClick={()=>{setActuals(a.state.actuals||{});setTab("budget");showToast("Loaded");}} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:T.muted,cursor:"pointer"}}>Load</button>
-                      <button onClick={()=>{const n=archive.filter((_,j)=>j!==i);setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));showToast("Deleted","danger");}} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:T.red,cursor:"pointer"}}>Delete</button>
+                      <button onClick={()=>safeTravelAction("Delete archive",()=>{const n=archive.filter((_,j)=>j!==i);setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));safeTravelNotice("Deleted","danger");})} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:T.red,cursor:"pointer"}}>Delete</button>
                     </div>
                   </div>
-                );
-              })}
+              ))}
             </div>
           }
         </div>
@@ -2854,17 +2858,14 @@ Your permanent travel history in FM.</div>
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:18}}>
-            {[{key:"worked",l:"What worked well",a:T.green,ph:"e.g. Marriott skybridge was perfect, buddy pass saved $350..."},{key:"improve",l:"What to improve",a:T.amber,ph:"e.g. Book flights earlier, food budget for Jun 14 was tight..."},{key:"next",l:"Do differently next trip",a:T.blue,ph:"e.g. Always Wanna Get Away Plus, add activity budget line..."}].map(b=>{
-              const [bh,setBh]=useState(false);
-              return(
-                <div key={b.key} onMouseEnter={()=>setBh(true)} onMouseLeave={()=>setBh(false)}
-                  style={{background:T.card,border:`1px solid ${bh?b.a+"55":T.border}`,borderRadius:10,padding:16,transition:"all 0.25s",transform:bh?"translateY(-2px)":"none",boxShadow:bh?`0 6px 20px ${b.a}15`:"none"}}>
+            {[{key:"worked",l:"What worked well",a:T.green,ph:"e.g. Marriott skybridge was perfect, buddy pass saved $350..."},{key:"improve",l:"What to improve",a:T.amber,ph:"e.g. Book flights earlier, food budget for Jun 14 was tight..."},{key:"next",l:"Do differently next trip",a:T.blue,ph:"e.g. Always Wanna Get Away Plus, add activity budget line..."}].map(b=>(
+                <div key={b.key}
+                  style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:16,transition:"all 0.25s"}}>
                   <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",color:b.a,marginBottom:10}}>{b.l}</div>
-                  <textarea value={retro[b.key]||""} onChange={e=>{const n={...retro,[b.key]:e.target.value};setRetro(n);localStorage.setItem(TB_SK+"_r",JSON.stringify(n));}} placeholder={b.ph}
+                  <textarea value={retro[b.key]||""} onChange={e=>safeTravelAction("Save retrospective",()=>{const n={...retro,[b.key]:e.target.value};setRetro(n);localStorage.setItem(TB_SK+"_r",JSON.stringify(n));})} placeholder={b.ph}
                     style={{width:"100%",background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:"#9AACC0",fontFamily:"monospace",fontSize:10,lineHeight:1.7,outline:"none",padding:"4px 0",minHeight:80,resize:"vertical"}}/>
                 </div>
-              );
-            })}
+            ))}
           </div>
           <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
             <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Final comparison — estimated vs actual</div>
