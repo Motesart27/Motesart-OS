@@ -2530,6 +2530,7 @@ function TravelBuilderPanel() {
   const tots = tbCalc(actuals);
   const pp = Math.round((tots.filled/tots.total)*100);
   const sp = Math.min(Math.round((tots.actual/tots.low)*100),150);
+  const currentTripName = newTripPreview?.name || "Chicago Graduation Trip";
 
   function safeTravelNotice(message,type=""){setToast({msg:message,type});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2800);}
   function safeTravelAction(actionName, callback){
@@ -2568,7 +2569,7 @@ function TravelBuilderPanel() {
     fetch(`${import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app'}/api/travel/brief`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ trip: "Chicago Graduation Trip", biz: 'fm' })
+      body: JSON.stringify({ trip: currentTripName, biz: 'fm' })
     })
       .then(r=>r.json()).then(d=>setAiBrief(d.content?.[0]?.text||""))
       .catch(()=>setAiBrief(`Status: In Progress (${pp}% planned). Hotel confirmed $481 — Marriott Marquis Chicago, skybridge to Wintrust Arena. Flights pending — book southwest.com TODAY. Actual: ${tbFmt(tots.actual)} of ${tbFmt(tots.low)}. Savings ~${tbFmt(tots.saved)}+.`))
