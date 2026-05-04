@@ -2450,6 +2450,18 @@ const TB_ROWS = [
   {id:"m2",   cat:"",                  label:"Emergency buffer",               low:50, high:100, fixed:false,act:"",   status:"est",     note:"Always carry a buffer."},
 ];
 
+const TB_BLANK_ROWS = [
+  {id:"draft_hotel",cat:"Accommodation",    label:"",low:0,high:0,fixed:false,act:"",status:"est",note:""},
+  {id:"draft_f1",   cat:"Flights",          label:"",low:0,high:0,fixed:false,act:"",status:"est",note:""},
+  {id:"draft_f2",   cat:"",                 label:"",low:0,high:0,fixed:false,act:"",status:"est",note:""},
+  {id:"draft_t1",   cat:"Ground Transport", label:"",low:0,high:0,fixed:false,act:"",status:"est",note:""},
+  {id:"draft_d1",   cat:"Food & Dining",    label:"",low:0,high:0,fixed:false,act:"",status:"est",note:""},
+];
+
+function tbCloneRows(rows) {
+  return rows.map(r=>({...r}));
+}
+
 function tbCalc(rows) {
   let low=0,high=0,actual=0,saved=170,filled=0;
   rows.forEach(r => {
@@ -2520,6 +2532,7 @@ function TravelBuilderPanel() {
   const [newTripBudget,setNewTripBudget] = useState("");
   const [newTripPurpose,setNewTripPurpose] = useState("");
   const [newTripPreview,setNewTripPreview] = useState(null);
+  const [activeTripDraft,setActiveTripDraft] = useState(null);
   const [editableTripRows,setEditableTripRows] = useState(()=>TB_ROWS.map(r=>({...r,act:r.fixed?r.act:(actuals[r.id]??r.act)})));
   const [toast,setToast] = useState(null);
   const [aiBrief,setAiBrief] = useState("");
@@ -2530,7 +2543,11 @@ function TravelBuilderPanel() {
   const tots = tbCalc(editableTripRows);
   const pp = Math.round((tots.filled/tots.total)*100);
   const sp = Math.min(Math.round((tots.actual/tots.low)*100),150);
-  const currentTripName = newTripPreview?.name || "Chicago Graduation Trip";
+  const activeTripTitle = activeTripDraft?.name || "Chicago Graduation Trip";
+  const activeTripMeta = activeTripDraft
+    ? [activeTripDraft.dateRange||"Dates pending", activeTripDraft.destination||"Destination pending", activeTripDraft.travelers||"Travelers pending", activeTripDraft.purpose||"Purpose pending"]
+    : ["June 12–15 2026","Marriott Marquis Chicago","Denarius + Kadence","Kayliah Graduation"];
+  const currentTripName = activeTripTitle;
   const bookedTotal = editableTripRows
     .filter(r=>["booked","confirm"].includes(r.status))
     .reduce((sum,r)=>sum+(parseFloat(r.act)||0),0);
@@ -2558,7 +2575,21 @@ function TravelBuilderPanel() {
     });
     setNewTripModal(false);
   }
-  function doReset(){safeTravelAction("Reset",()=>{setActuals({});setEditableTripRows(TB_ROWS.map(r=>({...r})));localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);safeTravelNotice("Actuals cleared — template ready","success");});}
+  function usePreviewAsActiveDraft(){
+    if(!newTripPreview)return;
+    setActiveTripDraft({
+      name:newTripPreview.name||"Untitled Trip",
+      destination:newTripPreview.destination||"Destination pending",
+      dateRange:newTripPreview.dates||"Dates pending",
+      travelers:newTripPreview.travelers||"Travelers pending",
+      purpose:newTripPreview.purpose||"Purpose pending"
+    });
+    setActuals({});
+    setEditableTripRows(tbCloneRows(TB_BLANK_ROWS));
+    setNewTripPreview(null);
+    safeTravelNotice("Active draft started","success");
+  }
+  function doReset(){safeTravelAction("Reset",()=>{setActuals({});setEditableTripRows(activeTripDraft?tbCloneRows(TB_BLANK_ROWS):tbCloneRows(TB_ROWS));localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);safeTravelNotice("Actuals cleared — template ready","success");});}
   function doArchive(){
     safeTravelAction("Archive",()=>{
       const e={id:Date.now(),trip:"Chicago Graduation Trip",dates:"June 12–15 2026",budget:tots.low,actual:tots.actual,saved:tots.saved,state:{actuals,retro},archivedAt:new Date().toLocaleDateString()};
@@ -2593,8 +2624,11 @@ function TravelBuilderPanel() {
     booked:{bg:T.greenDim,c:T.green,t:"Booked"},
     booknow:{bg:T.amberDim,c:T.amber,t:"Book now"},
     confirm:{bg:"rgba(255,255,255,0.06)",c:T.muted,t:"Confirm"},
-    est:{bg:"rgba(255,255,255,0.06)",c:T.muted,t:"Estimate"}
+    est:{bg:"rgba(255,255,255,0.06)",c:T.muted,t:"Estimate"},
+    paid:{bg:T.blueDim,c:T.blue,t:"Paid"},
+    archived:{bg:"rgba(255,255,255,0.06)",c:T.muted,t:"Archived"}
   };
+  const STATUS_OPTIONS=[["est","Estimate"],["booknow","Book now"],["confirm","Confirm"],["booked","Booked"],["paid","Paid"],["archived","Archived"]];
 
   return(
     <div style={{fontFamily:"'DM Sans',system-ui,sans-serif"}}>
@@ -2614,9 +2648,9 @@ function TravelBuilderPanel() {
             <div style={{width:5,height:5,borderRadius:"50%",background:T.green,animation:"pulse 2s infinite"}}/>
             <span style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold}}>Travel Builder — Active Trip</span>
           </div>
-          <div style={{fontSize:22,fontWeight:800,color:T.white}}>Chicago Graduation Trip</div>
+          <div style={{fontSize:22,fontWeight:800,color:T.white}}>{activeTripTitle}</div>
           <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,marginTop:4,display:"flex",gap:10,flexWrap:"wrap"}}>
-            {["June 12–15 2026","Marriott Marquis Chicago","Denarius + Kadence","Kayliah Graduation"].map(s=>(
+            {activeTripMeta.map(s=>(
               <span key={s}><span style={{color:T.gold,marginRight:3}}>·</span>{s}</span>
             ))}
           </div>
@@ -2635,6 +2669,7 @@ function TravelBuilderPanel() {
                 <div><strong style={{color:T.white}}>Purpose / Notes:</strong> {newTripPreview.purpose}</div>
                 <div style={{color:"#dc2626",marginTop:4}}>Preview only — not saved yet.</div>
               </div>
+              <button onClick={usePreviewAsActiveDraft} style={{marginTop:10,background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"6px 10px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Use as Active Draft</button>
             </div>
           )}
         </div>
@@ -2761,7 +2796,10 @@ function TravelBuilderPanel() {
                           {diff===null?"—":diff>0?tbFmt(diff):diff<0?"("+tbFmt(Math.abs(diff))+")":"$0"}
                         </td>
                         <td style={{padding:"10px 12px",textAlign:"center"}}>
-                          <span style={{background:s.bg,color:s.c,border:`1px solid ${s.c}30`,borderRadius:3,padding:"2px 8px",fontFamily:"monospace",fontSize:9,fontWeight:500}}>{s.t}</span>
+                          <select value={r.status} onChange={e=>updateTripRow(r.id,"status",e.target.value)}
+                            style={{background:s.bg,color:s.c,border:`1px solid ${s.c}30`,borderRadius:3,padding:"2px 6px",fontFamily:"monospace",fontSize:9,fontWeight:500,outline:"none"}}>
+                            {STATUS_OPTIONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                          </select>
                         </td>
                         <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:T.muted}}>
                           <input value={r.note} onChange={e=>updateTripRow(r.id,"note",e.target.value)}
