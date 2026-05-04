@@ -2575,7 +2575,7 @@ function TravelBuilderPanel() {
   function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:r));}
   function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,act:val}:r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
   function buildTravelDraft(rows=editableTripRows){
-    return {activeTripDraft,editableTripRows:rows,newTripPreview,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose,savedAt:new Date().toISOString()};
+    return {activeTripDraft,editableTripRows:rows,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose,savedAt:new Date().toISOString()};
   }
   function saveTravelDraft(status="saved"){
     try {localStorage.setItem(TRAVEL_DRAFT_KEY,JSON.stringify(buildTravelDraft()));setTravelDraftStatus(status);}
@@ -2586,34 +2586,23 @@ function TravelBuilderPanel() {
   function showToast(msg,type=""){safeTravelNotice(msg,type);}
   function continueNewTripPreview(){
     const dates = newTripStartDate && newTripEndDate ? `${newTripStartDate} to ${newTripEndDate}` : "Dates pending";
-    setNewTripPreview({
+    setActiveTripDraft({
       name:newTripName.trim()||"Untitled Trip",
       destination:newTripDestination.trim()||"Destination pending",
-      dates,
+      dateRange:dates,
       travelers:newTripTravelers.trim()||"Travelers pending",
-      budget:newTripBudget.trim()?`$${newTripBudget.trim()}`:"Budget pending",
       purpose:newTripPurpose.trim()||"Purpose pending"
-    });
-    setNewTripModal(false);
-  }
-  function usePreviewAsActiveDraft(){
-    if(!newTripPreview)return;
-    setActiveTripDraft({
-      name:newTripPreview.name||"Untitled Trip",
-      destination:newTripPreview.destination||"Destination pending",
-      dateRange:newTripPreview.dates||"Dates pending",
-      travelers:newTripPreview.travelers||"Travelers pending",
-      purpose:newTripPreview.purpose||"Purpose pending"
     });
     setActuals({});
     setEditableTripRows(tbCloneRows(TB_BLANK_ROWS));
     setNewTripPreview(null);
+    setNewTripModal(false);
     safeTravelNotice("Active draft started","success");
   }
   function doReset(){safeTravelAction("Reset",()=>{setActuals({});setEditableTripRows(activeTripDraft?tbCloneRows(TB_BLANK_ROWS):tbCloneRows(TB_ROWS));localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);safeTravelNotice("Actuals cleared — template ready","success");});}
   function doArchive(){
     safeTravelAction("Archive",()=>{
-      const e={id:Date.now(),trip:"Chicago Graduation Trip",dates:"June 12–15 2026",budget:tots.low,actual:tots.actual,saved:tots.saved,state:{actuals,retro},archivedAt:new Date().toLocaleDateString()};
+      const e={id:Date.now(),trip:activeTripTitle,dates:activeTripMeta[0],budget:tots.low,actual:tots.actual,saved:tots.saved,state:{actuals,retro},archivedAt:new Date().toLocaleDateString()};
       const n=[e,...archive];setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));setArchiveModal(false);safeTravelNotice("Trip archived locally","success");setTab("archive");
     });
   }
@@ -2624,9 +2613,19 @@ function TravelBuilderPanel() {
       if(raw){
         const d=JSON.parse(raw);
         if(d&&typeof d==="object"){
-          if(d.activeTripDraft)setActiveTripDraft(d.activeTripDraft);
-          if(Array.isArray(d.editableTripRows))setEditableTripRows(d.editableTripRows);
-          if(d.newTripPreview)setNewTripPreview(d.newTripPreview);
+          if(d.activeTripDraft){
+            setActiveTripDraft(d.activeTripDraft);
+            if(Array.isArray(d.editableTripRows))setEditableTripRows(d.editableTripRows);
+          } else if(d.newTripPreview) {
+            setActiveTripDraft({
+              name:d.newTripPreview.name||"Untitled Trip",
+              destination:d.newTripPreview.destination||"Destination pending",
+              dateRange:d.newTripPreview.dates||"Dates pending",
+              travelers:d.newTripPreview.travelers||"Travelers pending",
+              purpose:d.newTripPreview.purpose||"Purpose pending"
+            });
+            setEditableTripRows(tbCloneRows(TB_BLANK_ROWS));
+          } else if(Array.isArray(d.editableTripRows))setEditableTripRows(d.editableTripRows);
           setNewTripName(d.newTripName||"");
           setNewTripDestination(d.newTripDestination||"");
           setNewTripStartDate(d.newTripStartDate||"");
@@ -2658,7 +2657,7 @@ function TravelBuilderPanel() {
       body: JSON.stringify({ trip: currentTripName, biz: 'fm' })
     })
       .then(r=>r.json()).then(d=>setAiBrief(d.content?.[0]?.text||""))
-      .catch(()=>setAiBrief(`Status: In Progress (${pp}% planned). Hotel confirmed $481 — Marriott Marquis Chicago, skybridge to Wintrust Arena. Flights pending — book southwest.com TODAY. Actual: ${tbFmt(tots.actual)} of ${tbFmt(tots.low)}. Savings ~${tbFmt(tots.saved)}+.`))
+      .catch(()=>setAiBrief(`Status: In Progress (${pp}% planned). ${currentTripName} draft is local. Actual: ${tbFmt(tots.actual)} of ${tbFmt(tots.low)}. Savings ~${tbFmt(tots.saved)}+.`))
       .finally(()=>setBriefLoading(false));
   },[tab]);
 
@@ -2705,24 +2704,6 @@ function TravelBuilderPanel() {
               <span key={s}><span style={{color:T.gold,marginRight:3}}>·</span>{s}</span>
             ))}
           </div>
-          {newTripPreview&&(
-            <div style={{marginTop:12,background:"rgba(220,38,38,0.06)",border:"1px solid rgba(220,38,38,0.35)",borderRadius:8,padding:12,maxWidth:520}}>
-              <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start",marginBottom:8}}>
-                <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",color:"#dc2626",fontWeight:800}}>New Trip Preview</div>
-                <button aria-label="Clear new trip preview" onClick={()=>setNewTripPreview(null)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"4px 8px",fontFamily:"inherit",fontSize:10,color:T.muted,cursor:"pointer"}}>Clear Preview</button>
-              </div>
-              <div style={{fontSize:16,fontWeight:800,color:T.white,marginBottom:6}}>{newTripPreview.name}</div>
-              <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,lineHeight:1.8}}>
-                <div><strong style={{color:T.white}}>Destination:</strong> {newTripPreview.destination}</div>
-                <div><strong style={{color:T.white}}>Dates:</strong> {newTripPreview.dates}</div>
-                <div><strong style={{color:T.white}}>Travelers:</strong> {newTripPreview.travelers}</div>
-                <div><strong style={{color:T.white}}>Budget:</strong> {newTripPreview.budget}</div>
-                <div><strong style={{color:T.white}}>Purpose / Notes:</strong> {newTripPreview.purpose}</div>
-                <div style={{color:"#dc2626",marginTop:4}}>Preview only — not saved yet.</div>
-              </div>
-              <button onClick={usePreviewAsActiveDraft} style={{marginTop:10,background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"6px 10px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Use as Active Draft</button>
-            </div>
-          )}
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           <button onClick={()=>setNewTripModal(true)}
@@ -2937,7 +2918,7 @@ function TravelBuilderPanel() {
           <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:22}}>
             <TBCard label="Coverage"     value={Math.round((tots.actual/tots.low)*100)+"%"} sub="Actual vs budget"  accent={T.green}  glow="rgba(76,175,125,0.2)"/>
             <TBCard label="Categories"   value={catData.filter(c=>c.v>0).length+"/"+catData.length} sub="With actuals" accent={T.gold}   glow="rgba(201,168,76,0.2)"/>
-            <TBCard label="Avg/day"      value={tots.actual>481?tbFmt(Math.round(tots.actual/3)):"—"} sub="3 days total" accent={T.blue} glow="rgba(90,143,201,0.2)"/>
+            <TBCard label="Avg/day"      value={tots.actual>0?tbFmt(Math.round(tots.actual/3)):"—"} sub="3 days total" accent={T.blue} glow="rgba(90,143,201,0.2)"/>
             <TBCard label="Savings rate" value={Math.round((tots.saved/1750)*100)+"%"} sub="Of full price" accent="#4db87a" glow="rgba(77,184,122,0.2)"/>
             <TBCard label="Over/under"   value={tbFmt(Math.abs(tots.low-tots.actual))} sub={tots.actual<=tots.low?"under budget":"over budget"} accent={tots.actual<=tots.low?T.green:T.red} glow={tots.actual<=tots.low?"rgba(76,175,125,0.2)":"rgba(201,90,90,0.2)"}/>
           </div>
@@ -2959,7 +2940,7 @@ function TravelBuilderPanel() {
                 <div style={{display:"flex",alignItems:"center",gap:18}}>
                   <TBDonut pct={pp} color={T.gold}/>
                   <div>
-                    {[{dot:T.green,l:"Booked",v:tbFmt(481)},{dot:T.blue,l:"Actual paid",v:tbFmt(tots.actual)},{dot:T.muted,l:"Remaining",v:tbFmt(Math.max(0,tots.low-tots.actual))},{dot:T.green,l:"Saved",v:"~"+tbFmt(tots.saved)}].map(r=>(
+                    {[{dot:T.green,l:"Booked",v:tbFmt(bookedTotal)},{dot:T.blue,l:"Actual paid",v:tbFmt(tots.actual)},{dot:T.muted,l:"Remaining",v:tbFmt(Math.max(0,tots.low-tots.actual))},{dot:T.green,l:"Saved",v:"~"+tbFmt(tots.saved)}].map(r=>(
                       <div key={r.l} style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
                         <div style={{width:8,height:8,borderRadius:2,background:r.dot,flexShrink:0}}/>
                         <div style={{flex:1,fontFamily:"monospace",fontSize:10,color:T.muted}}>{r.l}</div>
@@ -3052,7 +3033,7 @@ Your permanent travel history in FM.</div>
         <div role="dialog" aria-modal="true" aria-label="New Trip Builder" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
             <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:T.white}}>New Trip Builder</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:14}}>Trip creation is being staged safely. Preview only — saving comes in the next phase.</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:14}}>Trip creation is being staged safely. Starting the draft will replace the active trip locally.</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
               <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Trip Name
                 <input value={newTripName} onChange={e=>setNewTripName(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
@@ -3078,7 +3059,7 @@ Your permanent travel history in FM.</div>
             </div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button onClick={()=>setNewTripModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Close</button>
-              <button onClick={continueNewTripPreview} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Continue Preview</button>
+              <button onClick={continueNewTripPreview} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Start Active Draft</button>
             </div>
           </div>
         </div>
@@ -3101,7 +3082,7 @@ Your permanent travel history in FM.</div>
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
           <div style={{background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
             <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:T.white}}>Archive This Trip</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:22}}>Saving <strong style={{color:T.white}}>Chicago Graduation Trip</strong> to archive with all data, actuals, and retro notes.</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:22}}>Saving <strong style={{color:T.white}}>{activeTripTitle}</strong> to archive with all data, actuals, and retro notes.</div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button onClick={()=>setArchiveModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Cancel</button>
               <button onClick={doArchive} style={{background:T.greenDim,border:`1px solid ${T.green}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.green,cursor:"pointer"}}>Archive Trip</button>
