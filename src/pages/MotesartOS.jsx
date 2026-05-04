@@ -436,6 +436,24 @@ function generateMonthSummary(year, monthIndex) {
   };
 }
 
+const MT_SUBSCRIPTIONS_CURRENT = [
+  { name: "Eleven Labs", amount: 23.93 },
+  { name: "United Masters", amount: 19.99 },
+  { name: "Suno", amount: 32.66 },
+  { name: "Notion", amount: 24 },
+  { name: "Airtable x2", amount: 58.5 },
+  { name: "Railway", amount: 20 },
+  { name: "Buffer", amount: 13 },
+  { name: "Blu Host", amount: 3.25 },
+  { name: "Kits AI", amount: 30 },
+  { name: "eCredible", amount: 9.95 },
+];
+const MT_SUBSCRIPTIONS_EXPECTED_TOTAL = 653.77;
+
+function getMTSubscriptionsTotal() {
+  return Number(MT_SUBSCRIPTIONS_CURRENT.reduce((sum, item) => sum + item.amount, 0).toFixed(2));
+}
+
 function SmartMonthPreviewPanel() {
   const target = getNextMonthTargetDate();
   const summary = generateMonthSummary(target.year, target.monthIndex);
@@ -471,6 +489,40 @@ function SmartMonthPreviewPanel() {
             <span style={{ color: T.white, fontWeight: 700 }}>{fmt(value)}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function MTSubscriptionsPreviewPanel() {
+  const fmt = (value) => "$" + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const itemizedTotal = getMTSubscriptionsTotal();
+  const variance = Number((MT_SUBSCRIPTIONS_EXPECTED_TOTAL - itemizedTotal).toFixed(2));
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.amber}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: T.amber, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>MT Subscriptions Preview</span>
+        <Badge text="Reconciliation" color={T.amber} dim={T.amberDim} />
+        <span style={{ marginLeft: "auto", fontSize: 10, color: T.muted }}>Preview only — not applied to live budget yet.</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 6 }}>
+        {MT_SUBSCRIPTIONS_CURRENT.map(item => (
+          <div key={item.name} style={{ display: "flex", justifyContent: "space-between", gap: 8, background: "rgba(255,255,255,0.025)", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 8px", fontSize: 11 }}>
+            <span style={{ color: T.muted }}>{item.name}</span>
+            <span style={{ color: T.white, fontWeight: 700 }}>{fmt(item.amount)}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 6, marginTop: 10 }}>
+        {[["Itemized Total", itemizedTotal, T.white], ["Expected Sheet Total", MT_SUBSCRIPTIONS_EXPECTED_TOTAL, T.amber], ["Unaccounted Difference", variance, T.red]].map(([label, value, color]) => (
+          <div key={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 7, padding: "7px 9px" }}>
+            <div style={{ fontSize: 8, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 800 }}>{label}</div>
+            <div style={{ fontSize: 15, color, fontWeight: 800, marginTop: 3 }}>{fmt(value)}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, background: T.redDim, border: `1px solid ${T.red}30`, borderRadius: 7, padding: "8px 10px", fontSize: 11, color: T.red, lineHeight: 1.5 }}>
+        Sheet total is higher than itemized subscriptions. Missing MT items must be identified before applying to live budget.
       </div>
     </div>
   );
@@ -3464,7 +3516,10 @@ export default function MotesartOS() {
           )}
 
           {!isSpecialView && activeTab === "overview" && isFM && (
-            <SmartMonthPreviewPanel />
+            <>
+              <SmartMonthPreviewPanel />
+              <MTSubscriptionsPreviewPanel />
+            </>
           )}
 
           {/* Phase 3B — SOM Executive Tile (SOM overview only) */}
