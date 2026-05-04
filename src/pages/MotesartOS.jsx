@@ -2512,6 +2512,7 @@ function TravelBuilderPanel() {
   const [tab,setTab] = useState("budget");
   const [resetModal,setResetModal] = useState(false);
   const [archiveModal,setArchiveModal] = useState(false);
+  const [newTripModal,setNewTripModal] = useState(false);
   const [toast,setToast] = useState(null);
   const [aiBrief,setAiBrief] = useState("");
   const [briefLoading,setBriefLoading] = useState(false);
@@ -2596,7 +2597,7 @@ function TravelBuilderPanel() {
           </div>
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          <button onClick={()=>console.log("Travel Builder new trip placeholder")}
+          <button onClick={()=>setNewTripModal(true)}
             style={{position:"relative",background:"rgba(220,38,38,0.08)",color:"#dc2626",border:"1px solid #dc2626",borderRadius:6,padding:"7px 13px",fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
             + New Trip
             <span style={{position:"absolute",top:-7,right:-7,background:"#dc2626",color:"#fff",borderRadius:999,padding:"1px 5px",fontSize:8,fontWeight:800,lineHeight:"12px",letterSpacing:"0.04em"}}>NEW</span>
@@ -2880,6 +2881,19 @@ Your permanent travel history in FM.</div>
                   <span>{l}</span><strong style={{color:c}}>{v}</strong>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {newTripModal&&(
+        <div role="dialog" aria-modal="true" aria-label="New Trip Builder" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:T.white}}>New Trip Builder</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:22}}>Trip creation is being staged safely. The form fields and Airtable save will come in the next build phase.</div>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <button onClick={()=>setNewTripModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Close</button>
+              <button onClick={()=>setNewTripModal(false)} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Continue Preview</button>
             </div>
           </div>
         </div>
