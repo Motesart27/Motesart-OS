@@ -2596,6 +2596,11 @@ function TravelBuilderPanel() {
           </div>
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          <button onClick={()=>console.log("Travel Builder new trip placeholder")}
+            style={{position:"relative",background:"rgba(220,38,38,0.08)",color:"#dc2626",border:"1px solid #dc2626",borderRadius:6,padding:"7px 13px",fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
+            + New Trip
+            <span style={{position:"absolute",top:-7,right:-7,background:"#dc2626",color:"#fff",borderRadius:999,padding:"1px 5px",fontSize:8,fontWeight:800,lineHeight:"12px",letterSpacing:"0.04em"}}>NEW</span>
+          </button>
           {[
             {l:"↺ Reset",fn:()=>setResetModal(true),bg:"transparent",c:T.muted,b:T.dim},
             {l:"↓ Archive",fn:()=>setArchiveModal(true),bg:T.greenDim,c:T.green,b:`${T.green}40`},
