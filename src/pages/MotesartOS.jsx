@@ -436,6 +436,46 @@ function generateMonthSummary(year, monthIndex) {
   };
 }
 
+function SmartMonthPreviewPanel() {
+  const target = getNextMonthTargetDate();
+  const summary = generateMonthSummary(target.year, target.monthIndex);
+  const rows = generateRecurringIncomeForMonth(target.year, target.monthIndex);
+  const bySource = Object.fromEntries(rows.map(row => [row.source, row]));
+  const fmt = (value) => "$" + value.toLocaleString();
+  const incomeRows = [
+    ["Renee", bySource.Renee.projectedTotal],
+    ["Evelyn", bySource.Evelyn.projectedTotal],
+    ["Debbie", bySource.Debbie.projectedTotal],
+    ["Church NJ", bySource["Church (NJ)"].projectedTotal],
+    ["Church WU", bySource["Church (WU)"].projectedTotal],
+  ];
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.green}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: T.green, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Smart Month Preview</span>
+        <Badge text={summary.monthLabel} color={T.green} dim={T.greenDim} />
+        <span style={{ marginLeft: "auto", fontSize: 10, color: T.muted }}>Preview only — not applied yet.</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, marginBottom: 10 }}>
+        {[["Tuesdays", summary.tuesdayCount], ["Sundays", summary.sundayCount], ["Lessons", fmt(summary.projectedLessonIncome)], ["Church", fmt(summary.projectedChurchIncome)], ["Total", fmt(summary.projectedTotalIncome)]].map(([label, value]) => (
+          <div key={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 10px" }}>
+            <div style={{ fontSize: 8, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 800 }}>{label}</div>
+            <div style={{ fontSize: 15, color: label === "Total" ? T.green : T.white, fontWeight: 700, marginTop: 3 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 6 }}>
+        {incomeRows.map(([label, value]) => (
+          <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 8, background: "rgba(255,255,255,0.025)", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 8px", fontSize: 11 }}>
+            <span style={{ color: T.muted }}>{label}</span>
+            <span style={{ color: T.white, fontWeight: 700 }}>{fmt(value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const BOOK_SYSTEM = `You are the Book Project Executive Agent -- Project Director for the Motes Family Book Project, reporting to Denarius Motes via the PA Agent.
 
 PROJECT STATUS
@@ -3421,6 +3461,10 @@ export default function MotesartOS() {
               </div>
               <p style={{ margin: 0, fontSize: 13, color: T.white, lineHeight: 1.65 }}>{biz.brief}</p>
             </div>
+          )}
+
+          {!isSpecialView && activeTab === "overview" && isFM && (
+            <SmartMonthPreviewPanel />
           )}
 
           {/* Phase 3B — SOM Executive Tile (SOM overview only) */}
