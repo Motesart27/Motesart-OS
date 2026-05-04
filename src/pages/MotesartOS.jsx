@@ -2431,6 +2431,7 @@ function BookManagerPanel() {
 
 // ─── FM Travel Builder ────────────────────────────────────────────────────────
 const TB_SK = "fm_tb_v2", TB_AK = "fm_arc_v2";
+const TRAVEL_DRAFT_KEY = "fm_travel_builder_active_draft_v1";
 const tbFmt = (n) => "$" + Math.round(n).toLocaleString();
 const TB_ROWS = [
   {id:"hotel",cat:"Accommodation",     label:"Marriott Marquis — 3 nights",    low:481,high:481, fixed:true, act:481,  status:"booked",  note:"MM4 rate. Skybridge to Wintrust Arena."},
@@ -2541,11 +2542,14 @@ function TravelBuilderPanel() {
   const [activeTripDraft,setActiveTripDraft] = useState(null);
   const [editableTripRows,setEditableTripRows] = useState(()=>TB_ROWS.map(r=>({...r,act:r.fixed?r.act:(actuals[r.id]??r.act)})));
   const [flightOptionsForRow,setFlightOptionsForRow] = useState(null);
+  const [travelDraftStatus,setTravelDraftStatus] = useState("idle");
   const [toast,setToast] = useState(null);
   const [aiBrief,setAiBrief] = useState("");
   const [briefLoading,setBriefLoading] = useState(false);
   const briefDone = useRef(false);
   const toastTimer = useRef();
+  const travelDraftHydratedRef = useRef(false);
+  const travelDraftSkipNextSaveRef = useRef(true);
 
   const tots = tbCalc(editableTripRows);
   const pp = Math.round((tots.filled/tots.total)*100);
@@ -2558,6 +2562,7 @@ function TravelBuilderPanel() {
   const bookedTotal = editableTripRows
     .filter(r=>["booked","confirm"].includes(r.status))
     .reduce((sum,r)=>sum+(parseFloat(r.act)||0),0);
+  const travelDraftStatusText = travelDraftStatus==="restored" ? "Draft restored from this browser." : travelDraftStatus==="saved" ? "Draft saved locally." : travelDraftStatus==="error" ? "Draft save issue — copy your details before leaving." : "Editable draft — not saved to Airtable yet.";
 
   function safeTravelNotice(message,type=""){setToast({msg:message,type});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2800);}
   function safeTravelAction(actionName, callback){
@@ -2569,6 +2574,13 @@ function TravelBuilderPanel() {
   }
   function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:r));}
   function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,act:val}:r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
+  function buildTravelDraft(rows=editableTripRows){
+    return {activeTripDraft,editableTripRows:rows,newTripPreview,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose,savedAt:new Date().toISOString()};
+  }
+  function saveTravelDraft(status="saved"){
+    try {localStorage.setItem(TRAVEL_DRAFT_KEY,JSON.stringify(buildTravelDraft()));setTravelDraftStatus(status);}
+    catch(err){console.warn("Travel draft save failed",err);setTravelDraftStatus("error");}
+  }
   function useFlightOption(rowId,opt){setEditableTripRows(rows=>rows.map(r=>r.id===rowId?{...r,label:opt.title,low:opt.low,high:opt.high,note:opt.note,status:"booknow",url:opt.bookingUrl}:r));setFlightOptionsForRow(null);}
   function openFlightBooking(url){window.open(url,"_blank","noopener,noreferrer");}
   function showToast(msg,type=""){safeTravelNotice(msg,type);}
@@ -2605,6 +2617,36 @@ function TravelBuilderPanel() {
       const n=[e,...archive];setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));setArchiveModal(false);safeTravelNotice("Trip archived locally","success");setTab("archive");
     });
   }
+
+  useEffect(()=>{
+    try {
+      const raw=localStorage.getItem(TRAVEL_DRAFT_KEY);
+      if(raw){
+        const d=JSON.parse(raw);
+        if(d&&typeof d==="object"){
+          if(d.activeTripDraft)setActiveTripDraft(d.activeTripDraft);
+          if(Array.isArray(d.editableTripRows))setEditableTripRows(d.editableTripRows);
+          if(d.newTripPreview)setNewTripPreview(d.newTripPreview);
+          setNewTripName(d.newTripName||"");
+          setNewTripDestination(d.newTripDestination||"");
+          setNewTripStartDate(d.newTripStartDate||"");
+          setNewTripEndDate(d.newTripEndDate||"");
+          setNewTripTravelers(d.newTripTravelers||"");
+          setNewTripBudget(d.newTripBudget||"");
+          setNewTripPurpose(d.newTripPurpose||"");
+          setTravelDraftStatus("restored");
+        }
+      }
+    } catch(err) {console.warn("Travel draft restore failed",err);setTravelDraftStatus("error");}
+    finally {travelDraftHydratedRef.current=true;}
+  },[]);
+
+  useEffect(()=>{
+    if(!travelDraftHydratedRef.current)return;
+    if(travelDraftSkipNextSaveRef.current){travelDraftSkipNextSaveRef.current=false;return;}
+    try {setTravelDraftStatus("saving");localStorage.setItem(TRAVEL_DRAFT_KEY,JSON.stringify(buildTravelDraft()));setTravelDraftStatus("saved");}
+    catch(err){console.warn("Travel draft autosave failed",err);setTravelDraftStatus("error");}
+  },[activeTripDraft,editableTripRows,newTripPreview,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose]);
 
   useEffect(()=>{
     if(briefDone.current||tab!=="budget")return;
@@ -2691,7 +2733,7 @@ function TravelBuilderPanel() {
           {[
             {l:"↺ Reset",fn:()=>setResetModal(true),bg:"transparent",c:T.muted,b:T.dim},
             {l:"↓ Archive",fn:()=>setArchiveModal(true),bg:T.greenDim,c:T.green,b:`${T.green}40`},
-            {l:"◼ Save",fn:()=>safeTravelAction("Save",()=>{localStorage.setItem(TB_SK+"_a",JSON.stringify(actuals));safeTravelNotice("Saved locally","success");}),bg:T.goldDim,c:T.gold,b:T.borderHi},
+            {l:"◼ Save",fn:()=>safeTravelAction("Save",()=>{localStorage.setItem(TB_SK+"_a",JSON.stringify(actuals));saveTravelDraft();safeTravelNotice("Travel draft saved locally.","success");}),bg:T.goldDim,c:T.gold,b:T.borderHi},
           ].map(b=>(
               <button key={b.l} onClick={b.fn}
                 style={{background:b.bg,color:b.c,border:`1px solid ${b.b}`,borderRadius:6,padding:"7px 13px",fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
@@ -2756,7 +2798,7 @@ function TravelBuilderPanel() {
                 <div style={{width:7,height:7,borderRadius:1,background:c,flexShrink:0}}/>{l}
               </div>
             ))}
-            <div style={{fontFamily:"monospace",fontSize:9,color:T.red}}>Editable draft — not saved to Airtable yet.</div>
+            <div style={{fontFamily:"monospace",fontSize:9,color:travelDraftStatus==="error"?T.red:T.muted}}>{travelDraftStatusText}</div>
           </div>
 
           <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden",marginBottom:18}}>
