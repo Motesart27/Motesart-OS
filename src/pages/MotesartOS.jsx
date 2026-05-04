@@ -2434,8 +2434,8 @@ const TB_SK = "fm_tb_v2", TB_AK = "fm_arc_v2";
 const tbFmt = (n) => "$" + Math.round(n).toLocaleString();
 const TB_ROWS = [
   {id:"hotel",cat:"Accommodation",     label:"Marriott Marquis — 3 nights",    low:481,high:481, fixed:true, act:481,  status:"booked",  note:"MM4 rate. Skybridge to Wintrust Arena."},
-  {id:"f1",   cat:"Flights",           label:"LGA \u2192 MDW — Jun 12 morning",     low:150,high:200, fixed:false,act:"",   status:"booknow", note:"Southwest. Nonstop ~2h 25m."},
-  {id:"f2",   cat:"",                  label:"MDW \u2192 LGA — Jun 15 noon",        low:150,high:200, fixed:false,act:"",   status:"booknow", note:"No change fees. 2 free bags."},
+  {id:"f1",   cat:"Flights",           label:"LGA \u2192 MDW — Jun 12 morning",     low:150,high:200, fixed:false,act:"",   status:"booknow", url:"https://www.southwest.com", note:"Southwest. Nonstop ~2h 25m."},
+  {id:"f2",   cat:"",                  label:"MDW \u2192 LGA — Jun 15 noon",        low:150,high:200, fixed:false,act:"",   status:"booknow", url:"https://www.southwest.com", note:"No change fees. 2 free bags."},
   {id:"f3",   cat:"",                  label:"Kadence \u2014 CA \u2192 ORD Jun 12", low:40, high:40,  fixed:false,act:"",   status:"confirm", note:"Niece buddy pass. ~$40 tax."},
   {id:"t1",   cat:"Ground Transport",  label:"CTA + Uber \u2014 all days",          low:60, high:110, fixed:false,act:"",   status:"est",     note:"No rental. Skybridge + CTA."},
   {id:"d1",   cat:"Food & Dining",     label:"Jun 12 \u2014 arrival dinner",        low:40, high:80,  fixed:false,act:"",   status:"est",     note:"Chicago deep dish."},
@@ -2534,9 +2534,13 @@ function TravelBuilderPanel() {
     if(briefDone.current||tab!=="budget")return;
     briefDone.current=true;
     setBriefLoading(true);
-    fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:"You are the FM Executive inside Motesart OS Finance Mind. Report to Mya, PA for Denarius Motes. 2-3 sentences. Action-oriented. End with #1 next action.",messages:[{role:"user",content:`Chicago Graduation Trip briefing for Mya. Hotel: booked $481 Marriott Marquis (MM4, skybridge to Wintrust Arena). Flights: NOT booked \u2014 need Southwest LGA\u2192MDW Jun 12 + MDW\u2192LGA Jun 15. Kadence: niece buddy pass ~$40. Actual so far: ${tbFmt(tots.actual)} of ${tbFmt(tots.low)} budget. Planning: ${pp}% complete. Savings: ~${tbFmt(tots.saved)}. Be specific.`}]})})
+    fetch(`${import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app'}/api/travel/brief`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trip: currentTrip, biz: 'fm' })
+    })
       .then(r=>r.json()).then(d=>setAiBrief(d.content?.[0]?.text||""))
-      .catch(()=>setAiBrief(`Status: In Progress (${pp}% planned). Hotel confirmed $481 \u2014 Marriott Marquis Chicago, skybridge to Wintrust Arena. Flights pending \u2014 book southwest.com TODAY. Actual: ${tbFmt(tots.actual)} of ${tbFmt(tots.low)}. Savings ~${tbFmt(tots.saved)}+.`))
+      .catch(()=>setAiBrief(`Status: In Progress (${pp}% planned). Hotel confirmed $481 — Marriott Marquis Chicago, skybridge to Wintrust Arena. Flights pending — book southwest.com TODAY. Actual: ${tbFmt(tots.actual)} of ${tbFmt(tots.low)}. Savings ~${tbFmt(tots.saved)}+.`))
       .finally(()=>setBriefLoading(false));
   },[tab]);
 
@@ -2697,7 +2701,13 @@ function TravelBuilderPanel() {
                         <td style={{padding:"10px 12px",textAlign:"center"}}>
                           <span style={{background:s.bg,color:s.c,border:`1px solid ${s.c}30`,borderRadius:3,padding:"2px 8px",fontFamily:"monospace",fontSize:9,fontWeight:500}}>{s.t}</span>
                         </td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:T.muted}}>{r.note}</td>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:T.muted}}>
+                          <span>{r.note}</span>
+                          {r.url
+                            ? <a href={r.url} target="_blank" rel="noopener" style={{display:"block",marginTop:4,color:T.gold,textDecoration:"none",fontWeight:600,fontSize:9}}>Book →</a>
+                            : r.status==="booknow" ? <span style={{display:"block",marginTop:4,color:T.dim,fontSize:9}}>No link</span> : null
+                          }
+                        </td>
                       </tr>
                     );
                     return cells;
