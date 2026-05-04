@@ -394,6 +394,48 @@ SYNC PROTOCOL:
 - Report what changed: income total, expense total, bill count, any warnings
 - If sync fails, report the error and suggest: "Check OneDrive connection or re-upload Excel"`;
 
+// FinanceMind Smart Month Engine — pure helpers.
+function countWeekdaysInMonth(year, monthIndex, weekday) {
+  let count = 0;
+  for (let day = new Date(year, monthIndex, 1); day.getMonth() === monthIndex; day.setDate(day.getDate() + 1)) {
+    if (day.getDay() === weekday) count += 1;
+  }
+  return count;
+}
+
+function getNextMonthTargetDate(referenceDate = new Date()) {
+  return {
+    year: referenceDate.getFullYear() + (referenceDate.getMonth() === 11 ? 1 : 0),
+    monthIndex: (referenceDate.getMonth() + 1) % 12,
+  };
+}
+
+function generateRecurringIncomeForMonth(year, monthIndex) {
+  const tuesdayCount = countWeekdaysInMonth(year, monthIndex, 2);
+  const sundayCount = countWeekdaysInMonth(year, monthIndex, 0);
+  return [
+    { source: "Renee", category: "music lessons", weeklyAmount: 125, weekday: 2, occurrenceCount: tuesdayCount, projectedTotal: 125 * tuesdayCount, notes: "Weekly Tuesday lesson income." },
+    { source: "Evelyn", category: "music lessons", weeklyAmount: 75, weekday: 2, occurrenceCount: tuesdayCount, projectedTotal: 75 * tuesdayCount, notes: "Weekly Tuesday lesson income." },
+    { source: "Debbie", category: "music lessons", weeklyAmount: 85, weekday: 2, occurrenceCount: tuesdayCount, projectedTotal: 85 * tuesdayCount, notes: "Weekly Tuesday lesson income." },
+    { source: "Church (NJ)", category: "church", weeklyAmount: 400, weekday: 0, occurrenceCount: sundayCount, projectedTotal: 400 * sundayCount, notes: "Active weekly Sunday church income." },
+    { source: "Church (WU)", category: "church", weeklyAmount: 300, weekday: 0, occurrenceCount: sundayCount, projectedTotal: 300 * sundayCount, notes: "Active weekly Sunday church income." },
+  ];
+}
+
+function generateMonthSummary(year, monthIndex) {
+  const rows = generateRecurringIncomeForMonth(year, monthIndex);
+  const projectedLessonIncome = rows.filter(r => r.category === "music lessons").reduce((sum, r) => sum + r.projectedTotal, 0);
+  const projectedChurchIncome = rows.filter(r => r.category === "church").reduce((sum, r) => sum + r.projectedTotal, 0);
+  return {
+    monthLabel: new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(year, monthIndex, 1)),
+    tuesdayCount: countWeekdaysInMonth(year, monthIndex, 2),
+    sundayCount: countWeekdaysInMonth(year, monthIndex, 0),
+    projectedLessonIncome,
+    projectedChurchIncome,
+    projectedTotalIncome: projectedLessonIncome + projectedChurchIncome,
+  };
+}
+
 const BOOK_SYSTEM = `You are the Book Project Executive Agent -- Project Director for the Motes Family Book Project, reporting to Denarius Motes via the PA Agent.
 
 PROJECT STATUS
