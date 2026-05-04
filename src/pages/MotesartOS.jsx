@@ -2517,28 +2517,6 @@ function TravelBuilderPanel() {
   const [briefLoading,setBriefLoading] = useState(false);
   const briefDone = useRef(false);
   const toastTimer = useRef();
-  const [trips, setTrips] = React.useState([]);
-  const [selectedTrip, setSelectedTrip] = React.useState(null);
-  const [showTripDropdown, setShowTripDropdown] = React.useState(false);
-  const [showNewTripForm, setShowNewTripForm] = React.useState(false);
-  const [newTripName, setNewTripName] = React.useState('');
-  const [newTripDest, setNewTripDest] = React.useState('');
-  const [newTripStart, setNewTripStart] = React.useState('');
-  const [newTripEnd, setNewTripEnd] = React.useState('');
-  const [newTripBudget, setNewTripBudget] = React.useState('');
-  const [newTripTravelers, setNewTripTravelers] = React.useState('');
-
-  React.useEffect(() => {
-    const base = import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app';
-    fetch(`${base}/api/travel/trips`)
-      .then(r => r.json())
-      .then(data => {
-        const list = Array.isArray(data) ? data : (data.trips || []);
-        setTrips(list);
-        if (list.length > 0 && !selectedTrip) setSelectedTrip(list[0]);
-      })
-      .catch(() => setTrips([{id:'mock_1',trip_name:'Chicago Graduation Trip',destination:'Chicago IL',start_date:'2026-06-12',end_date:'2026-06-15',travelers:'Denarius + Kadence',status:'active',total_budget:1291,actual_paid:481,confidence:'mock'}]));
-  }, []);
 
   const tots = tbCalc(actuals);
   const pp = Math.round((tots.filled/tots.total)*100);
@@ -2600,53 +2578,6 @@ function TravelBuilderPanel() {
             <div style={{width:5,height:5,borderRadius:"50%",background:T.green,animation:"pulse 2s infinite"}}/>
             <span style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold}}>Travel Builder — Active Trip</span>
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8,position:'relative'}}>
-            <button onClick={()=>setShowTripDropdown(!showTripDropdown)} style={{background:'#1a1a0a',border:'1px solid #3a3010',borderRadius:6,padding:'6px 10px',color:'#fff',fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',gap:6,minWidth:220}}>
-              <span style={{width:8,height:8,borderRadius:'50%',background:'#f59e0b',flexShrink:0}}></span>
-              <span style={{flex:1,textAlign:'left'}}>{selectedTrip?.trip_name||'Select trip'}</span>
-              <span style={{color:'#888',fontSize:10}}>▾</span>
-            </button>
-            <button onClick={()=>setShowNewTripForm(!showNewTripForm)} style={{background:'#1a2a1a',border:'1px solid #2a4a2a',borderRadius:6,padding:'6px 10px',color:'#4ade80',fontSize:11,cursor:'pointer'}}>+ New Trip</button>
-            {showTripDropdown && (
-              <div style={{position:'absolute',top:'100%',left:0,background:'#1a1a1a',border:'1px solid #333',borderRadius:8,zIndex:300,minWidth:280,marginTop:4}}>
-                {trips.map(t=>(
-                  <div key={t.id} onClick={()=>{setSelectedTrip(t);setShowTripDropdown(false);}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',cursor:'pointer',borderLeft:`3px solid ${selectedTrip?.id===t.id?'#f59e0b':'transparent'}`,background:selectedTrip?.id===t.id?'#1e1e0a':'transparent'}}>
-                    <span style={{width:7,height:7,borderRadius:'50%',background:t.status==='active'?'#f59e0b':t.status==='planning'?'#60a5fa':'#555',flexShrink:0}}></span>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:12,color:'#fff',fontWeight:500}}>{t.trip_name}</div>
-                      <div style={{fontSize:10,color:'#666'}}>{t.start_date} · {t.travelers}</div>
-                    </div>
-                    <div style={{textAlign:'right'}}>
-                      <div style={{fontSize:12,color:'#f59e0b',fontWeight:600}}>${t.total_budget}</div>
-                      <div style={{fontSize:9,padding:'2px 4px',borderRadius:3,background:t.status==='active'?'#1a2a0a':'#1a1a2a',color:t.status==='active'?'#4ade80':'#60a5fa'}}>{t.status?.toUpperCase()}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          {showNewTripForm && (
-            <div style={{background:'#111',border:'1px solid #222',borderRadius:8,padding:12,marginBottom:10}}>
-              <div style={{fontSize:12,color:'#fff',fontWeight:500,marginBottom:8}}>New trip</div>
-              <input placeholder="Trip name" value={newTripName} onChange={e=>setNewTripName(e.target.value)} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:4,padding:'6px 8px',color:'#fff',fontSize:12,width:'100%',marginBottom:6}}/>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:6}}>
-                <input placeholder="Destination" value={newTripDest} onChange={e=>setNewTripDest(e.target.value)} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:4,padding:'6px 8px',color:'#fff',fontSize:12}}/>
-                <input placeholder="Budget $" value={newTripBudget} onChange={e=>setNewTripBudget(e.target.value)} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:4,padding:'6px 8px',color:'#fff',fontSize:12}}/>
-                <input placeholder="Start date" value={newTripStart} onChange={e=>setNewTripStart(e.target.value)} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:4,padding:'6px 8px',color:'#fff',fontSize:12}}/>
-                <input placeholder="End date" value={newTripEnd} onChange={e=>setNewTripEnd(e.target.value)} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:4,padding:'6px 8px',color:'#fff',fontSize:12}}/>
-              </div>
-              <input placeholder="Travelers" value={newTripTravelers} onChange={e=>setNewTripTravelers(e.target.value)} style={{background:'#1a1a1a',border:'1px solid #333',borderRadius:4,padding:'6px 8px',color:'#fff',fontSize:12,width:'100%',marginBottom:6}}/>
-              <div style={{display:'flex',gap:6}}>
-                <button onClick={()=>{
-                  const base=import.meta.env.VITE_API_URL||'https://deployable-python-codebase-som-production.up.railway.app';
-                  fetch(`${base}/api/travel/trips`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({trip_name:newTripName,destination:newTripDest,start_date:newTripStart,end_date:newTripEnd,total_budget:Number(newTripBudget),travelers:newTripTravelers,status:'planning'})})
-                  .then(r=>r.json()).then(t=>{const trip=t.trip||t;setTrips(p=>[...p,trip]);setSelectedTrip(trip);setShowNewTripForm(false);setNewTripName('');setNewTripDest('');setNewTripStart('');setNewTripEnd('');setNewTripBudget('');setNewTripTravelers('');})
-                  .catch(()=>setShowNewTripForm(false));
-                }} style={{flex:1,background:'#1a2a1a',border:'1px solid #2a4a2a',borderRadius:6,padding:'8px 0',color:'#4ade80',fontSize:12,cursor:'pointer'}}>Save →</button>
-                <button onClick={()=>setShowNewTripForm(false)} style={{background:'transparent',border:'1px solid #333',borderRadius:6,padding:'8px 12px',color:'#666',fontSize:12,cursor:'pointer'}}>Cancel</button>
-              </div>
-            </div>
-          )}
           <div style={{fontSize:22,fontWeight:800,color:T.white}}>Chicago Graduation Trip</div>
           <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,marginTop:4,display:"flex",gap:10,flexWrap:"wrap"}}>
             {["June 12–15 2026","Marriott Marquis Chicago","Denarius + Kadence","Kayliah Graduation"].map(s=>(
