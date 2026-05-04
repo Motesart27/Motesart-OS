@@ -2450,14 +2450,13 @@ const TB_ROWS = [
   {id:"m2",   cat:"",                  label:"Emergency buffer",               low:50, high:100, fixed:false,act:"",   status:"est",     note:"Always carry a buffer."},
 ];
 
-function tbCalc(actuals) {
+function tbCalc(rows) {
   let low=0,high=0,actual=0,saved=170,filled=0;
-  TB_ROWS.forEach(r => {
-    low+=r.low; high+=r.high;
-    if(r.fixed){actual+=Number(r.act);filled++;}
-    else if(actuals[r.id]!==undefined&&actuals[r.id]!==""){actual+=parseFloat(actuals[r.id]);filled++;const d=r.low-parseFloat(actuals[r.id]);if(d>0)saved+=d;}
+  rows.forEach(r => {
+    low+=Number(r.low)||0; high+=Number(r.high)||0;
+    if(r.act!==undefined&&r.act!==""){const paid=parseFloat(r.act);actual+=paid;filled++;const d=(Number(r.low)||0)-paid;if(d>0)saved+=d;}
   });
-  return{low,high,actual,saved,filled,total:TB_ROWS.length};
+  return{low,high,actual,saved,filled,total:rows.length};
 }
 
 function TBAnimBar({pct,color,delay=0}) {
@@ -2521,16 +2520,20 @@ function TravelBuilderPanel() {
   const [newTripBudget,setNewTripBudget] = useState("");
   const [newTripPurpose,setNewTripPurpose] = useState("");
   const [newTripPreview,setNewTripPreview] = useState(null);
+  const [editableTripRows,setEditableTripRows] = useState(()=>TB_ROWS.map(r=>({...r,act:r.fixed?r.act:(actuals[r.id]??r.act)})));
   const [toast,setToast] = useState(null);
   const [aiBrief,setAiBrief] = useState("");
   const [briefLoading,setBriefLoading] = useState(false);
   const briefDone = useRef(false);
   const toastTimer = useRef();
 
-  const tots = tbCalc(actuals);
+  const tots = tbCalc(editableTripRows);
   const pp = Math.round((tots.filled/tots.total)*100);
   const sp = Math.min(Math.round((tots.actual/tots.low)*100),150);
   const currentTripName = newTripPreview?.name || "Chicago Graduation Trip";
+  const bookedTotal = editableTripRows
+    .filter(r=>["booked","confirm"].includes(r.status))
+    .reduce((sum,r)=>sum+(parseFloat(r.act)||0),0);
 
   function safeTravelNotice(message,type=""){setToast({msg:message,type});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2800);}
   function safeTravelAction(actionName, callback){
@@ -2540,7 +2543,8 @@ function TravelBuilderPanel() {
       safeTravelNotice(`${actionName} did not complete. Try again.`, "danger");
     }
   }
-  function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
+  function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:r));}
+  function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,act:val}:r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
   function showToast(msg,type=""){safeTravelNotice(msg,type);}
   function continueNewTripPreview(){
     const dates = newTripStartDate && newTripEndDate ? `${newTripStartDate} to ${newTripEndDate}` : "Dates pending";
@@ -2554,7 +2558,7 @@ function TravelBuilderPanel() {
     });
     setNewTripModal(false);
   }
-  function doReset(){safeTravelAction("Reset",()=>{setActuals({});localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);safeTravelNotice("Actuals cleared — template ready","success");});}
+  function doReset(){safeTravelAction("Reset",()=>{setActuals({});setEditableTripRows(TB_ROWS.map(r=>({...r})));localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);safeTravelNotice("Actuals cleared — template ready","success");});}
   function doArchive(){
     safeTravelAction("Archive",()=>{
       const e={id:Date.now(),trip:"Chicago Graduation Trip",dates:"June 12–15 2026",budget:tots.low,actual:tots.actual,saved:tots.saved,state:{actuals,retro},archivedAt:new Date().toLocaleDateString()};
@@ -2577,12 +2581,12 @@ function TravelBuilderPanel() {
   },[tab]);
 
   const catData=[
-    {l:"Accommodation",v:481,max:600,c:T.gold},
-    {l:"Flights",v:["f1","f2","f3"].reduce((a,k)=>a+parseFloat(actuals[k]||"0"),0),max:440,c:T.blue},
-    {l:"Transport",v:parseFloat(actuals.t1||"0"),max:110,c:"#4db87a"},
-    {l:"Food",v:["d1","d2","d3","d4","d5"].reduce((a,k)=>a+parseFloat(actuals[k]||"0"),0),max:440,c:T.amber},
-    {l:"Gifts",v:["g1","g2"].reduce((a,k)=>a+parseFloat(actuals[k]||"0"),0),max:150,c:"#c95a84"},
-    {l:"Misc",v:["m1","m2"].reduce((a,k)=>a+parseFloat(actuals[k]||"0"),0),max:210,c:T.red},
+    {l:"Accommodation",v:editableTripRows.filter(r=>r.cat==="Accommodation").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:600,c:T.gold},
+    {l:"Flights",v:editableTripRows.filter(r=>["f1","f2","f3"].includes(r.id)).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.blue},
+    {l:"Transport",v:editableTripRows.filter(r=>r.cat==="Ground Transport").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:110,c:"#4db87a"},
+    {l:"Food",v:editableTripRows.filter(r=>r.cat==="Food & Dining"||r.id.startsWith("d")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.amber},
+    {l:"Gifts",v:editableTripRows.filter(r=>r.cat==="Graduation + Gifts"||r.id.startsWith("g")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:150,c:"#c95a84"},
+    {l:"Misc",v:editableTripRows.filter(r=>r.cat==="Misc + Buffer"||r.id.startsWith("m")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:210,c:T.red},
   ];
 
   const STS={
@@ -2695,7 +2699,7 @@ function TravelBuilderPanel() {
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:20}}>
-            <TBCard label="Booked"       value={tbFmt(481)}                              sub="Hotel confirmed"   accent={T.green}  glow="rgba(76,175,125,0.2)"/>
+            <TBCard label="Booked"       value={tbFmt(bookedTotal)}                      sub="Booked/confirmed"  accent={T.green}  glow="rgba(76,175,125,0.2)"/>
             <TBCard label="Budget (low)" value={tbFmt(tots.low)}                         sub="Conservative est." accent={T.gold}   glow="rgba(201,168,76,0.2)"/>
             <TBCard label="Actual paid"  value={tbFmt(tots.actual)}                      sub="Enter as you pay"  accent={T.blue}   glow="rgba(90,143,201,0.2)"/>
             <TBCard label="Still needed" value={tbFmt(Math.max(0,tots.low-tots.actual))} sub="Remaining"         accent={T.red}    glow="rgba(201,90,90,0.2)"/>
@@ -2708,6 +2712,7 @@ function TravelBuilderPanel() {
                 <div style={{width:7,height:7,borderRadius:1,background:c,flexShrink:0}}/>{l}
               </div>
             ))}
+            <div style={{fontFamily:"monospace",fontSize:9,color:T.red}}>Editable draft — not saved to Airtable yet.</div>
           </div>
 
           <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden",marginBottom:18}}>
@@ -2723,28 +2728,34 @@ function TravelBuilderPanel() {
               <tbody>
                 {(()=>{
                   let lc="";
-                  return TB_ROWS.map(r=>{
+                  return editableTripRows.map(r=>{
                     const cells=[];
                     if(r.cat&&r.cat!==lc){lc=r.cat;cells.push(
                       <tr key={"c"+r.cat} style={{background:"rgba(201,168,76,0.04)"}}>
                         <td colSpan={7} style={{padding:"7px 12px",fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold}}>{r.cat}</td>
                       </tr>
                     );}
-                    const val=r.fixed?String(r.act):(actuals[r.id]||"");
+                    const val=r.act!==undefined&&r.act!==null?String(r.act):"";
                     const nv=val!==""?parseFloat(val):null;
-                    const diff=nv!==null?r.low-nv:null;
+                    const diff=nv!==null?(Number(r.low)||0)-nv:null;
                     const s=STS[r.status];
                     cells.push(
                       <tr key={r.id} className="tb-row" style={{borderBottom:`1px solid ${T.border}`,background:"transparent"}}>
-                        <td style={{padding:"10px 12px",color:T.white}}>{r.label}</td>
-                        <td style={{padding:"10px 12px",textAlign:"right",fontFamily:"monospace",fontSize:11,color:T.muted}}>{tbFmt(r.low)}</td>
-                        <td style={{padding:"10px 12px",textAlign:"right",fontFamily:"monospace",fontSize:11,color:T.muted}}>{tbFmt(r.high)}</td>
+                        <td style={{padding:"10px 12px",color:T.white}}>
+                          <input value={r.label} onChange={e=>updateTripRow(r.id,"label",e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.white,fontFamily:"inherit",fontSize:12,width:"100%",outline:"none"}}/>
+                        </td>
                         <td style={{padding:"10px 12px",textAlign:"right"}}>
-                          {r.fixed
-                            ?<span style={{fontFamily:"monospace",fontSize:11,color:T.blue,fontWeight:500}}>{tbFmt(Number(r.act))}</span>
-                            :<input type="number" value={val} placeholder="enter" onChange={e=>setActual(r.id,e.target.value)}
-                              style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.blue}55`,color:T.blue,fontFamily:"monospace",fontSize:11,fontWeight:500,width:80,textAlign:"right",padding:"2px 0",outline:"none"}}/>
-                          }
+                          <input type="number" value={r.low} onChange={e=>updateTripRow(r.id,"low",e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:11,width:66,textAlign:"right",outline:"none"}}/>
+                        </td>
+                        <td style={{padding:"10px 12px",textAlign:"right"}}>
+                          <input type="number" value={r.high} onChange={e=>updateTripRow(r.id,"high",e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:11,width:66,textAlign:"right",outline:"none"}}/>
+                        </td>
+                        <td style={{padding:"10px 12px",textAlign:"right"}}>
+                          <input type="number" value={val} placeholder="enter" onChange={e=>setActual(r.id,e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.blue}55`,color:T.blue,fontFamily:"monospace",fontSize:11,fontWeight:500,width:80,textAlign:"right",padding:"2px 0",outline:"none"}}/>
                         </td>
                         <td style={{padding:"10px 12px",textAlign:"right",fontFamily:"monospace",fontSize:11,fontWeight:500,color:diff===null?T.muted:diff>0?T.green:diff<0?T.red:T.muted}}>
                           {diff===null?"—":diff>0?tbFmt(diff):diff<0?"("+tbFmt(Math.abs(diff))+")":"$0"}
@@ -2753,7 +2764,8 @@ function TravelBuilderPanel() {
                           <span style={{background:s.bg,color:s.c,border:`1px solid ${s.c}30`,borderRadius:3,padding:"2px 8px",fontFamily:"monospace",fontSize:9,fontWeight:500}}>{s.t}</span>
                         </td>
                         <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:T.muted}}>
-                          <span>{r.note}</span>
+                          <input value={r.note} onChange={e=>updateTripRow(r.id,"note",e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:9,width:"100%",outline:"none"}}/>
                           {r.url
                             ? <a href={r.url} target="_blank" rel="noopener" style={{display:"block",marginTop:4,color:T.gold,textDecoration:"none",fontWeight:600,fontSize:9}}>Book →</a>
                             : r.status==="booknow" ? <span style={{display:"block",marginTop:4,color:T.dim,fontSize:9}}>No link</span> : null
