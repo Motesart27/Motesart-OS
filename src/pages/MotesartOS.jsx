@@ -2581,7 +2581,7 @@ function TravelBuilderPanel() {
           <div style={{fontSize:22,fontWeight:800,color:T.white}}>Chicago Graduation Trip</div>
           <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,marginTop:4,display:"flex",gap:10,flexWrap:"wrap"}}>
             {["June 12\u201315 2026","Marriott Marquis Chicago","Denarius + Kadence","Kayliah Graduation"].map(s=>(
-              <span key={s}><span style={{color:T.gold,marginRight:3}}>\u00b7</span>{s}</span>
+              <span key={s}><span style={{color:T.gold,marginRight:3}}>·</span>{s}</span>
             ))}
           </div>
         </div>
@@ -2616,7 +2616,7 @@ function TravelBuilderPanel() {
       {tab==="budget"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
           <div className="tb-panel" style={{background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12,alignItems:"flex-start"}}>
-            <div style={{width:32,height:32,background:"rgba(201,168,76,0.2)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>\u2605</div>
+            <div style={{width:32,height:32,background:"rgba(201,168,76,0.2)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>★</div>
             <div style={{flex:1}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                 <span style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:T.gold}}>FM Executive Briefing \u2014 for Mya</span>
