@@ -2520,6 +2520,7 @@ function TravelBuilderPanel() {
   const [newTripTravelers,setNewTripTravelers] = useState("");
   const [newTripBudget,setNewTripBudget] = useState("");
   const [newTripPurpose,setNewTripPurpose] = useState("");
+  const [newTripPreview,setNewTripPreview] = useState(null);
   const [toast,setToast] = useState(null);
   const [aiBrief,setAiBrief] = useState("");
   const [briefLoading,setBriefLoading] = useState(false);
@@ -2540,6 +2541,18 @@ function TravelBuilderPanel() {
   }
   function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
   function showToast(msg,type=""){safeTravelNotice(msg,type);}
+  function continueNewTripPreview(){
+    const dates = newTripStartDate && newTripEndDate ? `${newTripStartDate} to ${newTripEndDate}` : "Dates pending";
+    setNewTripPreview({
+      name:newTripName.trim()||"Untitled Trip",
+      destination:newTripDestination.trim()||"Destination pending",
+      dates,
+      travelers:newTripTravelers.trim()||"Travelers pending",
+      budget:newTripBudget.trim()?`$${newTripBudget.trim()}`:"Budget pending",
+      purpose:newTripPurpose.trim()||"Purpose pending"
+    });
+    setNewTripModal(false);
+  }
   function doReset(){safeTravelAction("Reset",()=>{setActuals({});localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);safeTravelNotice("Actuals cleared — template ready","success");});}
   function doArchive(){
     safeTravelAction("Archive",()=>{
@@ -2602,6 +2615,23 @@ function TravelBuilderPanel() {
               <span key={s}><span style={{color:T.gold,marginRight:3}}>·</span>{s}</span>
             ))}
           </div>
+          {newTripPreview&&(
+            <div style={{marginTop:12,background:"rgba(220,38,38,0.06)",border:"1px solid rgba(220,38,38,0.35)",borderRadius:8,padding:12,maxWidth:520}}>
+              <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start",marginBottom:8}}>
+                <div style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",color:"#dc2626",fontWeight:800}}>New Trip Preview</div>
+                <button aria-label="Clear new trip preview" onClick={()=>setNewTripPreview(null)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"4px 8px",fontFamily:"inherit",fontSize:10,color:T.muted,cursor:"pointer"}}>Clear Preview</button>
+              </div>
+              <div style={{fontSize:16,fontWeight:800,color:T.white,marginBottom:6}}>{newTripPreview.name}</div>
+              <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,lineHeight:1.8}}>
+                <div><strong style={{color:T.white}}>Destination:</strong> {newTripPreview.destination}</div>
+                <div><strong style={{color:T.white}}>Dates:</strong> {newTripPreview.dates}</div>
+                <div><strong style={{color:T.white}}>Travelers:</strong> {newTripPreview.travelers}</div>
+                <div><strong style={{color:T.white}}>Budget:</strong> {newTripPreview.budget}</div>
+                <div><strong style={{color:T.white}}>Purpose / Notes:</strong> {newTripPreview.purpose}</div>
+                <div style={{color:"#dc2626",marginTop:4}}>Preview only — not saved yet.</div>
+              </div>
+            </div>
+          )}
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           <button onClick={()=>setNewTripModal(true)}
@@ -2923,7 +2953,7 @@ Your permanent travel history in FM.</div>
             </div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
               <button onClick={()=>setNewTripModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Close</button>
-              <button onClick={()=>setNewTripModal(false)} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Continue Preview</button>
+              <button onClick={continueNewTripPreview} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Continue Preview</button>
             </div>
           </div>
         </div>
