@@ -753,6 +753,31 @@ function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen
             )}
           </button>
         ))}
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+          {open && <div style={{ fontSize: 9, color: T.muted, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700, padding: "0 8px 8px" }}>Shortcuts</div>}
+          <div style={{
+            width: "100%", background: T.goldDim, border: `1px dashed ${T.gold}70`,
+            borderRadius: 8, padding: open ? "7px 9px" : "8px",
+            display: "flex", alignItems: "center", gap: 8,
+            justifyContent: open ? "flex-start" : "center",
+          }}>
+            <span style={{
+              width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+              background: T.gold, color: "#111",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 800,
+            }}>✈</span>
+            {open && (
+              <>
+                <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: T.gold }}>Travel Builder</div>
+                  <div style={{ fontSize: 9, color: T.muted, letterSpacing: "0.08em" }}>→ FM TAB</div>
+                </div>
+                <span style={{ fontSize: 12, color: T.gold }}>›</span>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       <div style={{ padding: "8px 6px", borderTop: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 4 }}>
