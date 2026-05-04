@@ -697,7 +697,7 @@ function ArtistPanel({ artist, onClose }) {
   );
 }
 
-function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen, onSelectPersonal, onPersonalActive }) {
+function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen, onSelectPersonal, onPersonalActive, onTravelBuilderOpen }) {
   return (
     <div className="os-sidebar" style={{
       width: open ? 210 : 52, flexShrink: 0,
@@ -755,9 +755,10 @@ function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen
         ))}
         <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
           {open && <div style={{ fontSize: 9, color: T.muted, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700, padding: "0 8px 8px" }}>Shortcuts</div>}
-          <div style={{
+          <button type="button" onClick={onTravelBuilderOpen} style={{
             width: "100%", background: T.goldDim, border: `1px dashed ${T.gold}70`,
             borderRadius: 8, padding: open ? "7px 9px" : "8px",
+            cursor: "pointer",
             display: "flex", alignItems: "center", gap: 8,
             justifyContent: open ? "flex-start" : "center",
           }}>
@@ -776,7 +777,7 @@ function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen
                 <span style={{ fontSize: 12, color: T.gold }}>›</span>
               </>
             )}
-          </div>
+          </button>
         </div>
       </div>
 
@@ -3204,6 +3205,7 @@ export default function MotesartOS() {
   const tabs = isSpecialView ? ["overview"] : ["overview", "notifications", "approvals", ...(isFM ? ["travel builder"] : []), ...(biz.artists.length > 0 ? ["artists"] : [])];
 
   function switchBiz(id) { setActiveBiz(id); setSelectedArtist(null); setActiveTab("overview"); setTopTab("overview"); }
+  function openTravelBuilder() { setActiveBiz("fm"); setSelectedArtist(null); setActiveTab("travel builder"); setTopTab("overview"); }
 
   // Phase 4A — approval status is now on each item from useApprovals
 
@@ -3237,7 +3239,7 @@ export default function MotesartOS() {
   return (
     <div className="os-root" style={{ display: "flex", height: "100dvh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
 
-      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onDispatchOpen={() => setDispatchOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} />
+      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onDispatchOpen={() => setDispatchOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} onTravelBuilderOpen={openTravelBuilder} />
 
       <div className="os-main" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
