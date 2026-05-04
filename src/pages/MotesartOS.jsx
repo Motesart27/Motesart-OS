@@ -2462,6 +2462,12 @@ function tbCloneRows(rows) {
   return rows.map(r=>({...r}));
 }
 
+const TB_FLIGHT_OPTIONS = [
+  {title:"Morning nonstop",low:150,high:220,note:"Best for early arrival",bookingUrl:"https://www.google.com/travel/flights"},
+  {title:"Midday nonstop",low:180,high:260,note:"Balanced timing",bookingUrl:"https://www.google.com/travel/flights"},
+  {title:"Evening nonstop",low:120,high:200,note:"Cheapest window",bookingUrl:"https://www.google.com/travel/flights"},
+];
+
 function tbCalc(rows) {
   let low=0,high=0,actual=0,saved=170,filled=0;
   rows.forEach(r => {
@@ -2534,6 +2540,7 @@ function TravelBuilderPanel() {
   const [newTripPreview,setNewTripPreview] = useState(null);
   const [activeTripDraft,setActiveTripDraft] = useState(null);
   const [editableTripRows,setEditableTripRows] = useState(()=>TB_ROWS.map(r=>({...r,act:r.fixed?r.act:(actuals[r.id]??r.act)})));
+  const [flightOptionsForRow,setFlightOptionsForRow] = useState(null);
   const [toast,setToast] = useState(null);
   const [aiBrief,setAiBrief] = useState("");
   const [briefLoading,setBriefLoading] = useState(false);
@@ -2562,6 +2569,8 @@ function TravelBuilderPanel() {
   }
   function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:r));}
   function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,act:val}:r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
+  function useFlightOption(rowId,opt){setEditableTripRows(rows=>rows.map(r=>r.id===rowId?{...r,label:opt.title,low:opt.low,high:opt.high,note:opt.note,status:"booknow",url:opt.bookingUrl}:r));setFlightOptionsForRow(null);}
+  function openFlightBooking(url){window.open(url,"_blank","noopener,noreferrer");}
   function showToast(msg,type=""){safeTravelNotice(msg,type);}
   function continueNewTripPreview(){
     const dates = newTripStartDate && newTripEndDate ? `${newTripStartDate} to ${newTripEndDate}` : "Dates pending";
@@ -2770,6 +2779,8 @@ function TravelBuilderPanel() {
                         <td colSpan={7} style={{padding:"7px 12px",fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold}}>{r.cat}</td>
                       </tr>
                     );}
+                    const section=lc;
+                    const isFlightRow=section==="Flights";
                     const val=r.act!==undefined&&r.act!==null?String(r.act):"";
                     const nv=val!==""?parseFloat(val):null;
                     const diff=nv!==null?(Number(r.low)||0)-nv:null;
@@ -2801,9 +2812,30 @@ function TravelBuilderPanel() {
                             {STATUS_OPTIONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
                           </select>
                         </td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:T.muted}}>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:T.muted,position:"relative"}}>
                           <input value={r.note} onChange={e=>updateTripRow(r.id,"note",e.target.value)}
                             style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:9,width:"100%",outline:"none"}}/>
+                          {isFlightRow&&(
+                            <button onClick={()=>setFlightOptionsForRow(flightOptionsForRow===r.id?null:r.id)}
+                              style={{display:"block",marginTop:5,background:T.amberDim,border:`1px solid ${T.amber}40`,borderRadius:4,padding:"3px 8px",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.amber,cursor:"pointer"}}>Options</button>
+                          )}
+                          {isFlightRow&&flightOptionsForRow===r.id&&(
+                            <div style={{position:"absolute",right:8,top:"100%",zIndex:50,width:250,background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:8,padding:10,boxShadow:"0 12px 30px rgba(0,0,0,0.4)"}}>
+                              <div style={{fontSize:11,fontWeight:800,color:T.white,marginBottom:8}}>Flight Options</div>
+                              {TB_FLIGHT_OPTIONS.map(opt=>(
+                                <div key={opt.title} style={{borderTop:`1px solid ${T.dim}`,paddingTop:8,marginTop:8}}>
+                                  <div style={{fontSize:11,fontWeight:700,color:T.white}}>{opt.title}</div>
+                                  <div style={{fontSize:10,color:T.gold,marginTop:2}}>{tbFmt(opt.low)}–{tbFmt(opt.high)}</div>
+                                  <div style={{fontSize:9,color:T.muted,marginTop:2,lineHeight:1.5}}>{opt.note}</div>
+                                  <div style={{display:"flex",gap:6,marginTop:7}}>
+                                    <button onClick={()=>useFlightOption(r.id,opt)} style={{flex:1,background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:4,padding:"4px 0",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.gold,cursor:"pointer"}}>Use</button>
+                                    <button onClick={()=>openFlightBooking(opt.bookingUrl)} style={{flex:1,background:T.amberDim,border:`1px solid ${T.amber}40`,borderRadius:4,padding:"4px 0",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.amber,cursor:"pointer"}}>Book Now</button>
+                                  </div>
+                                </div>
+                              ))}
+                              <div style={{fontSize:8,color:T.muted,lineHeight:1.5,marginTop:9}}>Book Now opens the provider website. You review and book manually.</div>
+                            </div>
+                          )}
                           {r.url
                             ? <a href={r.url} target="_blank" rel="noopener" style={{display:"block",marginTop:4,color:T.gold,textDecoration:"none",fontWeight:600,fontSize:9}}>Book →</a>
                             : r.status==="booknow" ? <span style={{display:"block",marginTop:4,color:T.dim,fontSize:9}}>No link</span> : null
