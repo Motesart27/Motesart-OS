@@ -2537,7 +2537,7 @@ function TravelBuilderPanel() {
     fetch(`${import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app'}/api/travel/brief`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ trip: currentTrip, biz: 'fm' })
+      body: JSON.stringify({ trip: "Chicago Graduation Trip", biz: 'fm' })
     })
       .then(r=>r.json()).then(d=>setAiBrief(d.content?.[0]?.text||""))
       .catch(()=>setAiBrief(`Status: In Progress (${pp}% planned). Hotel confirmed $481 — Marriott Marquis Chicago, skybridge to Wintrust Arena. Flights pending — book southwest.com TODAY. Actual: ${tbFmt(tots.actual)} of ${tbFmt(tots.low)}. Savings ~${tbFmt(tots.saved)}+.`))
