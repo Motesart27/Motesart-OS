@@ -49,6 +49,25 @@ async function fetchJson(path) {
   return parsed;
 }
 
+async function postJson(path, payload) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.text();
+  let parsed = null;
+  try {
+    parsed = body ? JSON.parse(body) : null;
+  } catch {
+    parsed = body;
+  }
+  if (!response.ok) {
+    throw new Error(`POST ${path} failed ${response.status}: ${body}`);
+  }
+  return parsed;
+}
+
 function money(value) {
   const n = Number(Array.isArray(value) ? value[0] : value);
   if (!Number.isFinite(n)) return "$0";
@@ -59,9 +78,31 @@ function hasValue(value) {
   return typeof value === "string" ? value.trim().length > 0 : Boolean(value);
 }
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function makeLocalId(prefix = "line") {
+  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 7)}`;
+}
+
+function starterLine() {
+  return { local_id: makeLocalId(), description: "", rate_per_hour: "", hours: "" };
+}
+
+function formatAddress(address) {
+  if (!hasValue(address)) return ["Missing"];
+  const text = String(address).trim();
+  if (text.includes("\n")) return text.split("\n").map((part) => part.trim()).filter(Boolean);
+  const parts = text.split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length <= 2) return [text];
+  return [parts.slice(0, -2).join(", "), parts.slice(-2).join(", ")];
+}
+
 function StudentCard({ student, invoices, onInvoiceSelect }) {
   const missing = ["email", "phone", "address"].filter((field) => !hasValue(student[field]));
   const incomplete = missing.length > 0;
+  const addressLines = formatAddress(student.address);
 
   return (
     <article className={`piano-card ${incomplete ? "piano-card-incomplete" : ""}`}>
@@ -79,7 +120,7 @@ function StudentCard({ student, invoices, onInvoiceSelect }) {
         <span>Phone</span>
         <strong>{student.phone || "Missing"}</strong>
         <span>Address</span>
-        <strong>{student.address || "Missing"}</strong>
+        <strong>{addressLines.map((line) => <span key={line}>{line}<br /></span>)}</strong>
       </div>
 
       {student.notes && <div className="piano-note">{student.notes}</div>}
@@ -104,7 +145,7 @@ function StudentCard({ student, invoices, onInvoiceSelect }) {
   );
 }
 
-function ReceiptPreview({ invoice, lines, logoFailed, setLogoFailed }) {
+function ReceiptPreview({ invoice, lines, student, logoFailed, setLogoFailed }) {
   if (!invoice) {
     return (
       <aside className="piano-receipt piano-receipt-empty">
@@ -129,6 +170,12 @@ function ReceiptPreview({ invoice, lines, logoFailed, setLogoFailed }) {
           <strong>{invoice.invoice_id || invoice.id}</strong>
         </div>
       </div>
+      {student && (
+        <div className="piano-receipt-student">
+          <span>{student.student_name}</span>
+          {formatAddress(student.address).map((line) => <strong key={line}>{line}</strong>)}
+        </div>
+      )}
       <div className="piano-receipt-lines">
         {lines.map((line) => (
           <div key={line.id}>
@@ -147,21 +194,228 @@ function ReceiptPreview({ invoice, lines, logoFailed, setLogoFailed }) {
   );
 }
 
+function DraftInvoiceSheet({
+  open,
+  students,
+  invoicesByStudent,
+  onClose,
+  onSaved,
+  onError,
+  fetchInvoiceDetail,
+}) {
+  const [studentId, setStudentId] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState(todayISO());
+  const [lines, setLines] = useState([starterLine()]);
+  const [otherAdjustment, setOtherAdjustment] = useState("0");
+  const [notesBlock, setNotesBlock] = useState("");
+  const [validation, setValidation] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setStudentId("");
+    setInvoiceDate(todayISO());
+    setLines([starterLine()]);
+    setOtherAdjustment("0");
+    setNotesBlock("");
+    setValidation([]);
+    setSaving(false);
+    setDuplicating(false);
+  }, [open]);
+
+  if (!open) return null;
+
+  const selectedStudent = students.find((student) => student.id === studentId);
+  const previousInvoices = studentId ? (invoicesByStudent.get(studentId) || []) : [];
+
+  function updateLine(localId, field, value) {
+    setLines((items) => items.map((line) => line.local_id === localId ? { ...line, [field]: value } : line));
+  }
+
+  function addLine() {
+    setLines((items) => [...items, starterLine()]);
+  }
+
+  function removeLine(localId) {
+    setLines((items) => items.length <= 1 ? items : items.filter((line) => line.local_id !== localId));
+  }
+
+  async function duplicatePrevious() {
+    if (!previousInvoices.length) return;
+    setDuplicating(true);
+    setValidation([]);
+    try {
+      const latest = [...previousInvoices].sort((a, b) => String(b.invoice_date || b.createdTime || "").localeCompare(String(a.invoice_date || a.createdTime || "")))[0];
+      const detail = await fetchInvoiceDetail(latest.id);
+      const copied = unwrapList(detail.lines).map(flattenRecord).map((line) => ({
+        local_id: makeLocalId("copy"),
+        description: line.description || "",
+        rate_per_hour: line.rate_per_hour || "",
+        hours: line.hours || "",
+      }));
+      setLines(copied.length ? copied : [starterLine()]);
+      setInvoiceDate(todayISO());
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDuplicating(false);
+    }
+  }
+
+  function validate() {
+    const problems = [];
+    if (!studentId) problems.push("Student is required.");
+    if (!invoiceDate) problems.push("Invoice date is required.");
+    if (!lines.length) problems.push("At least one line item is required.");
+    lines.forEach((line, index) => {
+      if (!hasValue(line.description)) problems.push(`Line ${index + 1}: description is required.`);
+      if (!(Number(line.rate_per_hour) > 0)) problems.push(`Line ${index + 1}: rate per hour must be greater than 0.`);
+      if (!(Number(line.hours) > 0)) problems.push(`Line ${index + 1}: hours must be greater than 0.`);
+    });
+    setValidation(problems);
+    return problems.length === 0;
+  }
+
+  async function saveDraft() {
+    if (!validate()) return;
+    setSaving(true);
+    setValidation([]);
+    try {
+      const stamp = `${invoiceDate}-${selectedStudent?.student_name || "student"}`.replace(/[^a-z0-9-]+/gi, "-").replace(/-+/g, "-");
+      const payload = {
+        invoice: {
+          invoice_id: `draft-${stamp}`,
+          student: [studentId],
+          invoice_date: invoiceDate,
+          invoice_status: "draft",
+          other_adjustment: Number(otherAdjustment) || 0,
+          notes_block: notesBlock,
+        },
+        lines: lines.map((line, index) => ({
+          line_id: `draft-${stamp}-line-${index + 1}`,
+          description: line.description.trim(),
+          rate_per_hour: Number(line.rate_per_hour),
+          hours: Number(line.hours),
+        })),
+      };
+      const result = await postJson("/api/piano/invoices", payload);
+      await onSaved(result);
+      onClose();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="piano-sheet-backdrop" role="dialog" aria-modal="true" aria-label="New invoice">
+      <div className="piano-sheet">
+        <div className="piano-sheet-bar">
+          <button type="button" onClick={onClose}>Cancel</button>
+          <strong>New invoice</strong>
+          <button type="button" onClick={saveDraft} disabled={saving}>{saving ? "Saving..." : "Save Draft"}</button>
+        </div>
+
+        <div className="piano-sheet-body">
+          <div className="piano-draft-banner">Draft · Saved. Not yet sent. Not yet income.</div>
+
+          {validation.length > 0 && (
+            <div className="piano-validation">
+              {validation.map((item) => <div key={item}>{item}</div>)}
+            </div>
+          )}
+
+          <label className="piano-field">
+            <span>Student</span>
+            <select value={studentId} onChange={(event) => setStudentId(event.target.value)}>
+              <option value="">Select student</option>
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>{student.student_name}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="piano-field">
+            <span>Invoice date</span>
+            <input type="date" value={invoiceDate} onChange={(event) => setInvoiceDate(event.target.value)} />
+          </label>
+
+          <div className="piano-sheet-section">
+            <div className="piano-sheet-section-head">
+              <span>Line items</span>
+              <button type="button" onClick={duplicatePrevious} disabled={!previousInvoices.length || duplicating}>
+                {duplicating ? "Copying..." : "Duplicate last"}
+              </button>
+            </div>
+
+            <div className="piano-lines-editor">
+              {lines.map((line, index) => (
+                <div className="piano-line-editor" key={line.local_id}>
+                  <div className="piano-line-title">Line {index + 1}</div>
+                  <label className="piano-field">
+                    <span>Description</span>
+                    <input value={line.description} onChange={(event) => updateLine(line.local_id, "description", event.target.value)} placeholder="Music Lessons" />
+                  </label>
+                  <div className="piano-line-numbers">
+                    <label className="piano-field">
+                      <span>Rate</span>
+                      <input type="number" min="0" step="0.01" value={line.rate_per_hour} onChange={(event) => updateLine(line.local_id, "rate_per_hour", event.target.value)} />
+                    </label>
+                    <label className="piano-field">
+                      <span>Hours</span>
+                      <input type="number" min="0" step="0.25" value={line.hours} onChange={(event) => updateLine(line.local_id, "hours", event.target.value)} />
+                    </label>
+                  </div>
+                  <button type="button" className="piano-remove-line" onClick={() => removeLine(line.local_id)} disabled={lines.length <= 1}>Remove line</button>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="piano-add-line" onClick={addLine}>Add line item</button>
+          </div>
+
+          <label className="piano-field">
+            <span>Other adjustment</span>
+            <input type="number" step="0.01" value={otherAdjustment} onChange={(event) => setOtherAdjustment(event.target.value)} />
+          </label>
+
+          <label className="piano-field">
+            <span>Notes</span>
+            <textarea value={notesBlock} onChange={(event) => setNotesBlock(event.target.value)} rows={4} placeholder="Optional internal notes" />
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PianoLessonsSection() {
   const [students, setStudents] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [selectedLines, setSelectedLines] = useState([]);
+  const [draftOpen, setDraftOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [logoFailed, setLogoFailed] = useState(false);
+
+  async function loadRecords() {
+    setLoading(true);
+    setError("");
+    const [studentPayload, invoicePayload] = await Promise.all([
+      fetchJson("/api/piano/students"),
+      fetchJson("/api/piano/invoices"),
+    ]);
+    setStudents(unwrapList(studentPayload).map(flattenRecord));
+    setInvoices(unwrapList(invoicePayload).map(flattenRecord));
+    setLoading(false);
+  }
 
   useEffect(() => {
     let active = true;
     async function load() {
       try {
-        setLoading(true);
-        setError("");
         const [studentPayload, invoicePayload] = await Promise.all([
           fetchJson("/api/piano/students"),
           fetchJson("/api/piano/invoices"),
@@ -198,13 +452,30 @@ export default function PianoLessonsSection() {
     setSelectedInvoice(invoice);
     setSelectedLines([]);
     try {
-      const detail = await fetchJson(`/api/piano/invoices/${invoice.id}`);
+      const detail = await fetchInvoiceDetail(invoice.id);
       setSelectedInvoice(flattenRecord(detail.invoice));
       setSelectedLines(unwrapList(detail.lines).map(flattenRecord));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   }
+
+  async function fetchInvoiceDetail(invoiceId) {
+    return fetchJson(`/api/piano/invoices/${invoiceId}`);
+  }
+
+  async function handleDraftSaved(result) {
+    await loadRecords();
+    const invoice = flattenRecord(result?.invoice);
+    if (invoice.id) {
+      setSelectedInvoice(invoice);
+      setSelectedLines(unwrapList(result?.lines).map(flattenRecord));
+    }
+  }
+
+  const selectedStudent = selectedInvoice?.student?.[0]
+    ? students.find((student) => student.id === selectedInvoice.student[0])
+    : null;
 
   return (
     <section className="piano-shell" aria-label="Piano Lessons">
@@ -255,6 +526,19 @@ export default function PianoLessonsSection() {
           padding: 5px 9px;
           font-size: 11px;
           font-weight: 700;
+          white-space: nowrap;
+        }
+        .piano-new-btn {
+          min-height: 44px;
+          border: 1px solid rgba(184,56,56,0.58);
+          background: rgba(184,56,56,0.22);
+          color: #f6e5e5;
+          border-radius: 8px;
+          padding: 0 13px;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
           white-space: nowrap;
         }
         .piano-grid {
@@ -428,6 +712,24 @@ export default function PianoLessonsSection() {
           color: ${COLORS.ink};
           font-size: 13px;
         }
+        .piano-receipt-student {
+          border: 1px solid ${COLORS.border};
+          background: rgba(255,255,255,0.035);
+          border-radius: 6px;
+          padding: 8px;
+          display: grid;
+          gap: 2px;
+        }
+        .piano-receipt-student span {
+          color: ${COLORS.ink};
+          font-size: 13px;
+          font-weight: 900;
+        }
+        .piano-receipt-student strong {
+          color: ${COLORS.muted};
+          font-size: 11px;
+          font-weight: 700;
+        }
         .piano-receipt-lines {
           display: grid;
           gap: 6px;
@@ -453,6 +755,179 @@ export default function PianoLessonsSection() {
           font-size: 12px;
           white-space: pre-wrap;
         }
+        .piano-sheet-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          background: rgba(6,6,8,0.86);
+          display: flex;
+          justify-content: center;
+          color: ${COLORS.ink};
+          font-family: Lato, Helvetica, Arial, sans-serif;
+        }
+        .piano-sheet {
+          width: min(760px, 100vw);
+          height: 100dvh;
+          background: #121214;
+          border-left: 1px solid ${COLORS.border};
+          border-right: 1px solid ${COLORS.border};
+          display: flex;
+          flex-direction: column;
+        }
+        .piano-sheet-bar {
+          position: sticky;
+          top: 0;
+          z-index: 2;
+          min-height: 56px;
+          border-bottom: 1px solid ${COLORS.border};
+          background: rgba(18,18,20,0.98);
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          align-items: center;
+          gap: 8px;
+          padding: max(8px, env(safe-area-inset-top)) 12px 8px;
+        }
+        .piano-sheet-bar strong {
+          font-family: "Cormorant Garamond", Georgia, serif;
+          font-size: 24px;
+          line-height: 1;
+        }
+        .piano-sheet-bar button {
+          min-height: 44px;
+          border: 1px solid rgba(184,56,56,0.45);
+          background: rgba(184,56,56,0.14);
+          color: #f0d8d8;
+          border-radius: 8px;
+          padding: 0 12px;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+        .piano-sheet-bar button:first-child {
+          justify-self: start;
+          background: transparent;
+          border-color: ${COLORS.border};
+          color: ${COLORS.muted};
+        }
+        .piano-sheet-bar button:last-child {
+          justify-self: end;
+        }
+        .piano-sheet-bar button:disabled,
+        .piano-sheet-section-head button:disabled,
+        .piano-remove-line:disabled {
+          opacity: 0.54;
+          cursor: not-allowed;
+        }
+        .piano-sheet-body {
+          overflow-y: auto;
+          padding: 14px;
+          display: grid;
+          gap: 12px;
+          min-width: 0;
+        }
+        .piano-draft-banner {
+          border: 1px solid rgba(215,165,72,0.42);
+          background: ${COLORS.amberDim};
+          color: #f2d491;
+          border-radius: 8px;
+          padding: 10px 12px;
+          font-size: 12px;
+          font-weight: 900;
+        }
+        .piano-validation {
+          border: 1px solid rgba(184,56,56,0.48);
+          background: rgba(184,56,56,0.12);
+          color: #f0d8d8;
+          border-radius: 8px;
+          padding: 10px 12px;
+          display: grid;
+          gap: 4px;
+          font-size: 12px;
+        }
+        .piano-field {
+          display: grid;
+          gap: 6px;
+          min-width: 0;
+        }
+        .piano-field span,
+        .piano-sheet-section-head span,
+        .piano-line-title {
+          color: ${COLORS.muted};
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+        .piano-field input,
+        .piano-field select,
+        .piano-field textarea {
+          min-height: 44px;
+          width: 100%;
+          box-sizing: border-box;
+          border: 1px solid ${COLORS.border};
+          background: rgba(255,255,255,0.045);
+          color: ${COLORS.ink};
+          border-radius: 8px;
+          padding: 10px 11px;
+          font: inherit;
+          font-size: 14px;
+          outline: none;
+        }
+        .piano-field textarea {
+          min-height: 92px;
+          resize: vertical;
+        }
+        .piano-sheet-section {
+          display: grid;
+          gap: 10px;
+          min-width: 0;
+        }
+        .piano-sheet-section-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+        .piano-sheet-section-head button,
+        .piano-add-line,
+        .piano-remove-line {
+          min-height: 44px;
+          border: 1px solid ${COLORS.border};
+          background: rgba(255,255,255,0.04);
+          color: ${COLORS.ink};
+          border-radius: 8px;
+          padding: 0 12px;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+        .piano-lines-editor {
+          display: grid;
+          gap: 10px;
+          min-width: 0;
+        }
+        .piano-line-editor {
+          border: 1px solid ${COLORS.border};
+          background: rgba(255,255,255,0.035);
+          border-radius: 8px;
+          padding: 10px;
+          display: grid;
+          gap: 9px;
+          min-width: 0;
+        }
+        .piano-line-numbers {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 9px;
+          min-width: 0;
+        }
+        .piano-add-line {
+          border-color: rgba(184,56,56,0.42);
+          color: #f0d8d8;
+          background: rgba(184,56,56,0.10);
+        }
         @media (max-width: 980px) {
           .piano-grid {
             grid-template-columns: 1fr;
@@ -468,6 +943,7 @@ export default function PianoLessonsSection() {
           .piano-hero {
             padding: 10px;
             align-items: flex-start;
+            flex-direction: column;
           }
           .piano-title {
             font-size: 22px;
@@ -476,8 +952,8 @@ export default function PianoLessonsSection() {
             font-size: 11px;
           }
           .piano-meta {
-            flex-direction: column;
-            align-items: flex-end;
+            width: 100%;
+            justify-content: flex-start;
             gap: 5px;
           }
           .piano-chip {
@@ -509,6 +985,19 @@ export default function PianoLessonsSection() {
             padding: 7px;
             font-size: 11px;
           }
+          .piano-sheet-body {
+            padding: 10px;
+          }
+          .piano-line-numbers {
+            grid-template-columns: 1fr;
+          }
+          .piano-sheet-section-head {
+            align-items: stretch;
+            flex-direction: column;
+          }
+          .piano-sheet-section-head button {
+            width: 100%;
+          }
         }
       `}</style>
 
@@ -520,6 +1009,7 @@ export default function PianoLessonsSection() {
         <div className="piano-meta">
           <span className="piano-chip">{students.length} real students</span>
           <span className="piano-chip">{invoices.length} invoices</span>
+          <button type="button" className="piano-new-btn" onClick={() => setDraftOpen(true)}>+ New invoice</button>
         </div>
       </div>
 
@@ -541,6 +1031,7 @@ export default function PianoLessonsSection() {
           <ReceiptPreview
             invoice={selectedInvoice}
             lines={selectedLines}
+            student={selectedStudent}
             logoFailed={logoFailed}
             setLogoFailed={setLogoFailed}
           />
@@ -550,6 +1041,16 @@ export default function PianoLessonsSection() {
       <div style={{ color: COLORS.muted, fontSize: 10, lineHeight: 1.4 }}>
         Contact: {BRAND_EMAIL}
       </div>
+
+      <DraftInvoiceSheet
+        open={draftOpen}
+        students={students}
+        invoicesByStudent={invoicesByStudent}
+        onClose={() => setDraftOpen(false)}
+        onSaved={handleDraftSaved}
+        onError={setError}
+        fetchInvoiceDetail={fetchInvoiceDetail}
+      />
     </section>
   );
 }
