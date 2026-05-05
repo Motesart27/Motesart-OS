@@ -474,7 +474,7 @@ function SmartMonthAlignmentCheckPanel() {
   const mtVariance = Number((MT_SUBSCRIPTIONS_EXPECTED_TOTAL - getMTSubscriptionsTotal()).toFixed(2));
   const phoneBillPending = CAPITAL_ONE_TRANSACTIONS_PREVIEW.some(item => item.name === "Phone Bill" && typeof item.amount !== "number");
   return (
-    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.red}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+    <div id="alignment-check" style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.red}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 10, color: T.red, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Smart Month Alignment Check</span>
         <Badge text="Preview Gate" color={T.red} dim={T.redDim} />
@@ -511,7 +511,7 @@ function SmartMonthPreviewPanel() {
     ["Church WU", bySource["Church (WU)"].projectedTotal],
   ];
   return (
-    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.green}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+    <div id="smart-month-preview" style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.green}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 10, color: T.green, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Smart Month Preview</span>
         <Badge text={summary.monthLabel} color={T.green} dim={T.greenDim} />
@@ -541,7 +541,7 @@ function CapitalOneLedgerPreviewPanel() {
   const fmt = (value) => "$" + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const spentTotal = getCapitalOneSpentTotal();
   return (
-    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.blue}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+    <div id="capone-preview" style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.blue}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 10, color: T.blue, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Capital One Ledger Preview</span>
         <Badge text={fmt(spentTotal)} color={T.blue} dim={T.blueDim} />
@@ -572,7 +572,7 @@ function MTSubscriptionsPreviewPanel() {
   const itemizedTotal = getMTSubscriptionsTotal();
   const variance = Number((MT_SUBSCRIPTIONS_EXPECTED_TOTAL - itemizedTotal).toFixed(2));
   return (
-    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.amber}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+    <div id="mt-preview" style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.amber}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 10, color: T.amber, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>MT Subscriptions Preview</span>
         <Badge text="Reconciliation" color={T.amber} dim={T.amberDim} />
@@ -598,6 +598,182 @@ function MTSubscriptionsPreviewPanel() {
         Sheet total is higher than itemized subscriptions. Missing MT items must be identified before applying to live budget.
       </div>
     </div>
+  );
+}
+
+// Preview-only income sources — confirmed via Smart Month engine, no previewOnly flag on row objects yet.
+const PREVIEW_ONLY_INCOME_SOURCES = ["Debbie", "Church (WU)"];
+
+function SmartMonthSafetyGate() {
+  const fmtAmt = (v) => "$" + Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const mtItemized = getMTSubscriptionsTotal();
+  const mtVariance = Number((MT_SUBSCRIPTIONS_EXPECTED_TOTAL - mtItemized).toFixed(2));
+  const mtVarianceBlocked = mtVariance !== 0;
+
+  const capOnePendingItems = CAPITAL_ONE_TRANSACTIONS_PREVIEW.filter(
+    (item) => item.status === "pending" || item.amount === null
+  );
+  const capOneBlocked = capOnePendingItems.length > 0;
+
+  const incomeStale = SMART_MONTH_LIVE_INCOME_STALE !== SMART_MONTH_MAY_2026_PREVIEW_BASELINE;
+  const incomeDriftPct = Math.abs(SMART_MONTH_MAY_2026_PREVIEW_BASELINE - SMART_MONTH_LIVE_INCOME_STALE) / SMART_MONTH_LIVE_INCOME_STALE;
+  const incomeDriftReview = incomeDriftPct > 0.05;
+
+  const previewOnlyFireCount = PREVIEW_ONLY_INCOME_SOURCES.length;
+  const previewOnlyReview = previewOnlyFireCount > 0;
+
+  const pausedSubscriptions = MT_SUBSCRIPTIONS_CURRENT.filter((s) => s.status === "paused" && s.status !== "cancelled");
+  const pausedReview = pausedSubscriptions.length > 0;
+
+  const checks = [
+    {
+      id: "mt-variance",
+      level: mtVarianceBlocked ? "blocked" : "pass",
+      label: "MT itemized vs. sheet total",
+      detail: mtVarianceBlocked
+        ? `${fmtAmt(mtVariance)} variance unresolved`
+        : "Reconciled",
+      link: { label: "MT Preview", panelId: "mt-preview" },
+    },
+    {
+      id: "capone-pending",
+      level: capOneBlocked ? "blocked" : "pass",
+      label: "Capital One transaction amounts",
+      detail: capOneBlocked
+        ? `${capOnePendingItems.length} pending amount${capOnePendingItems.length > 1 ? "s" : ""}`
+        : "All amounts set",
+      link: { label: "Capital One", panelId: "capone-preview" },
+    },
+    // TODO: user-required confirmation outstanding > 7 days — no confirmationAt timestamp field exists yet
+    {
+      id: "income-stale",
+      level: incomeStale ? "review" : "pass",
+      label: "Live income baseline",
+      detail: incomeStale
+        ? `$${SMART_MONTH_LIVE_INCOME_STALE.toLocaleString()} stale (preview ~$${SMART_MONTH_MAY_2026_PREVIEW_BASELINE.toLocaleString()})`
+        : "Current",
+      link: { label: "Alignment Check", panelId: "alignment-check" },
+    },
+    {
+      id: "income-drift",
+      level: incomeDriftReview ? "review" : "pass",
+      label: "Preview vs. live income drift",
+      detail: incomeDriftReview
+        ? `${(incomeDriftPct * 100).toFixed(1)}% drift (threshold 5%)`
+        : `${(incomeDriftPct * 100).toFixed(1)}% drift — within range`,
+      link: { label: "SM Preview", panelId: "smart-month-preview" },
+    },
+    {
+      id: "preview-only-sources",
+      level: previewOnlyReview ? "review" : "pass",
+      label: "Preview-only income sources",
+      detail: previewOnlyReview
+        ? `${PREVIEW_ONLY_INCOME_SOURCES.join(", ")} — preview only`
+        : "All sources confirmed",
+      link: { label: "SM Preview", panelId: "smart-month-preview" },
+    },
+    {
+      id: "paused-subs",
+      level: pausedReview ? "review" : "pass",
+      label: "Paused subscriptions",
+      detail: pausedReview
+        ? `${pausedSubscriptions.length} paused subscription${pausedSubscriptions.length > 1 ? "s" : ""}`
+        : "No paused subscriptions",
+      link: { label: "MT Preview", panelId: "mt-preview" },
+    },
+  ];
+
+  const blockedChecks  = checks.filter((c) => c.level === "blocked");
+  const reviewChecks   = checks.filter((c) => c.level === "review");
+  const passingChecks  = checks.filter((c) => c.level === "pass");
+
+  const overallVerdict = blockedChecks.length > 0 ? "BLOCKED" : reviewChecks.length > 0 ? "NEEDS REVIEW" : "READY";
+  const verdictColor   = overallVerdict === "BLOCKED" ? T.red : overallVerdict === "NEEDS REVIEW" ? T.amber : T.green;
+  const verdictDim     = overallVerdict === "BLOCKED" ? T.redDim : overallVerdict === "NEEDS REVIEW" ? T.amberDim : T.greenDim;
+  const cardTint       = overallVerdict === "BLOCKED" ? `${T.red}0d` : overallVerdict === "NEEDS REVIEW" ? `${T.amber}0d` : `${T.green}0d`;
+  const borderTint     = overallVerdict === "BLOCKED" ? `${T.red}44` : overallVerdict === "NEEDS REVIEW" ? `${T.amber}44` : `${T.green}44`;
+
+  const summaryText = `${blockedChecks.length} blocking · ${reviewChecks.length} review · ${passingChecks.length} passing`;
+
+  const orderedChecks = [...blockedChecks, ...reviewChecks, ...passingChecks];
+
+  const rowIcon  = (level) => level === "blocked" ? "✗" : level === "review" ? "⚠" : "✓";
+  const rowColor = (level) => level === "blocked" ? T.red : level === "review" ? T.amber : T.green;
+
+  if (checks.length === 0) {
+    return (
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18, color: T.muted, fontSize: 11 }}>
+        No checks configured
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <style>{`
+        #sg-details[open] .sg-chevron { transform: rotate(90deg); }
+        #sg-details summary { list-style: none; cursor: pointer; user-select: none; }
+        #sg-details summary::-webkit-details-marker { display: none; }
+      `}</style>
+      <details id="sg-details" style={{ background: cardTint, border: `1px solid ${borderTint}`, borderLeft: `3px solid ${verdictColor}`, borderRadius: "0 12px 12px 0", marginBottom: 18, overflow: "hidden" }}>
+        <summary style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: verdictColor, flexShrink: 0, display: "inline-block" }} />
+          <span style={{ fontSize: 10, color: verdictColor, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+            Smart Month Safety Gate
+          </span>
+          <span style={{ fontFamily: "monospace", fontSize: 9, color: T.muted, letterSpacing: "0.04em" }}>
+            {summaryText}
+          </span>
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            <Badge text={overallVerdict} color={verdictColor} dim={verdictDim} />
+            <span
+              className="sg-chevron"
+              style={{ fontSize: 10, color: T.muted, display: "inline-block", transition: "transform 0.15s ease" }}
+            >▶</span>
+          </span>
+        </summary>
+        <div style={{ padding: "0 16px 13px 16px", borderTop: `1px solid ${T.border}` }}>
+          <div style={{ marginTop: 10, display: "grid", gap: 5 }}>
+            {orderedChecks.map((check) => (
+              <div
+                key={check.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "rgba(255,255,255,0.018)",
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 6,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                }}
+              >
+                <span style={{ color: rowColor(check.level), fontWeight: 700, fontSize: 12, flexShrink: 0, width: 14, textAlign: "center" }}>
+                  {rowIcon(check.level)}
+                </span>
+                <span style={{ color: T.white, flex: 1 }}>{check.label}</span>
+                <span style={{ fontFamily: "monospace", fontSize: 10, color: rowColor(check.level), flexShrink: 0 }}>
+                  {check.detail}
+                </span>
+                {check.link && (
+                  <a
+                    href={`#${check.link.panelId}`}
+                    onClick={(e) => { e.preventDefault(); document.getElementById(check.link.panelId)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+                    style={{ fontSize: 9, color: T.muted, textDecoration: "none", flexShrink: 0, whiteSpace: "nowrap" }}
+                  >
+                    → {check.link.label}
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 10, color: T.muted, fontStyle: "italic" }}>
+            Do not apply to live budget until verdict is READY.
+          </div>
+        </div>
+      </details>
+    </>
   );
 }
 
@@ -3594,6 +3770,7 @@ export default function MotesartOS() {
               <SmartMonthPreviewPanel />
               <MTSubscriptionsPreviewPanel />
               <CapitalOneLedgerPreviewPanel />
+              <SmartMonthSafetyGate />
             </>
           )}
 
