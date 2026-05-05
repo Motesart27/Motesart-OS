@@ -469,8 +469,15 @@ export default function PianoLessonsSection() {
     await loadRecords();
     const invoice = flattenRecord(result?.invoice);
     if (invoice.id) {
-      setSelectedInvoice(invoice);
-      setSelectedLines(unwrapList(result?.lines).map(flattenRecord));
+      try {
+        const detail = await fetchInvoiceDetail(invoice.id);
+        setSelectedInvoice(flattenRecord(detail.invoice));
+        setSelectedLines(unwrapList(detail.lines).map(flattenRecord));
+        return;
+      } catch {
+        setSelectedInvoice(invoice);
+        setSelectedLines(unwrapList(result?.lines).map(flattenRecord));
+      }
     }
   }
 
