@@ -1640,7 +1640,7 @@ function EventDetailPanel({ event, onClose }) {
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 8 }}>
 
         {/* Hero */}
-        <div style={{ background: T.card, borderLeft: `3px solid ${event.color}`, borderRadius: "0 10px 10px 0", border: `1px solid ${T.border}`, borderLeft: `3px solid ${event.color}`, padding: "12px 14px" }}>
+        <div style={{ background: T.card, borderLeft: `3px solid ${event.color}`, borderRadius: "0 10px 10px 0", border: `1px solid ${T.border}`, padding: "12px 14px" }}>
           <div style={{ fontSize: 16, color: T.white, fontWeight: 700, letterSpacing: "-0.01em", marginBottom: 3 }}>{event.title}</div>
           <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>
             {event.isMultiDay ? `${event.start?.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})} → ${event.end?.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}` :
