@@ -4,7 +4,7 @@ const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   "https://deployable-python-codebase-som-production.up.railway.app";
 
-const BRAND_EMAIL = "schoolofmotesart@gmail.com";
+const BRAND_EMAIL = "motesarttech@gmail.com";
 const COLORS = {
   red: "#B83838",
   ink: "#f7f3ec",
@@ -95,8 +95,9 @@ function formatAddress(address) {
   const text = String(address).trim();
   if (text.includes("\n")) return text.split("\n").map((part) => part.trim()).filter(Boolean);
   const parts = text.split(",").map((part) => part.trim()).filter(Boolean);
-  if (parts.length <= 2) return [text];
-  return [parts.slice(0, -2).join(", "), parts.slice(-2).join(", ")];
+  if (parts.length <= 1) return [text];
+  if (parts.length === 2) return parts;
+  return [parts[0], parts.slice(1).join(", ")];
 }
 
 function StudentCard({ student, invoices, onInvoiceSelect }) {
@@ -476,6 +477,7 @@ export default function PianoLessonsSection() {
   const selectedStudent = selectedInvoice?.student?.[0]
     ? students.find((student) => student.id === selectedInvoice.student[0])
     : null;
+  const hasSelectedInvoice = Boolean(selectedInvoice);
 
   return (
     <section className="piano-shell" aria-label="Music Lessons">
@@ -492,7 +494,7 @@ export default function PianoLessonsSection() {
           border-left: 3px solid var(--piano-red);
           background: linear-gradient(135deg, rgba(184,56,56,0.18), rgba(20,20,22,0.96));
           border-radius: 10px;
-          padding: 14px 16px;
+          padding: 10px 14px;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -501,7 +503,7 @@ export default function PianoLessonsSection() {
         .piano-title {
           margin: 0;
           font-family: "Cormorant Garamond", Georgia, serif;
-          font-size: 28px;
+          font-size: 24px;
           line-height: 1;
           color: ${COLORS.ink};
           font-weight: 700;
@@ -543,14 +545,18 @@ export default function PianoLessonsSection() {
         }
         .piano-grid {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 300px;
+          grid-template-columns: minmax(0, 1fr);
           gap: 14px;
           align-items: start;
         }
+        .piano-grid-has-detail {
+          grid-template-columns: minmax(0, 1fr) 300px;
+        }
         .piano-cards {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
           gap: 10px;
+          align-items: stretch;
         }
         .piano-card {
           min-width: 0;
@@ -559,6 +565,9 @@ export default function PianoLessonsSection() {
           border-radius: 8px;
           padding: 12px;
           box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+          display: flex;
+          flex-direction: column;
+          min-height: 230px;
         }
         .piano-card-incomplete {
           border-color: rgba(215,165,72,0.72);
@@ -626,6 +635,7 @@ export default function PianoLessonsSection() {
         .piano-card-footer {
           border-top: 1px solid ${COLORS.border};
           padding-top: 9px;
+          margin-top: auto;
         }
         .piano-section-label {
           display: block;
@@ -932,21 +942,21 @@ export default function PianoLessonsSection() {
           .piano-grid {
             grid-template-columns: 1fr;
           }
-          .piano-receipt {
-            display: none;
+          .piano-grid-has-detail {
+            grid-template-columns: 1fr;
           }
         }
-        @media (max-width: 720px) {
+        @media (max-width: 640px) {
           .piano-shell {
             gap: 9px;
           }
           .piano-hero {
-            padding: 10px;
+            padding: 8px 10px;
             align-items: flex-start;
             flex-direction: column;
           }
           .piano-title {
-            font-size: 22px;
+            font-size: 21px;
           }
           .piano-subtitle {
             font-size: 11px;
@@ -966,6 +976,7 @@ export default function PianoLessonsSection() {
           }
           .piano-card {
             padding: 10px;
+            min-height: 230px;
           }
           .piano-card h3 {
             font-size: 20px;
@@ -1004,7 +1015,7 @@ export default function PianoLessonsSection() {
       <div className="piano-hero">
         <div>
           <h2 className="piano-title">Music Lessons</h2>
-          <p className="piano-subtitle">Read-only student roster and receipt shell from FinanceMind Airtable.</p>
+          <p className="piano-subtitle">Students and invoices from FinanceMind.</p>
         </div>
         <div className="piano-meta">
           <span className="piano-chip">{students.length} real students</span>
@@ -1017,7 +1028,7 @@ export default function PianoLessonsSection() {
       {loading && <div className="piano-empty">Loading Music Lessons...</div>}
 
       {!loading && (
-        <div className="piano-grid">
+        <div className={`piano-grid${hasSelectedInvoice ? " piano-grid-has-detail" : ""}`}>
           <div className="piano-cards">
             {students.map((student) => (
               <StudentCard
@@ -1028,13 +1039,15 @@ export default function PianoLessonsSection() {
               />
             ))}
           </div>
-          <ReceiptPreview
-            invoice={selectedInvoice}
-            lines={selectedLines}
-            student={selectedStudent}
-            logoFailed={logoFailed}
-            setLogoFailed={setLogoFailed}
-          />
+          {selectedInvoice && (
+            <ReceiptPreview
+              invoice={selectedInvoice}
+              lines={selectedLines}
+              student={selectedStudent}
+              logoFailed={logoFailed}
+              setLogoFailed={setLogoFailed}
+            />
+          )}
         </div>
       )}
 
