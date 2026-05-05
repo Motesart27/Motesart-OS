@@ -449,6 +449,9 @@ const MT_SUBSCRIPTIONS_CURRENT = [
   { name: "eCredible", amount: 9.95 },
 ];
 const MT_SUBSCRIPTIONS_EXPECTED_TOTAL = 653.77;
+// Live value intentionally unchanged. Smart Month preview handles updated projected baseline.
+const SMART_MONTH_LIVE_INCOME_STALE = 3428;
+const SMART_MONTH_MAY_2026_PREVIEW_BASELINE = 4123;
 
 function getMTSubscriptionsTotal() {
   return Number(MT_SUBSCRIPTIONS_CURRENT.reduce((sum, item) => sum + item.amount, 0).toFixed(2));
@@ -463,6 +466,35 @@ const CAPITAL_ONE_TRANSACTIONS_PREVIEW = [
 
 function getCapitalOneSpentTotal() {
   return Number(CAPITAL_ONE_TRANSACTIONS_PREVIEW.reduce((sum, item) => sum + (typeof item.amount === "number" ? item.amount : 0), 0).toFixed(2));
+}
+
+function SmartMonthAlignmentCheckPanel() {
+  const fmt = (value) => "$" + value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const maySummary = generateMonthSummary(2026, 4);
+  const mtVariance = Number((MT_SUBSCRIPTIONS_EXPECTED_TOTAL - getMTSubscriptionsTotal()).toFixed(2));
+  const phoneBillPending = CAPITAL_ONE_TRANSACTIONS_PREVIEW.some(item => item.name === "Phone Bill" && typeof item.amount !== "number");
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.red}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: T.red, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Smart Month Alignment Check</span>
+        <Badge text="Preview Gate" color={T.red} dim={T.redDim} />
+        <span style={{ marginLeft: "auto", fontSize: 10, color: T.muted }}>Preview only — live budget not updated</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 6 }}>
+        {[["Live income baseline", fmt(SMART_MONTH_LIVE_INCOME_STALE), T.amber], ["May 2026 preview baseline", "~" + fmt(SMART_MONTH_MAY_2026_PREVIEW_BASELINE), T.green], ["MT variance", fmt(mtVariance) + " unresolved", T.red], ["Capital One", phoneBillPending ? "Phone Bill pending" : "Phone Bill set", phoneBillPending ? T.amber : T.green]].map(([label, value, color]) => (
+          <div key={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 7, padding: "7px 9px" }}>
+            <div style={{ fontSize: 8, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 800 }}>{label}</div>
+            <div style={{ fontSize: 14, color, fontWeight: 800, marginTop: 3 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, display: "grid", gap: 5, fontSize: 11, color: T.muted, lineHeight: 1.5 }}>
+        <div>May 2026 baseline note: Debbie is included in preview only. Church WU is included in preview only.</div>
+        <div>Smart Month helper count for May 2026: {maySummary.tuesdayCount} Tuesdays and {maySummary.sundayCount} Sundays.</div>
+        <div style={{ color: T.red }}>Decision: Do not apply until missing MT items and Phone Bill amount are confirmed.</div>
+      </div>
+    </div>
+  );
 }
 
 function SmartMonthPreviewPanel() {
@@ -3558,6 +3590,7 @@ export default function MotesartOS() {
 
           {!isSpecialView && activeTab === "overview" && isFM && (
             <>
+              <SmartMonthAlignmentCheckPanel />
               <SmartMonthPreviewPanel />
               <MTSubscriptionsPreviewPanel />
               <CapitalOneLedgerPreviewPanel />
