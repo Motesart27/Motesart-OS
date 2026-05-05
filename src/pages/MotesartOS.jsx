@@ -454,6 +454,17 @@ function getMTSubscriptionsTotal() {
   return Number(MT_SUBSCRIPTIONS_CURRENT.reduce((sum, item) => sum + item.amount, 0).toFixed(2));
 }
 
+const CAPITAL_ONE_TRANSACTIONS_PREVIEW = [
+  { name: "Phone Bill", amount: null },
+  { name: "Zapier", amount: 10 },
+  { name: "Claude", amount: 100 },
+  { name: "Netlify", amount: 21.77 },
+];
+
+function getCapitalOneSpentTotal() {
+  return Number(CAPITAL_ONE_TRANSACTIONS_PREVIEW.reduce((sum, item) => sum + (typeof item.amount === "number" ? item.amount : 0), 0).toFixed(2));
+}
+
 function SmartMonthPreviewPanel() {
   const target = getNextMonthTargetDate();
   const summary = generateMonthSummary(target.year, target.monthIndex);
@@ -487,6 +498,36 @@ function SmartMonthPreviewPanel() {
           <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 8, background: "rgba(255,255,255,0.025)", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 8px", fontSize: 11 }}>
             <span style={{ color: T.muted }}>{label}</span>
             <span style={{ color: T.white, fontWeight: 700 }}>{fmt(value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CapitalOneLedgerPreviewPanel() {
+  const fmt = (value) => "$" + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const spentTotal = getCapitalOneSpentTotal();
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.blue}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: T.blue, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Capital One Ledger Preview</span>
+        <Badge text={fmt(spentTotal)} color={T.blue} dim={T.blueDim} />
+        <span style={{ marginLeft: "auto", fontSize: 10, color: T.muted }}>Preview only — transaction ledger not applied yet.</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 6 }}>
+        {CAPITAL_ONE_TRANSACTIONS_PREVIEW.map(item => (
+          <div key={item.name} style={{ display: "flex", justifyContent: "space-between", gap: 8, background: "rgba(255,255,255,0.025)", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 8px", fontSize: 11 }}>
+            <span style={{ color: T.muted }}>{item.name}</span>
+            <span style={{ color: typeof item.amount === "number" ? T.white : T.amber, fontWeight: 700 }}>{typeof item.amount === "number" ? fmt(item.amount) : "Pending Amount"}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 6, marginTop: 10 }}>
+        {[["Spent Balance", fmt(spentTotal), T.blue], ["Due Date", "Pending", T.amber]].map(([label, value, color]) => (
+          <div key={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 7, padding: "7px 9px" }}>
+            <div style={{ fontSize: 8, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 800 }}>{label}</div>
+            <div style={{ fontSize: 15, color, fontWeight: 800, marginTop: 3 }}>{value}</div>
           </div>
         ))}
       </div>
@@ -3519,6 +3560,7 @@ export default function MotesartOS() {
             <>
               <SmartMonthPreviewPanel />
               <MTSubscriptionsPreviewPanel />
+              <CapitalOneLedgerPreviewPanel />
             </>
           )}
 
