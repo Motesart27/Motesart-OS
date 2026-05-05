@@ -37,6 +37,7 @@ import useApprovals from "../hooks/useApprovals";
 import { quickDispatch } from "../services/dispatchService";
 import useDispatchTasks from "../hooks/useDispatchTasks";
 import ActiveTasksSection from "../components/ActiveTasksSection";
+import PianoLessonsSection from "../components/PianoLessonsSection";
 
 // ─── MYA Agent system prompt ───────────────────────────────────────────────────
 const PA_SYSTEM = `You are MYA -- the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
@@ -3585,7 +3586,7 @@ export default function MotesartOS() {
   const isJean = isPersonal && topTab === "jean";
   const isSpecialView = isPersonal || isBook;
   const biz = isPersonal ? { id: "personal", name: "Personal", full: "Denarius Motes", color: T.green, dim: T.greenDim, icon: "◉", notifications: 1, artists: [], brief: PERSONAL.brief } : (BUSINESSES.find(b => b.id === activeBiz) || BUSINESSES[0]);
-  const tabs = isSpecialView ? ["overview"] : ["overview", "notifications", "approvals", ...(isFM ? ["travel builder"] : []), ...(biz.artists.length > 0 ? ["artists"] : [])];
+  const tabs = isSpecialView ? ["overview"] : ["overview", "notifications", "approvals", ...(isFM ? ["travel builder", "piano"] : []), ...(biz.artists.length > 0 ? ["artists"] : [])];
 
   function switchBiz(id) { setActiveBiz(id); setSelectedArtist(null); setActiveTab("overview"); setTopTab("overview"); }
   function openTravelBuilder() { setActiveBiz("fm"); setSelectedArtist(null); setActiveTab("travel builder"); setTopTab("overview"); }
@@ -3715,6 +3716,11 @@ export default function MotesartOS() {
           {/* FM Travel Builder Tab */}
           {isFM && activeTab === "travel builder" && (
             <div className="os-travel-panel"><TravelBuilderPanel /></div>
+          )}
+
+          {/* FM Piano Lessons Tab */}
+          {isFM && activeTab === "piano" && (
+            <div className="os-piano-panel"><PianoLessonsSection /></div>
           )}
 
           {/* Personal Main View */}
