@@ -722,7 +722,7 @@ function SmartMonthSafetyGate() {
           <span style={{ fontSize: 10, color: verdictColor, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>
             Smart Month Safety Gate
           </span>
-          <span style={{ fontFamily: "monospace", fontSize: 9, color: T.muted, letterSpacing: "0.04em" }}>
+          <span className="sg-summary-count" style={{ fontFamily: "monospace", fontSize: 9, color: T.muted, letterSpacing: "0.04em" }}>
             {summaryText}
           </span>
           <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
@@ -4166,6 +4166,9 @@ export default function MotesartOS() {
         @media (max-width: 480px) {
           .os-main .os-content-area {
             padding: 10px !important;
+          }
+          .sg-summary-count {
+            display: none !important;
           }
           .os-pa-pill {
             font-size: 10px !important;
