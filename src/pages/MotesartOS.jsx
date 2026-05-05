@@ -1081,7 +1081,7 @@ function ArtistPanel({ artist, onClose }) {
   );
 }
 
-function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen, onSelectPersonal, onPersonalActive, onTravelBuilderOpen }) {
+function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen, onSelectPersonal, onPersonalActive, onTravelBuilderOpen, onMusicLessonsOpen }) {
   return (
     <div className="os-sidebar" style={{
       width: open ? 210 : 52, flexShrink: 0,
@@ -1159,6 +1159,29 @@ function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen
                   <div style={{ fontSize: 9, color: T.muted, letterSpacing: "0.08em" }}>→ FM TAB</div>
                 </div>
                 <span style={{ fontSize: 12, color: T.gold }}>›</span>
+              </>
+            )}
+          </button>
+          <button type="button" onClick={onMusicLessonsOpen} style={{
+            width: "100%", marginTop: 6, background: "rgba(184,56,56,0.10)", border: `1px dashed rgba(184,56,56,0.70)`,
+            borderRadius: 8, padding: open ? "7px 9px" : "8px",
+            cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 8,
+            justifyContent: open ? "flex-start" : "center",
+          }}>
+            <span style={{
+              width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+              background: "rgba(184,56,56,0.22)", color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 800,
+            }}>♪</span>
+            {open && (
+              <>
+                <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#E8C8C8" }}>Music Lessons</div>
+                  <div style={{ fontSize: 9, color: "#cc9a9a", letterSpacing: "0.08em" }}>→ FM TAB</div>
+                </div>
+                <span style={{ fontSize: 12, color: "#B83838" }}>›</span>
               </>
             )}
           </button>
@@ -3590,6 +3613,7 @@ export default function MotesartOS() {
 
   function switchBiz(id) { setActiveBiz(id); setSelectedArtist(null); setActiveTab("overview"); setTopTab("overview"); }
   function openTravelBuilder() { setActiveBiz("fm"); setSelectedArtist(null); setActiveTab("travel builder"); setTopTab("overview"); }
+  function openMusicLessons() { setActiveBiz("fm"); setSelectedArtist(null); setActiveTab("piano"); setTopTab("overview"); }
 
   // Phase 4A — approval status is now on each item from useApprovals
 
@@ -3623,7 +3647,7 @@ export default function MotesartOS() {
   return (
     <div className="os-root" style={{ display: "flex", height: "100dvh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
 
-      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onDispatchOpen={() => setDispatchOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} onTravelBuilderOpen={openTravelBuilder} />
+      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onDispatchOpen={() => setDispatchOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} onTravelBuilderOpen={openTravelBuilder} onMusicLessonsOpen={openMusicLessons} />
 
       <div className="os-main" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
@@ -3699,7 +3723,7 @@ export default function MotesartOS() {
               padding: "6px 13px", borderRadius: "5px 5px 0 0", cursor: "pointer",
               fontSize: 11, fontWeight: 600, textTransform: "capitalize",
               letterSpacing: "0.04em", transition: "all 0.15s",
-            }}>{t}</button>
+            }}>{t === "piano" ? "Music Lessons" : t}</button>
           ))}
         </div>
 
@@ -3718,7 +3742,7 @@ export default function MotesartOS() {
             <div className="os-travel-panel"><TravelBuilderPanel /></div>
           )}
 
-          {/* FM Piano Lessons Tab */}
+          {/* FM Music Lessons Tab */}
           {isFM && activeTab === "piano" && (
             <div className="os-piano-panel"><PianoLessonsSection /></div>
           )}

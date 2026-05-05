@@ -478,7 +478,7 @@ export default function PianoLessonsSection() {
     : null;
 
   return (
-    <section className="piano-shell" aria-label="Piano Lessons">
+    <section className="piano-shell" aria-label="Music Lessons">
       <style>{`
         .piano-shell {
           --piano-red: ${COLORS.red};
@@ -1003,7 +1003,7 @@ export default function PianoLessonsSection() {
 
       <div className="piano-hero">
         <div>
-          <h2 className="piano-title">Piano Lessons</h2>
+          <h2 className="piano-title">Music Lessons</h2>
           <p className="piano-subtitle">Read-only student roster and receipt shell from FinanceMind Airtable.</p>
         </div>
         <div className="piano-meta">
@@ -1014,7 +1014,7 @@ export default function PianoLessonsSection() {
       </div>
 
       {error && <div className="piano-error">{error}</div>}
-      {loading && <div className="piano-empty">Loading Piano Lessons...</div>}
+      {loading && <div className="piano-empty">Loading Music Lessons...</div>}
 
       {!loading && (
         <div className="piano-grid">
