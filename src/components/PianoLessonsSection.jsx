@@ -234,6 +234,16 @@ function DraftInvoiceSheet({
   const [duplicating, setDuplicating] = useState(false);
   const [preloadingInvoice, setPreloadingInvoice] = useState(false);
   const [preloadedFromLast, setPreloadedFromLast] = useState(false);
+  const [showSaveToast, setShowSaveToast] = useState(false);
+  const [pendingCloseAfterSave, setPendingCloseAfterSave] = useState(false);
+
+  useEffect(() => {
+    if (!showSaveToast) return;
+    const timer = setTimeout(() => {
+      setShowSaveToast(false);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [showSaveToast]);
 
   useEffect(() => {
     if (!open) {
@@ -247,6 +257,8 @@ function DraftInvoiceSheet({
       setDuplicating(false);
       setPreloadingInvoice(false);
       setPreloadedFromLast(false);
+      setShowSaveToast(false);
+      setPendingCloseAfterSave(false);
       return;
     }
     setStudentId(initialStudentId || "");
@@ -259,7 +271,16 @@ function DraftInvoiceSheet({
     setDuplicating(false);
     setPreloadingInvoice(false);
     setPreloadedFromLast(false);
+    setShowSaveToast(false);
+    setPendingCloseAfterSave(false);
   }, [open, initialStudentId]);
+
+  useEffect(() => {
+    if (pendingCloseAfterSave && !showSaveToast) {
+      setPendingCloseAfterSave(false);
+      onClose();
+    }
+  }, [pendingCloseAfterSave, showSaveToast, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -403,8 +424,9 @@ function DraftInvoiceSheet({
         })),
       };
       const result = await postJson("/api/piano/invoices", payload);
+      setShowSaveToast(true);
+      setPendingCloseAfterSave(true);
       await onSaved(result);
-      onClose();
     } catch (err) {
       onError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -414,12 +436,34 @@ function DraftInvoiceSheet({
 
   return (
     <div className="piano-sheet-backdrop" role="dialog" aria-modal="true" aria-label="New invoice">
-      <div className="piano-sheet">
+      <div className="piano-sheet" style={{ position: "relative" }}>
         <div className="piano-sheet-bar">
           <button type="button" onClick={onClose}>Cancel</button>
           <strong>New invoice</strong>
           <button type="button" onClick={saveDraft} disabled={saving}>{saving ? "Saving..." : "Save Draft"}</button>
         </div>
+
+        {showSaveToast && (
+          <div
+            style={{
+              position: "absolute",
+              top: 14,
+              right: 14,
+              background: "#04342C",
+              color: "white",
+              borderRadius: 6,
+              padding: "8px 12px",
+              fontSize: 12,
+              fontWeight: 500,
+              zIndex: 10,
+              pointerEvents: "none",
+              opacity: 1,
+              transition: "opacity 150ms ease-out",
+            }}
+          >
+            ✓ Draft saved
+          </div>
+        )}
 
         <div className="piano-sheet-body">
           {preloadingInvoice && (
@@ -439,8 +483,6 @@ function DraftInvoiceSheet({
               </div>
             </div>
           )}
-          <div className="piano-draft-banner">Draft · Saved. Not yet sent. Not yet income.</div>
-
           {validation.length > 0 && (
             <div className="piano-validation">
               {validation.map((item) => <div key={item}>{item}</div>)}
@@ -1212,10 +1254,10 @@ export default function PianoLessonsSection() {
         initialStudentId={draftStudentId}
         students={students}
         invoicesByStudent={invoicesByStudent}
-        onClose={() => {
-          setDraftOpen(false);
-          setDraftStudentId("");
-        }}
+      onClose={() => {
+        setDraftOpen(false);
+        setDraftStudentId("");
+      }}
         onSaved={handleDraftSaved}
         onError={setError}
         fetchInvoiceDetail={fetchInvoiceDetail}
