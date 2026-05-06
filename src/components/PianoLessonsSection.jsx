@@ -90,6 +90,16 @@ function starterLine() {
   return { local_id: makeLocalId(), description: "", rate_per_hour: "", hours: "" };
 }
 
+function getDefaultLinesForStudent(studentId) {
+  if (studentId === "reccGL1CYdVUjmJJE") {
+    return [
+      { local_id: makeLocalId("default"), description: "Music Lessons", rate_per_hour: 85, hours: 4 },
+      { local_id: makeLocalId("default"), description: "Organ Lessons 1/2hr", rate_per_hour: 45, hours: 2 },
+    ];
+  }
+  return [starterLine()];
+}
+
 function formatAddress(address) {
   if (!hasValue(address)) return ["Missing"];
   const text = String(address).trim();
@@ -212,6 +222,8 @@ function DraftInvoiceSheet({
   const [validation, setValidation] = useState([]);
   const [saving, setSaving] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [preloadingInvoice, setPreloadingInvoice] = useState(false);
+  const [prefilledFromLast, setPrefilledFromLast] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -223,7 +235,73 @@ function DraftInvoiceSheet({
     setValidation([]);
     setSaving(false);
     setDuplicating(false);
+    setPreloadingInvoice(false);
+    setPrefilledFromLast(false);
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let active = true;
+    const seedLines = getDefaultLinesForStudent(studentId);
+
+    setInvoiceDate(todayISO());
+    setPrefilledFromLast(false);
+    setPreloadingInvoice(Boolean(studentId));
+    setLines(seedLines);
+
+    if (!studentId) {
+      setPreloadingInvoice(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    async function preloadFromLastInvoice() {
+      const previous = invoicesByStudent?.get(studentId)?.[0];
+      if (!previous?.id) {
+        if (!active) return;
+        setPreloadingInvoice(false);
+        return;
+      }
+
+      try {
+        const detail = await fetchInvoiceDetail(previous.id);
+        if (!active) return;
+        const previousLines = unwrapList(detail?.lines || []);
+        if (previousLines.length > 0) {
+          setLines(previousLines.map((line) => {
+            const flat = flattenRecord(line);
+            return {
+              local_id: makeLocalId("copy"),
+              description: flat.description || flat.service || "",
+              rate_per_hour: Number(flat.rate_per_hour || flat.rate || 0),
+              hours: Number(flat.hours || 0),
+            };
+          }));
+          setPrefilledFromLast(true);
+        } else {
+          setLines(seedLines);
+        }
+      } catch (error) {
+        console.warn("Preload from last invoice failed", {
+          studentId,
+          invoiceId: previous?.id,
+          error,
+        });
+        if (!active) return;
+        setLines(seedLines);
+      } finally {
+        if (active) setPreloadingInvoice(false);
+      }
+    }
+
+    preloadFromLastInvoice();
+
+    return () => {
+      active = false;
+    };
+  }, [open, studentId, invoicesByStudent]);
 
   if (!open) return null;
 
@@ -240,6 +318,11 @@ function DraftInvoiceSheet({
 
   function removeLine(localId) {
     setLines((items) => items.length <= 1 ? items : items.filter((line) => line.local_id !== localId));
+  }
+
+  function resetDraftLines() {
+    setPrefilledFromLast(false);
+    setLines(getDefaultLinesForStudent(selectedStudent?.id));
   }
 
   async function duplicatePrevious() {
@@ -320,6 +403,17 @@ function DraftInvoiceSheet({
         </div>
 
         <div className="piano-sheet-body">
+          {preloadingInvoice && (
+            <div className="piano-draft-banner">Loading previous invoice...</div>
+          )}
+          {!preloadingInvoice && prefilledFromLast && (
+            <div className="piano-draft-banner" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <span>Pre-filled from last invoice — edit as needed.</span>
+              <button type="button" onClick={resetDraftLines} style={{ minHeight: 32, padding: "0 10px", borderRadius: 6 }}>
+                Reset to blank
+              </button>
+            </div>
+          )}
           <div className="piano-draft-banner">Draft · Saved. Not yet sent. Not yet income.</div>
 
           {validation.length > 0 && (
@@ -330,7 +424,9 @@ function DraftInvoiceSheet({
 
           <label className="piano-field">
             <span>Student</span>
-            <select value={studentId} onChange={(event) => setStudentId(event.target.value)}>
+            <select value={studentId} onChange={(event) => {
+              setStudentId(event.target.value);
+            }}>
               <option value="">Select student</option>
               {students.map((student) => (
                 <option key={student.id} value={student.id}>{student.student_name}</option>
