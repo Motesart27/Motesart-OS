@@ -196,7 +196,7 @@ function ReceiptPreview({
   onEditFieldChange,
   onSaveChanges,
   editError,
-  showSaveToast,
+  saveToastMessage,
   savingChanges,
 }) {
   if (!invoice) {
@@ -212,8 +212,8 @@ function ReceiptPreview({
 
   return (
     <aside className="piano-receipt">
-      {showSaveToast && (
-        <div className="piano-receipt-toast">✓ Draft saved</div>
+      {saveToastMessage && (
+        <div className="piano-receipt-toast">{saveToastMessage}</div>
       )}
       <div className="piano-receipt-head">
         {!logoFailed ? (
@@ -331,6 +331,8 @@ function DraftInvoiceSheet({
   onSaved,
   onError,
   fetchInvoiceDetail,
+  saveToastMessage,
+  setSaveToastMessage,
 }) {
   const [studentId, setStudentId] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(todayISO());
@@ -342,16 +344,7 @@ function DraftInvoiceSheet({
   const [duplicating, setDuplicating] = useState(false);
   const [preloadingInvoice, setPreloadingInvoice] = useState(false);
   const [preloadedFromLast, setPreloadedFromLast] = useState(false);
-  const [showSaveToast, setShowSaveToast] = useState(false);
   const [pendingCloseAfterSave, setPendingCloseAfterSave] = useState(false);
-
-  useEffect(() => {
-    if (!showSaveToast) return;
-    const timer = setTimeout(() => {
-      setShowSaveToast(false);
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, [showSaveToast]);
 
   useEffect(() => {
     if (!open) {
@@ -365,7 +358,7 @@ function DraftInvoiceSheet({
       setDuplicating(false);
       setPreloadingInvoice(false);
       setPreloadedFromLast(false);
-      setShowSaveToast(false);
+      setSaveToastMessage("");
       setPendingCloseAfterSave(false);
       return;
     }
@@ -379,16 +372,16 @@ function DraftInvoiceSheet({
     setDuplicating(false);
     setPreloadingInvoice(false);
     setPreloadedFromLast(false);
-    setShowSaveToast(false);
+    setSaveToastMessage("");
     setPendingCloseAfterSave(false);
   }, [open, initialStudentId]);
 
   useEffect(() => {
-    if (pendingCloseAfterSave && !showSaveToast) {
+    if (pendingCloseAfterSave && !saveToastMessage) {
       setPendingCloseAfterSave(false);
       onClose();
     }
-  }, [pendingCloseAfterSave, showSaveToast, onClose]);
+  }, [pendingCloseAfterSave, saveToastMessage, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -532,7 +525,7 @@ function DraftInvoiceSheet({
         })),
       };
       const result = await postJson("/api/piano/invoices", payload);
-      setShowSaveToast(true);
+      setSaveToastMessage("✓ Draft saved");
       setPendingCloseAfterSave(true);
       await onSaved(result);
     } catch (err) {
@@ -551,7 +544,7 @@ function DraftInvoiceSheet({
           <button type="button" onClick={saveDraft} disabled={saving}>{saving ? "Saving..." : "Save Draft"}</button>
         </div>
 
-        {showSaveToast && (
+        {saveToastMessage && (
           <div
             style={{
               position: "absolute",
@@ -569,7 +562,7 @@ function DraftInvoiceSheet({
               transition: "opacity 150ms ease-out",
             }}
           >
-            ✓ Draft saved
+            {saveToastMessage}
           </div>
         )}
 
@@ -669,7 +662,7 @@ export default function PianoLessonsSection() {
   const [selectedLines, setSelectedLines] = useState([]);
   const [editingLines, setEditingLines] = useState(null);
   const [editError, setEditError] = useState("");
-  const [showSaveToast, setShowSaveToast] = useState(false);
+  const [saveToastMessage, setSaveToastMessage] = useState("");
   const [savingChanges, setSavingChanges] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
   const [draftStudentId, setDraftStudentId] = useState("");
@@ -730,7 +723,7 @@ export default function PianoLessonsSection() {
     setSelectedLines([]);
     setEditingLines(null);
     setEditError("");
-    setShowSaveToast(false);
+    setSaveToastMessage("");
     try {
       const detail = await fetchInvoiceDetail(invoice.id);
       setSelectedInvoice(flattenRecord(detail.invoice));
@@ -754,7 +747,7 @@ export default function PianoLessonsSection() {
     const invoice = flattenRecord(result?.invoice);
     setEditingLines(null);
     setEditError("");
-    setShowSaveToast(false);
+    setSaveToastMessage("");
     if (invoice.id) {
       try {
         const detail = await fetchInvoiceDetail(invoice.id);
@@ -769,15 +762,16 @@ export default function PianoLessonsSection() {
   }
 
   useEffect(() => {
-    if (!showSaveToast) return;
+    if (!saveToastMessage) return;
     const timer = setTimeout(() => {
-      setShowSaveToast(false);
+      setSaveToastMessage("");
     }, 2500);
     return () => clearTimeout(timer);
-  }, [showSaveToast]);
+  }, [saveToastMessage]);
 
   function handleEditStart() {
     if (selectedInvoice?.invoice_status !== "draft") return;
+    setSaveToastMessage("");
     setEditingLines(
       selectedLines.map((line) => ({
         id: line.id,
@@ -792,6 +786,7 @@ export default function PianoLessonsSection() {
   function handleEditCancel() {
     setEditingLines(null);
     setEditError("");
+    setSaveToastMessage("");
   }
 
   function handleEditFieldChange(lineId, field, value) {
@@ -863,7 +858,7 @@ export default function PianoLessonsSection() {
       }
       setEditingLines(null);
       setEditError("");
-      setShowSaveToast(true);
+      setSaveToastMessage("✓ Changes saved");
     } catch (err) {
       console.error("Phase 4B.4 line PATCH network error", err);
       setEditError(`Network error saving line ${editingLines[0]?.description || editingLines[0]?.id || "1"}`);
@@ -1548,7 +1543,7 @@ export default function PianoLessonsSection() {
               onEditFieldChange={handleEditFieldChange}
               onSaveChanges={handleSaveChanges}
               editError={editError}
-              showSaveToast={showSaveToast}
+              saveToastMessage={saveToastMessage}
               savingChanges={savingChanges}
             />
           )}
@@ -1564,13 +1559,16 @@ export default function PianoLessonsSection() {
         initialStudentId={draftStudentId}
         students={students}
         invoicesByStudent={invoicesByStudent}
-      onClose={() => {
-        setDraftOpen(false);
-        setDraftStudentId("");
-      }}
+        onClose={() => {
+          setDraftOpen(false);
+          setDraftStudentId("");
+          setSaveToastMessage("");
+        }}
         onSaved={handleDraftSaved}
         onError={setError}
         fetchInvoiceDetail={fetchInvoiceDetail}
+        saveToastMessage={saveToastMessage}
+        setSaveToastMessage={setSaveToastMessage}
       />
     </section>
   );
