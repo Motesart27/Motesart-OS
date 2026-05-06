@@ -1208,8 +1208,6 @@ export default function PianoLessonsSection() {
           <p className="piano-subtitle">Students and invoices from FinanceMind.</p>
         </div>
         <div className="piano-meta">
-          <span className="piano-chip">{students.length} real students</span>
-          <span className="piano-chip">{invoices.length} invoices</span>
           <button type="button" className="piano-new-btn" onClick={() => {
             setDraftStudentId("");
             setDraftOpen(true);
