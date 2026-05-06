@@ -344,11 +344,6 @@ function DraftInvoiceSheet({
     setLines((items) => items.length <= 1 ? items : items.filter((line) => line.local_id !== localId));
   }
 
-  function resetDraftLines() {
-    setPreloadedFromLast(false);
-    setLines(getLockedDefaultLines(selectedStudent?.id));
-  }
-
   async function duplicatePrevious() {
     if (!previousInvoices.length) return;
     setDuplicating(true);
@@ -442,9 +437,6 @@ function DraftInvoiceSheet({
               <div style={{ fontSize: 11, fontWeight: 400, color: "#712B13", marginTop: 2 }}>
                 Edit any line as needed.
               </div>
-              <button type="button" onClick={resetDraftLines} style={{ marginTop: 8, background: "transparent", border: "none", padding: 0, color: "#B83838", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                Reset to blank
-              </button>
             </div>
           )}
           <div className="piano-draft-banner">Draft · Saved. Not yet sent. Not yet income.</div>
