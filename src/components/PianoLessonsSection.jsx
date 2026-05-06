@@ -90,7 +90,7 @@ function starterLine() {
   return { local_id: makeLocalId(), description: "", rate_per_hour: "", hours: "" };
 }
 
-function getDefaultLinesForStudent(studentId) {
+function getLockedDefaultLines(studentId) {
   if (studentId === "reccGL1CYdVUjmJJE") {
     return [
       { local_id: makeLocalId("default"), description: "Music Lessons", rate_per_hour: 85, hours: 4 },
@@ -110,7 +110,7 @@ function formatAddress(address) {
   return [parts[0], parts.slice(1).join(", ")];
 }
 
-function StudentCard({ student, invoices, onInvoiceSelect }) {
+function StudentCard({ student, invoices, onInvoiceSelect, onNewInvoice }) {
   const missing = ["email", "phone", "address"].filter((field) => !hasValue(student[field]));
   const incomplete = missing.length > 0;
   const addressLines = formatAddress(student.address);
@@ -138,6 +138,15 @@ function StudentCard({ student, invoices, onInvoiceSelect }) {
 
       <div className="piano-card-footer">
         <div>
+          {onNewInvoice && (
+            <button
+              type="button"
+              className="piano-card-new-btn"
+              onClick={() => onNewInvoice(student)}
+            >
+              + New invoice
+            </button>
+          )}
           <span className="piano-section-label">Invoices</span>
           {invoices.length === 0 ? (
             <div className="piano-empty">No invoices yet</div>
@@ -207,6 +216,7 @@ function ReceiptPreview({ invoice, lines, student, logoFailed, setLogoFailed }) 
 
 function DraftInvoiceSheet({
   open,
+  initialStudentId,
   students,
   invoicesByStudent,
   onClose,
@@ -223,11 +233,23 @@ function DraftInvoiceSheet({
   const [saving, setSaving] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [preloadingInvoice, setPreloadingInvoice] = useState(false);
-  const [prefilledFromLast, setPrefilledFromLast] = useState(false);
+  const [preloadedFromLast, setPreloadedFromLast] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
-    setStudentId("");
+    if (!open) {
+      setStudentId("");
+      setInvoiceDate(todayISO());
+      setLines([starterLine()]);
+      setOtherAdjustment("0");
+      setNotesBlock("");
+      setValidation([]);
+      setSaving(false);
+      setDuplicating(false);
+      setPreloadingInvoice(false);
+      setPreloadedFromLast(false);
+      return;
+    }
+    setStudentId(initialStudentId || "");
     setInvoiceDate(todayISO());
     setLines([starterLine()]);
     setOtherAdjustment("0");
@@ -236,17 +258,17 @@ function DraftInvoiceSheet({
     setSaving(false);
     setDuplicating(false);
     setPreloadingInvoice(false);
-    setPrefilledFromLast(false);
-  }, [open]);
+    setPreloadedFromLast(false);
+  }, [open, initialStudentId]);
 
   useEffect(() => {
     if (!open) return;
 
     let active = true;
-    const seedLines = getDefaultLinesForStudent(studentId);
+    const seedLines = getLockedDefaultLines(studentId);
 
     setInvoiceDate(todayISO());
-    setPrefilledFromLast(false);
+    setPreloadedFromLast(false);
     setPreloadingInvoice(Boolean(studentId));
     setLines(seedLines);
 
@@ -257,40 +279,42 @@ function DraftInvoiceSheet({
       };
     }
 
-    async function preloadFromLastInvoice() {
-      const previous = invoicesByStudent?.get(studentId)?.[0];
-      if (!previous?.id) {
-        if (!active) return;
-        setPreloadingInvoice(false);
-        return;
+    async function preloadLinesForNewInvoice(student) {
+      setPreloadedFromLast(false);
+      const recent = invoicesByStudent?.get(student.id)?.[0];
+      if (recent?.id) {
+        try {
+          const detail = await fetchInvoiceDetail(recent.id);
+          const detailLines = unwrapList(detail?.lines || []);
+          if (detailLines.length > 0) {
+            const mappedLines = detailLines.map((line) => {
+              const fields = flattenRecord(line);
+              return {
+                local_id: makeLocalId("copy"),
+                description: fields.description || fields.service || "",
+                rate_per_hour: Number(fields.rate_per_hour || fields.rate || 0),
+                hours: Number(fields.hours || 0),
+              };
+            });
+            if (!active) return;
+            setLines(mappedLines);
+            setPreloadedFromLast(true);
+            return;
+          }
+        } catch (error) {
+          console.error("Phase 4B.3 preload fetch failed", error);
+        }
       }
 
+      if (!active) return;
+      const fallbackLines = getLockedDefaultLines(student.id);
+      setLines(fallbackLines);
+      setPreloadedFromLast(student.id === "reccGL1CYdVUjmJJE");
+    }
+
+    async function preloadFromLastInvoice() {
       try {
-        const detail = await fetchInvoiceDetail(previous.id);
-        if (!active) return;
-        const previousLines = unwrapList(detail?.lines || []);
-        if (previousLines.length > 0) {
-          setLines(previousLines.map((line) => {
-            const flat = flattenRecord(line);
-            return {
-              local_id: makeLocalId("copy"),
-              description: flat.description || flat.service || "",
-              rate_per_hour: Number(flat.rate_per_hour || flat.rate || 0),
-              hours: Number(flat.hours || 0),
-            };
-          }));
-          setPrefilledFromLast(true);
-        } else {
-          setLines(seedLines);
-        }
-      } catch (error) {
-        console.warn("Preload from last invoice failed", {
-          studentId,
-          invoiceId: previous?.id,
-          error,
-        });
-        if (!active) return;
-        setLines(seedLines);
+        await preloadLinesForNewInvoice({ id: studentId });
       } finally {
         if (active) setPreloadingInvoice(false);
       }
@@ -321,8 +345,8 @@ function DraftInvoiceSheet({
   }
 
   function resetDraftLines() {
-    setPrefilledFromLast(false);
-    setLines(getDefaultLinesForStudent(selectedStudent?.id));
+    setPreloadedFromLast(false);
+    setLines(getLockedDefaultLines(selectedStudent?.id));
   }
 
   async function duplicatePrevious() {
@@ -404,12 +428,21 @@ function DraftInvoiceSheet({
 
         <div className="piano-sheet-body">
           {preloadingInvoice && (
-            <div className="piano-draft-banner">Loading previous invoice...</div>
+            <div style={{ background: "#FAECE7", borderLeft: "2px solid #B83838", borderRadius: 0, padding: "8px 10px", marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "#4A1B0C" }}>
+                Loading previous invoice…
+              </div>
+            </div>
           )}
-          {!preloadingInvoice && prefilledFromLast && (
-            <div className="piano-draft-banner" style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-              <span>Pre-filled from last invoice — edit as needed.</span>
-              <button type="button" onClick={resetDraftLines} style={{ minHeight: 32, padding: "0 10px", borderRadius: 6 }}>
+          {!preloadingInvoice && preloadedFromLast && (
+            <div style={{ background: "#FAECE7", borderLeft: "2px solid #B83838", borderRadius: 0, padding: "8px 10px", marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "#4A1B0C" }}>
+                Pre-filled from last invoice
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 400, color: "#712B13", marginTop: 2 }}>
+                Edit any line as needed.
+              </div>
+              <button type="button" onClick={resetDraftLines} style={{ marginTop: 8, background: "transparent", border: "none", padding: 0, color: "#B83838", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 Reset to blank
               </button>
             </div>
@@ -493,6 +526,7 @@ export default function PianoLessonsSection() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [selectedLines, setSelectedLines] = useState([]);
   const [draftOpen, setDraftOpen] = useState(false);
+  const [draftStudentId, setDraftStudentId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [logoFailed, setLogoFailed] = useState(false);
@@ -559,6 +593,11 @@ export default function PianoLessonsSection() {
 
   async function fetchInvoiceDetail(invoiceId) {
     return fetchJson(`/api/piano/invoices/${invoiceId}`);
+  }
+
+  function handleNewInvoiceClick(student) {
+    setDraftStudentId(student.id);
+    setDraftOpen(true);
   }
 
   async function handleDraftSaved(result) {
@@ -757,6 +796,20 @@ export default function PianoLessonsSection() {
           padding: 8px;
           font-size: 12px;
           font-weight: 800;
+        }
+        .piano-card-new-btn {
+          width: 100%;
+          min-height: 40px;
+          border: 1px solid rgba(184,56,56,0.36);
+          background: rgba(184,56,56,0.12);
+          color: #f0d8d8;
+          border-radius: 6px;
+          padding: 0 10px;
+          font: inherit;
+          font-size: 11px;
+          font-weight: 900;
+          cursor: pointer;
+          margin-bottom: 8px;
         }
         .piano-invoice-links {
           display: grid;
@@ -1123,7 +1176,10 @@ export default function PianoLessonsSection() {
         <div className="piano-meta">
           <span className="piano-chip">{students.length} real students</span>
           <span className="piano-chip">{invoices.length} invoices</span>
-          <button type="button" className="piano-new-btn" onClick={() => setDraftOpen(true)}>+ New invoice</button>
+          <button type="button" className="piano-new-btn" onClick={() => {
+            setDraftStudentId("");
+            setDraftOpen(true);
+          }}>+ New invoice</button>
         </div>
       </div>
 
@@ -1139,6 +1195,7 @@ export default function PianoLessonsSection() {
                 student={student}
                 invoices={invoicesByStudent.get(student.id) || []}
                 onInvoiceSelect={selectInvoice}
+                onNewInvoice={handleNewInvoiceClick}
               />
             ))}
           </div>
@@ -1160,9 +1217,13 @@ export default function PianoLessonsSection() {
 
       <DraftInvoiceSheet
         open={draftOpen}
+        initialStudentId={draftStudentId}
         students={students}
         invoicesByStudent={invoicesByStudent}
-        onClose={() => setDraftOpen(false)}
+        onClose={() => {
+          setDraftOpen(false);
+          setDraftStudentId("");
+        }}
         onSaved={handleDraftSaved}
         onError={setError}
         fetchInvoiceDetail={fetchInvoiceDetail}
