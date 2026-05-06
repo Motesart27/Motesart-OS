@@ -68,6 +68,25 @@ async function postJson(path, payload) {
   return parsed;
 }
 
+async function patchJson(path, payload) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.text();
+  let parsed = null;
+  try {
+    parsed = body ? JSON.parse(body) : null;
+  } catch {
+    parsed = body;
+  }
+  if (!response.ok) {
+    throw new Error(`PATCH ${path} failed ${response.status}: ${body}`);
+  }
+  return parsed;
+}
+
 function money(value) {
   const n = Number(Array.isArray(value) ? value[0] : value);
   if (!Number.isFinite(n)) return "$0";
@@ -165,7 +184,21 @@ function StudentCard({ student, invoices, onInvoiceSelect, onNewInvoice }) {
   );
 }
 
-function ReceiptPreview({ invoice, lines, student, logoFailed, setLogoFailed }) {
+function ReceiptPreview({
+  invoice,
+  lines,
+  student,
+  logoFailed,
+  setLogoFailed,
+  editingLines,
+  onEditStart,
+  onEditCancel,
+  onEditFieldChange,
+  onSaveChanges,
+  editError,
+  showSaveToast,
+  savingChanges,
+}) {
   if (!invoice) {
     return (
       <aside className="piano-receipt piano-receipt-empty">
@@ -179,6 +212,9 @@ function ReceiptPreview({ invoice, lines, student, logoFailed, setLogoFailed }) 
 
   return (
     <aside className="piano-receipt">
+      {showSaveToast && (
+        <div className="piano-receipt-toast">✓ Draft saved</div>
+      )}
       <div className="piano-receipt-head">
         {!logoFailed ? (
           <img src="/brand/som-logo.png" alt="School of Motesart" onError={() => setLogoFailed(true)} />
@@ -190,24 +226,96 @@ function ReceiptPreview({ invoice, lines, student, logoFailed, setLogoFailed }) 
           <strong>{invoice.invoice_id || invoice.id}</strong>
         </div>
       </div>
+      {invoice.invoice_status === "draft" && !editingLines && (
+        <button type="button" className="piano-receipt-edit-btn" onClick={onEditStart}>
+          Edit
+        </button>
+      )}
+      {editError && (
+        <div
+          style={{
+            background: "#FEE",
+            borderLeft: "2px solid #C03030",
+            padding: "8px 10px",
+            marginBottom: 12,
+            fontSize: 12,
+            color: "#600",
+          }}
+        >
+          {editError}
+        </div>
+      )}
       {student && (
         <div className="piano-receipt-student">
           <span>{student.student_name}</span>
           {formatAddress(student.address).map((line) => <strong key={line}>{line}</strong>)}
         </div>
       )}
-      <div className="piano-receipt-lines">
-        {lines.map((line) => (
-          <div key={line.id}>
-            <span>{line.description || "Lesson"}</span>
-            <strong>{money(line.line_total)}</strong>
-          </div>
-        ))}
-      </div>
+      {editingLines ? (
+        <div className="piano-receipt-lines piano-receipt-lines-editing">
+          {editingLines.map((line, index) => (
+            <div className="piano-receipt-edit-line" key={line.id}>
+              <label className="piano-field">
+                <span>Description</span>
+                <input
+                  value={line.description}
+                  onChange={(event) => onEditFieldChange(line.id, "description", event.target.value)}
+                  placeholder="Music Lessons"
+                />
+              </label>
+              <label className="piano-field">
+                <span>Rate</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={line.rate_per_hour}
+                  onChange={(event) => onEditFieldChange(line.id, "rate_per_hour", event.target.value)}
+                />
+              </label>
+              <label className="piano-field">
+                <span>Hours</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.25"
+                  inputMode="decimal"
+                  value={line.hours}
+                  onChange={(event) => onEditFieldChange(line.id, "hours", event.target.value)}
+                />
+              </label>
+              <div className="piano-receipt-line-total">
+                <span>Line total</span>
+                <strong>{money(Number(line.rate_per_hour) * Number(line.hours))}</strong>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="piano-receipt-lines">
+          {lines.map((line) => (
+            <div key={line.id}>
+              <span>{line.description || "Lesson"}</span>
+              <strong>{money(line.line_total)}</strong>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="piano-receipt-total">
         <span>Total</span>
         <strong>{money(invoice.total)}</strong>
       </div>
+      {editingLines && (
+        <div className="piano-receipt-actions">
+          <button type="button" className="piano-receipt-cancel-btn" onClick={onEditCancel} disabled={savingChanges}>
+            Cancel
+          </button>
+          <button type="button" className="piano-receipt-save-btn" onClick={onSaveChanges} disabled={savingChanges}>
+            {savingChanges ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      )}
       <button type="button" disabled>Generate PDF · coming next</button>
       <button type="button" disabled>Send via email · coming next</button>
     </aside>
@@ -559,6 +667,10 @@ export default function PianoLessonsSection() {
   const [invoices, setInvoices] = useState([]);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [selectedLines, setSelectedLines] = useState([]);
+  const [editingLines, setEditingLines] = useState(null);
+  const [editError, setEditError] = useState("");
+  const [showSaveToast, setShowSaveToast] = useState(false);
+  const [savingChanges, setSavingChanges] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
   const [draftStudentId, setDraftStudentId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -616,6 +728,9 @@ export default function PianoLessonsSection() {
   async function selectInvoice(invoice) {
     setSelectedInvoice(invoice);
     setSelectedLines([]);
+    setEditingLines(null);
+    setEditError("");
+    setShowSaveToast(false);
     try {
       const detail = await fetchInvoiceDetail(invoice.id);
       setSelectedInvoice(flattenRecord(detail.invoice));
@@ -637,6 +752,9 @@ export default function PianoLessonsSection() {
   async function handleDraftSaved(result) {
     await loadRecords();
     const invoice = flattenRecord(result?.invoice);
+    setEditingLines(null);
+    setEditError("");
+    setShowSaveToast(false);
     if (invoice.id) {
       try {
         const detail = await fetchInvoiceDetail(invoice.id);
@@ -647,6 +765,110 @@ export default function PianoLessonsSection() {
         setSelectedInvoice(invoice);
         setSelectedLines(unwrapList(result?.lines).map(flattenRecord));
       }
+    }
+  }
+
+  useEffect(() => {
+    if (!showSaveToast) return;
+    const timer = setTimeout(() => {
+      setShowSaveToast(false);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [showSaveToast]);
+
+  function handleEditStart() {
+    if (selectedInvoice?.invoice_status !== "draft") return;
+    setEditingLines(
+      selectedLines.map((line) => ({
+        id: line.id,
+        description: line.description ?? "",
+        rate_per_hour: Number(line.rate_per_hour ?? 0),
+        hours: Number(line.hours ?? 0),
+      }))
+    );
+    setEditError("");
+  }
+
+  function handleEditCancel() {
+    setEditingLines(null);
+    setEditError("");
+  }
+
+  function handleEditFieldChange(lineId, field, value) {
+    setEditingLines((prev) =>
+      prev
+        ? prev.map((line) => (line.id === lineId ? { ...line, [field]: value } : line))
+        : prev
+    );
+  }
+
+  async function handleSaveChanges() {
+    if (!editingLines || !selectedInvoice) return;
+    setEditError("");
+    setSavingChanges(true);
+
+    try {
+      const originalById = new Map(selectedLines.map((line) => [line.id, line]));
+      const changed = editingLines
+        .map((edited, index) => {
+          const original = originalById.get(edited.id) || {};
+          const patch = {};
+          const description = String(edited.description ?? "").trim();
+          const rate = Number(edited.rate_per_hour);
+          const hours = Number(edited.hours);
+
+          if (description !== String(original.description ?? "")) patch.description = description;
+          if (rate !== Number(original.rate_per_hour ?? 0)) patch.rate_per_hour = rate;
+          if (hours !== Number(original.hours ?? 0)) patch.hours = hours;
+
+          return { edited, index, patch };
+        })
+        .filter((item) => Object.keys(item.patch).length > 0);
+
+      if (!changed.length) {
+        setEditingLines(null);
+        return;
+      }
+
+      let lastResponse = null;
+      for (const item of changed) {
+        const response = await fetch(`${API_BASE}/api/piano/invoices/${selectedInvoice.id}/lines/${item.edited.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item.patch),
+        });
+        const body = await response.text();
+        let parsed = null;
+        try {
+          parsed = body ? JSON.parse(body) : null;
+        } catch {
+          parsed = body;
+        }
+        if (!response.ok) {
+          console.error("Phase 4B.4 line PATCH failed", {
+            lineNumber: item.index + 1,
+            lineId: item.edited.id,
+            status: response.status,
+            body,
+          });
+          setEditError(`Failed to save line ${item.index + 1}: ${item.edited.description || item.edited.id}`);
+          return;
+        }
+        lastResponse = parsed;
+      }
+
+      if (lastResponse) {
+        setSelectedInvoice(flattenRecord(lastResponse.invoice));
+        setSelectedLines(unwrapList(lastResponse.lines).map(flattenRecord));
+      }
+      setEditingLines(null);
+      setEditError("");
+      setShowSaveToast(true);
+    } catch (err) {
+      console.error("Phase 4B.4 line PATCH network error", err);
+      setEditError(`Network error saving line ${editingLines[0]?.description || editingLines[0]?.id || "1"}`);
+    } finally {
+      setSavingChanges(false);
     }
   }
 
@@ -873,6 +1095,22 @@ export default function PianoLessonsSection() {
           display: grid;
           gap: 10px;
           min-width: 0;
+          position: relative;
+        }
+        .piano-receipt-toast {
+          position: absolute;
+          top: 14px;
+          right: 14px;
+          z-index: 3;
+          pointer-events: none;
+          background: #04342C;
+          color: white;
+          border-radius: 6px;
+          padding: 8px 12px;
+          font-size: 12px;
+          font-weight: 500;
+          opacity: 1;
+          transition: opacity 150ms ease-out;
         }
         .piano-receipt-empty {
           align-content: start;
@@ -893,6 +1131,20 @@ export default function PianoLessonsSection() {
           display: flex;
           align-items: center;
           gap: 10px;
+        }
+        .piano-receipt-edit-btn {
+          min-height: 44px;
+          width: fit-content;
+          justify-self: end;
+          border: 1px solid rgba(184,56,56,0.6);
+          background: transparent;
+          color: #f0d8d8;
+          border-radius: 8px;
+          padding: 0 12px;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
         }
         .piano-receipt-head img {
           width: 44px;
@@ -934,6 +1186,9 @@ export default function PianoLessonsSection() {
           display: grid;
           gap: 6px;
         }
+        .piano-receipt-lines-editing {
+          gap: 10px;
+        }
         .piano-receipt-lines div,
         .piano-receipt-total {
           display: flex;
@@ -945,6 +1200,45 @@ export default function PianoLessonsSection() {
         .piano-receipt-total {
           border-bottom: 0;
           padding-bottom: 0;
+        }
+        .piano-receipt-edit-line {
+          display: grid;
+          grid-template-columns: minmax(0, 1.55fr) minmax(76px, 0.52fr) minmax(76px, 0.52fr) auto;
+          gap: 8px;
+          align-items: end;
+          border: 1px solid ${COLORS.border};
+          background: rgba(255,255,255,0.035);
+          border-radius: 6px;
+          padding: 8px;
+          min-width: 0;
+        }
+        .piano-receipt-line-total {
+          display: grid;
+          gap: 4px;
+          justify-items: end;
+          align-content: end;
+          min-width: 0;
+        }
+        .piano-receipt-actions {
+          position: sticky;
+          bottom: 0;
+          z-index: 1;
+          display: flex;
+          gap: 8px;
+          padding-top: 8px;
+          background: linear-gradient(to bottom, rgba(28,26,26,0), rgba(28,26,26,0.92) 20px, rgba(28,26,26,0.96));
+        }
+        .piano-receipt-cancel-btn {
+          flex: 1;
+          border-color: ${COLORS.border};
+          background: transparent;
+          color: ${COLORS.muted};
+        }
+        .piano-receipt-save-btn {
+          flex: 1;
+          border-color: rgba(184,56,56,0.56);
+          background: rgba(184,56,56,0.22);
+          color: #f0d8d8;
         }
         .piano-error {
           border: 1px solid rgba(184,56,56,0.45);
@@ -1186,6 +1480,16 @@ export default function PianoLessonsSection() {
             padding: 7px;
             font-size: 11px;
           }
+          .piano-receipt-edit-line {
+            grid-template-columns: 1fr 1fr;
+          }
+          .piano-receipt-line-total {
+            grid-column: 1 / -1;
+            justify-items: start;
+          }
+          .piano-receipt-actions {
+            flex-direction: column;
+          }
           .piano-sheet-body {
             padding: 10px;
           }
@@ -1238,6 +1542,14 @@ export default function PianoLessonsSection() {
               student={selectedStudent}
               logoFailed={logoFailed}
               setLogoFailed={setLogoFailed}
+              editingLines={editingLines}
+              onEditStart={handleEditStart}
+              onEditCancel={handleEditCancel}
+              onEditFieldChange={handleEditFieldChange}
+              onSaveChanges={handleSaveChanges}
+              editError={editError}
+              showSaveToast={showSaveToast}
+              savingChanges={savingChanges}
             />
           )}
         </div>
