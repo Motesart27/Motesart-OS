@@ -1081,7 +1081,7 @@ function ArtistPanel({ artist, onClose }) {
   );
 }
 
-function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen, onSelectPersonal, onPersonalActive, onTravelBuilderOpen, onMusicLessonsOpen }) {
+function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen, onSelectPersonal, onPersonalActive, onTravelBuilderOpen, onMusicLessonsOpen, onSettingsOpen }) {
   return (
     <div className="os-sidebar" style={{
       width: open ? 210 : 52, flexShrink: 0,
@@ -1218,6 +1218,15 @@ function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen
         }}>
           <span style={{ fontSize: 13, color: T.muted, flexShrink: 0 }}>◈</span>
           {open && <span style={{ fontSize: 11, fontWeight: 600, color: T.muted }}>Dispatch</span>}
+        </button>
+        <button onClick={onSettingsOpen} style={{
+          width: "100%", background: "transparent", border: `1px solid ${T.border}`,
+          borderRadius: 8, padding: open ? "9px 10px" : "9px",
+          cursor: "pointer", display: "flex", alignItems: "center",
+          gap: 9, justifyContent: open ? "flex-start" : "center",
+        }}>
+          <span style={{ fontSize: 13, color: T.muted, flexShrink: 0 }}>⚙</span>
+          {open && <span style={{ fontSize: 11, fontWeight: 600, color: T.muted }}>Settings</span>}
         </button>
       </div>
     </div>
@@ -3587,6 +3596,96 @@ function BizTodoList({ biz }) {
 }
 
 
+// ─── Settings Panel ───────────────────────────────────────────────────────────
+const SETTINGS_GROUPS = [
+  { label: "Calendar", keys: ["google_calendar_id"] },
+  { label: "Notifications", keys: ["notification_email_1", "notification_email_2", "notification_email_3"] },
+  { label: "Schedule", keys: ["morning_brief_time", "working_hours_start", "working_hours_end"] },
+  { label: "Appearance", keys: ["os_accent_color"] },
+];
+
+function SettingsPanel({ onClose }) {
+  const [settings, setSettings] = useState({});
+  const [editing, setEditing] = useState({});
+  const [saved, setSaved] = useState({});
+  const API = import.meta.env.VITE_API_URL || "";
+
+  useEffect(() => {
+    fetch(`${API}/api/settings`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) setSettings(d.settings); })
+      .catch(() => {});
+  }, [API]);
+
+  async function save(key) {
+    const value = editing[key] ?? settings[key] ?? "";
+    try {
+      const r = await fetch(`${API}/api/settings/${key}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      });
+      if (r.ok) {
+        setSettings(s => ({ ...s, [key]: value }));
+        setSaved(s => ({ ...s, [key]: true }));
+        setTimeout(() => setSaved(s => ({ ...s, [key]: false })), 1800);
+      }
+    } catch { /* noop */ }
+    setEditing(e => { const n = { ...e }; delete n[key]; return n; });
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 600,
+      display: "flex", justifyContent: "flex-end",
+      background: "rgba(0,0,0,0.55)",
+      animation: "fadeIn 0.18s ease",
+    }} onClick={onClose}>
+      <div style={{
+        width: 360, height: "100%", background: T.surface,
+        borderLeft: `1px solid ${T.border}`,
+        display: "flex", flexDirection: "column",
+        animation: "slideInRight 0.22s cubic-bezier(0.22,1,0.36,1)",
+        overflow: "hidden",
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "18px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: T.white, letterSpacing: "0.04em" }}>SETTINGS</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+          {SETTINGS_GROUPS.map(group => (
+            <div key={group.label} style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: T.muted, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 10 }}>{group.label}</div>
+              {group.keys.map(key => {
+                const val = editing[key] !== undefined ? editing[key] : (settings[key] ?? "");
+                return (
+                  <div key={key} style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, color: T.muted, marginBottom: 4, letterSpacing: "0.06em" }}>{key.replace(/_/g, " ")}</div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        value={val}
+                        onChange={e => setEditing(ed => ({ ...ed, [key]: e.target.value }))}
+                        style={{ flex: 1, background: T.dim, border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 10px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                        onFocus={e => { e.target.style.borderColor = T.gold + "60"; }}
+                        onBlur={e => { e.target.style.borderColor = T.border; }}
+                      />
+                      <button onClick={() => save(key)} style={{
+                        background: saved[key] ? T.goldDim : T.dim, border: `1px solid ${saved[key] ? T.gold + "60" : T.border}`,
+                        color: saved[key] ? T.gold : T.muted, borderRadius: 6, padding: "6px 10px",
+                        cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0,
+                      }}>{saved[key] ? "✓" : "Save"}</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MotesartOS() {
   const [open, setOpen] = useState(typeof window !== "undefined" && window.innerWidth > 768);
   const [activeBiz, setActiveBiz] = useState("e7a");
@@ -3596,6 +3695,7 @@ export default function MotesartOS() {
   const [chatOpen, setChatOpen] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState(null);
   const [reviseInputId, setReviseInputId] = useState(null);
   const [reviseReason, setReviseReason] = useState('');
@@ -3647,7 +3747,7 @@ export default function MotesartOS() {
   return (
     <div className="os-root" style={{ display: "flex", height: "100dvh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
 
-      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onDispatchOpen={() => setDispatchOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} onTravelBuilderOpen={openTravelBuilder} onMusicLessonsOpen={openMusicLessons} />
+      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onDispatchOpen={() => setDispatchOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} onTravelBuilderOpen={openTravelBuilder} onMusicLessonsOpen={openMusicLessons} onSettingsOpen={() => setSettingsOpen(true)} />
 
       <div className="os-main" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
@@ -4032,6 +4132,7 @@ export default function MotesartOS() {
         }, 100);
       }} />}
       {chatOpen && <PAAgentChat onClose={() => setChatOpen(false)} activeBiz={activeBiz} />}
+      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
 
       {/* Phase 3B — Dispatch panel (opened from Sidebar "Dispatch" button) */}
       <MyaDispatchPanel
