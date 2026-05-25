@@ -3335,28 +3335,28 @@ function TravelBuilderPanel() {
                             style={{background:"transparent",border:"none",color:"#78788a",fontFamily:"inherit",fontSize:12,width:"100%",outline:"none"}}/>
                           {isFlightRow&&(
                             <button onClick={()=>setFlightOptionsForRow(flightOptionsForRow===r.id?null:r.id)}
-                              style={{display:"block",marginTop:5,background:T.amberDim,border:`1px solid ${T.amber}40`,borderRadius:4,padding:"3px 8px",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.amber,cursor:"pointer"}}>Options</button>
+                              style={{display:"block",marginTop:5,background:"#fef3c7",border:"1px solid rgba(245,158,11,0.4)",borderRadius:6,padding:"4px 10px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:"#b45309",cursor:"pointer"}}>Options</button>
                           )}
                           {isFlightRow&&flightOptionsForRow===r.id&&(
-                            <div style={{position:"absolute",right:8,top:"100%",zIndex:50,width:250,background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:8,padding:10,boxShadow:"0 12px 30px rgba(0,0,0,0.4)"}}>
-                              <div style={{fontSize:11,fontWeight:800,color:T.white,marginBottom:8}}>Flight Options</div>
+                            <div style={{position:"absolute",right:8,top:"100%",zIndex:50,width:260,background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:12,padding:14,boxShadow:"0 8px 32px rgba(0,0,0,0.12)"}}>
+                              <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a",marginBottom:10}}>Flight Options</div>
                               {TB_FLIGHT_OPTIONS.map(opt=>(
-                                <div key={opt.title} style={{borderTop:`1px solid ${T.dim}`,paddingTop:8,marginTop:8}}>
-                                  <div style={{fontSize:11,fontWeight:700,color:T.white}}>{opt.title}</div>
-                                  <div style={{fontSize:10,color:T.gold,marginTop:2}}>{tbFmt(opt.low)}–{tbFmt(opt.high)}</div>
-                                  <div style={{fontSize:9,color:T.muted,marginTop:2,lineHeight:1.5}}>{opt.note}</div>
+                                <div key={opt.title} style={{borderTop:"0.5px solid rgba(0,0,0,0.08)",paddingTop:10,marginTop:10}}>
+                                  <div style={{fontSize:13,fontWeight:600,color:"#1a1a1a"}}>{opt.title}</div>
+                                  <div style={{fontSize:12,color:"#b45309",marginTop:3,fontWeight:600}}>{tbFmt(opt.low)}–{tbFmt(opt.high)}</div>
+                                  <div style={{fontSize:11,color:"#78788a",marginTop:3,lineHeight:1.5}}>{opt.note}</div>
                                   <div style={{display:"flex",gap:6,marginTop:7}}>
-                                    <button onClick={()=>useFlightOption(r.id,opt)} style={{flex:1,background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:4,padding:"4px 0",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.gold,cursor:"pointer"}}>Use</button>
-                                    <button onClick={()=>openFlightBooking(opt.bookingUrl)} style={{flex:1,background:T.amberDim,border:`1px solid ${T.amber}40`,borderRadius:4,padding:"4px 0",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.amber,cursor:"pointer"}}>Book Now</button>
+                                    <button onClick={()=>useFlightOption(r.id,opt)} style={{flex:1,background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:6,padding:"6px 0",fontFamily:"inherit",fontSize:12,fontWeight:600,color:"#4a4a52",cursor:"pointer"}}>Use</button>
+                                    <button onClick={()=>openFlightBooking(opt.bookingUrl)} style={{flex:1,background:"#3b82f6",border:"none",borderRadius:6,padding:"6px 0",fontFamily:"inherit",fontSize:12,fontWeight:600,color:"#fff",cursor:"pointer"}}>Book Now</button>
                                   </div>
                                 </div>
                               ))}
-                              <div style={{fontSize:8,color:T.muted,lineHeight:1.5,marginTop:9}}>Book Now opens the provider website. You review and book manually.</div>
+                              <div style={{fontSize:11,color:"#78788a",lineHeight:1.5,marginTop:10}}>Book Now opens the provider website. You review and book manually.</div>
                             </div>
                           )}
                           {r.url
-                            ? <a href={r.url} target="_blank" rel="noopener" style={{display:"block",marginTop:4,color:T.gold,textDecoration:"none",fontWeight:600,fontSize:9}}>Book →</a>
-                            : r.status==="booknow" ? <span style={{display:"block",marginTop:4,color:T.dim,fontSize:9}}>No link</span> : null
+                            ? <a href={r.url} target="_blank" rel="noopener" style={{display:"block",marginTop:5,color:"#b45309",textDecoration:"none",fontWeight:700,fontSize:12}}>Book →</a>
+                            : r.status==="booknow" ? <span style={{display:"block",marginTop:4,color:"#d1d5db",fontSize:11}}>No link</span> : null
                           }
                         </td>
                       </tr>
@@ -3378,27 +3378,25 @@ function TravelBuilderPanel() {
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+            <div style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:"16px 18px"}}>
               <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:12,paddingBottom:10,borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>Money saved vs full price</div>
-              {[["MM4 hotel discount","~$170"],["No rental car","~$200"],["Kadence buddy pass","~$350"],["Southwest no change fees","$0 risk"]].map(([l,a])=>(
-                <div key={l} style={{display:"flex",alignItems:"center",gap:8,marginBottom:9,fontFamily:"monospace",fontSize:10,transition:"transform 0.15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.transform="translateX(3px)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
-                  <div style={{width:5,height:5,borderRadius:"50%",background:T.green,flexShrink:0}}/>
-                  <div style={{flex:1,color:T.muted}}>{l}</div>
-                  <div style={{color:T.green,fontWeight:500}}>{a}</div>
+              {[["MM4 hotel discount","~$170"],["No rental car","~$200"],["Kadence buddy pass","~$350"],["No change fees","$0 risk"]].map(([l,a])=>(
+                <div key={l} style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                  <div style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",flexShrink:0}}/>
+                  <div style={{flex:1,fontSize:13,color:"#4a4a52"}}>{l}</div>
+                  <div style={{fontSize:13,color:"#15803d",fontWeight:600}}>{a}</div>
                 </div>
               ))}
-              <div style={{borderTop:`1px solid ${T.border}`,marginTop:10,paddingTop:10,display:"flex",justifyContent:"space-between",fontFamily:"monospace",fontSize:11}}>
-                <span style={{color:T.muted}}>Total saved</span>
-                <span style={{color:T.green,fontWeight:600}}>{"~"+tbFmt(tots.saved)+" +"}</span>
+              <div style={{borderTop:"0.5px solid rgba(0,0,0,0.08)",marginTop:10,paddingTop:10,display:"flex",justifyContent:"space-between",fontSize:13}}>
+                <span style={{fontWeight:700,color:"#1a1a1a"}}>Total saved</span>
+                <span style={{color:"#15803d",fontWeight:700}}>{"~"+tbFmt(tots.saved)+" +"}</span>
               </div>
             </div>
-            <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+            <div style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:"16px 18px"}}>
               <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:12,paddingBottom:10,borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>Open items — action required</div>
-              {[{c:T.red,t:"Book Southwest flights TODAY — southwest.com, LGA→MDW Jun 12 + MDW→LGA Jun 15"},{c:T.amber,t:"Text Kayliah — need 4+ graduation tickets + dinner plans"},{c:T.amber,t:"Confirm niece checks CA→ORD Jun 12 loads. Have backup."},{c:T.blue,t:"Apply for Motesart Tech business credit card"},{c:T.blue,t:"Bring original Marriott Explore Form + Photo ID to check-in"}].map((item,i)=>(
-                <div key={i} style={{display:"flex",gap:8,marginBottom:9,fontFamily:"monospace",fontSize:10,color:T.muted,lineHeight:1.6,transition:"all 0.15s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.transform="translateX(2px)";e.currentTarget.style.color="#a0a8b0";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.color=T.muted;}}>
-                  <div style={{width:5,height:5,borderRadius:"50%",background:item.c,flexShrink:0,marginTop:5}}/>
+              {[{c:"#ef4444",t:"Book Kadence LAX→JFK Jun 12 — JetBlue / Delta / AA nonstop"},{c:"#ef4444",t:"Book Kadence JFK→LAX Jun 22 — return leg nonstop"},{c:"#f59e0b",t:"Text Kayliah — need 4+ graduation tickets + dinner plans"},{c:"#f59e0b",t:"Confirm hotel dates with Dad — Jun 13–14 or Jun 13–15"},{c:"#3b82f6",t:"Bring original Marriott Explore Form + Photo ID to check-in"}].map((item,i)=>(
+                <div key={i} style={{display:"flex",gap:8,marginBottom:10,fontSize:13,color:"#4a4a52",lineHeight:1.6}}>
+                  <div style={{width:6,height:6,borderRadius:"50%",background:item.c,flexShrink:0,marginTop:5}}/>
                   <span>{item.t}</span>
                 </div>
               ))}
