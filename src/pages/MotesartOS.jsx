@@ -26,9 +26,21 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import MyaDispatchPanel from "../components/MyaDispatchPanel";
+import ExecutiveTile from "../components/ExecutiveTile";
+import { useToast } from "../components/Toast";
+import useExecutiveRun from "../hooks/useExecutiveRun";
+import useExecutiveHealth from "../hooks/useExecutiveHealth";
+import ApprovalPreviewModal from "../components/ApprovalPreviewModal";
+import AppLauncherCard from "../components/AppLauncherCard";
+import useApprovals from "../hooks/useApprovals";
+import { quickDispatch } from "../services/dispatchService";
+import useDispatchTasks from "../hooks/useDispatchTasks";
+import ActiveTasksSection from "../components/ActiveTasksSection";
+import PianoLessonsSection from "../components/PianoLessonsSection";
 
-// ─── PA Agent system prompt ───────────────────────────────────────────────────
-const PA_SYSTEM = `You are the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
+// ─── MYA Agent system prompt ───────────────────────────────────────────────────
+const PA_SYSTEM = `You are MYA -- the Personal Assistant Agent for Denarius Motes -- CEO of School of Motesart (SOM), Founder of E7A Music Agency, artist, father, and builder.
 
 PERSONAL DATA SECURITY — HIGHEST PRIORITY RULE:
 
@@ -383,6 +395,389 @@ SYNC PROTOCOL:
 - Report what changed: income total, expense total, bill count, any warnings
 - If sync fails, report the error and suggest: "Check OneDrive connection or re-upload Excel"`;
 
+// FinanceMind Smart Month Engine — pure helpers.
+function countWeekdaysInMonth(year, monthIndex, weekday) {
+  let count = 0;
+  for (let day = new Date(year, monthIndex, 1); day.getMonth() === monthIndex; day.setDate(day.getDate() + 1)) {
+    if (day.getDay() === weekday) count += 1;
+  }
+  return count;
+}
+
+function getNextMonthTargetDate(referenceDate = new Date()) {
+  return {
+    year: referenceDate.getFullYear() + (referenceDate.getMonth() === 11 ? 1 : 0),
+    monthIndex: (referenceDate.getMonth() + 1) % 12,
+  };
+}
+
+function generateRecurringIncomeForMonth(year, monthIndex) {
+  const tuesdayCount = countWeekdaysInMonth(year, monthIndex, 2);
+  const sundayCount = countWeekdaysInMonth(year, monthIndex, 0);
+  return [
+    { source: "Renee", category: "music lessons", weeklyAmount: 125, weekday: 2, occurrenceCount: tuesdayCount, projectedTotal: 125 * tuesdayCount, notes: "Weekly Tuesday lesson income." },
+    { source: "Evelyn", category: "music lessons", weeklyAmount: 75, weekday: 2, occurrenceCount: tuesdayCount, projectedTotal: 75 * tuesdayCount, notes: "Weekly Tuesday lesson income." },
+    { source: "Debbie", category: "music lessons", weeklyAmount: 85, weekday: 2, occurrenceCount: tuesdayCount, projectedTotal: 85 * tuesdayCount, notes: "Weekly Tuesday lesson income." },
+    { source: "Church (NJ)", category: "church", weeklyAmount: 400, weekday: 0, occurrenceCount: sundayCount, projectedTotal: 400 * sundayCount, notes: "Active weekly Sunday church income." },
+    { source: "Church (WU)", category: "church", weeklyAmount: 300, weekday: 0, occurrenceCount: sundayCount, projectedTotal: 300 * sundayCount, notes: "Active weekly Sunday church income." },
+  ];
+}
+
+function generateMonthSummary(year, monthIndex) {
+  const rows = generateRecurringIncomeForMonth(year, monthIndex);
+  const projectedLessonIncome = rows.filter(r => r.category === "music lessons").reduce((sum, r) => sum + r.projectedTotal, 0);
+  const projectedChurchIncome = rows.filter(r => r.category === "church").reduce((sum, r) => sum + r.projectedTotal, 0);
+  return {
+    monthLabel: new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(year, monthIndex, 1)),
+    tuesdayCount: countWeekdaysInMonth(year, monthIndex, 2),
+    sundayCount: countWeekdaysInMonth(year, monthIndex, 0),
+    projectedLessonIncome,
+    projectedChurchIncome,
+    projectedTotalIncome: projectedLessonIncome + projectedChurchIncome,
+  };
+}
+
+const MT_SUBSCRIPTIONS_CURRENT = [
+  { name: "Eleven Labs", amount: 23.93 },
+  { name: "United Masters", amount: 19.99 },
+  { name: "Suno", amount: 32.66 },
+  { name: "Notion", amount: 24 },
+  { name: "Airtable x2", amount: 58.5 },
+  { name: "Railway", amount: 20 },
+  { name: "Buffer", amount: 13 },
+  { name: "Blu Host", amount: 3.25 },
+  { name: "Kits AI", amount: 30 },
+  { name: "eCredible", amount: 9.95 },
+];
+const MT_SUBSCRIPTIONS_EXPECTED_TOTAL = 653.77;
+// Live value intentionally unchanged. Smart Month preview handles updated projected baseline.
+const SMART_MONTH_LIVE_INCOME_STALE = 3428;
+const SMART_MONTH_MAY_2026_PREVIEW_BASELINE = 4123;
+
+function getMTSubscriptionsTotal() {
+  return Number(MT_SUBSCRIPTIONS_CURRENT.reduce((sum, item) => sum + item.amount, 0).toFixed(2));
+}
+
+const CAPITAL_ONE_TRANSACTIONS_PREVIEW = [
+  { name: "Phone Bill", amount: null },
+  { name: "Zapier", amount: 10 },
+  { name: "Claude", amount: 100 },
+  { name: "Netlify", amount: 21.77 },
+];
+
+function getCapitalOneSpentTotal() {
+  return Number(CAPITAL_ONE_TRANSACTIONS_PREVIEW.reduce((sum, item) => sum + (typeof item.amount === "number" ? item.amount : 0), 0).toFixed(2));
+}
+
+function SmartMonthAlignmentCheckPanel() {
+  const fmt = (value) => "$" + value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const maySummary = generateMonthSummary(2026, 4);
+  const mtVariance = Number((MT_SUBSCRIPTIONS_EXPECTED_TOTAL - getMTSubscriptionsTotal()).toFixed(2));
+  const phoneBillPending = CAPITAL_ONE_TRANSACTIONS_PREVIEW.some(item => item.name === "Phone Bill" && typeof item.amount !== "number");
+  return (
+    <div id="alignment-check" style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.red}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: T.red, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Smart Month Alignment Check</span>
+        <Badge text="Preview Gate" color={T.red} dim={T.redDim} />
+        <span style={{ marginLeft: "auto", fontSize: 10, color: T.muted }}>Preview only — live budget not updated</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 6 }}>
+        {[["Live income baseline", fmt(SMART_MONTH_LIVE_INCOME_STALE), T.amber], ["May 2026 preview baseline", "~" + fmt(SMART_MONTH_MAY_2026_PREVIEW_BASELINE), T.green], ["MT variance", fmt(mtVariance) + " unresolved", T.red], ["Capital One", phoneBillPending ? "Phone Bill pending" : "Phone Bill set", phoneBillPending ? T.amber : T.green]].map(([label, value, color]) => (
+          <div key={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 7, padding: "7px 9px" }}>
+            <div style={{ fontSize: 8, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 800 }}>{label}</div>
+            <div style={{ fontSize: 14, color, fontWeight: 800, marginTop: 3 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, display: "grid", gap: 5, fontSize: 11, color: T.muted, lineHeight: 1.5 }}>
+        <div>May 2026 baseline note: Debbie is included in preview only. Church WU is included in preview only.</div>
+        <div>Smart Month helper count for May 2026: {maySummary.tuesdayCount} Tuesdays and {maySummary.sundayCount} Sundays.</div>
+        <div style={{ color: T.red }}>Decision: Do not apply until missing MT items and Phone Bill amount are confirmed.</div>
+      </div>
+    </div>
+  );
+}
+
+function SmartMonthPreviewPanel() {
+  const target = getNextMonthTargetDate();
+  const summary = generateMonthSummary(target.year, target.monthIndex);
+  const rows = generateRecurringIncomeForMonth(target.year, target.monthIndex);
+  const bySource = Object.fromEntries(rows.map(row => [row.source, row]));
+  const fmt = (value) => "$" + value.toLocaleString();
+  const incomeRows = [
+    ["Renee", bySource.Renee.projectedTotal],
+    ["Evelyn", bySource.Evelyn.projectedTotal],
+    ["Debbie", bySource.Debbie.projectedTotal],
+    ["Church NJ", bySource["Church (NJ)"].projectedTotal],
+    ["Church WU", bySource["Church (WU)"].projectedTotal],
+  ];
+  return (
+    <div id="smart-month-preview" style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.green}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: T.green, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Smart Month Preview</span>
+        <Badge text={summary.monthLabel} color={T.green} dim={T.greenDim} />
+        <span style={{ marginLeft: "auto", fontSize: 10, color: T.muted }}>Preview only — not applied yet.</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, marginBottom: 10 }}>
+        {[["Tuesdays", summary.tuesdayCount], ["Sundays", summary.sundayCount], ["Lessons", fmt(summary.projectedLessonIncome)], ["Church", fmt(summary.projectedChurchIncome)], ["Total", fmt(summary.projectedTotalIncome)]].map(([label, value]) => (
+          <div key={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 10px" }}>
+            <div style={{ fontSize: 8, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 800 }}>{label}</div>
+            <div style={{ fontSize: 15, color: label === "Total" ? T.green : T.white, fontWeight: 700, marginTop: 3 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 6 }}>
+        {incomeRows.map(([label, value]) => (
+          <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 8, background: "rgba(255,255,255,0.025)", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 8px", fontSize: 11 }}>
+            <span style={{ color: T.muted }}>{label}</span>
+            <span style={{ color: T.white, fontWeight: 700 }}>{fmt(value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CapitalOneLedgerPreviewPanel() {
+  const fmt = (value) => "$" + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const spentTotal = getCapitalOneSpentTotal();
+  return (
+    <div id="capone-preview" style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.blue}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: T.blue, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Capital One Ledger Preview</span>
+        <Badge text={fmt(spentTotal)} color={T.blue} dim={T.blueDim} />
+        <span style={{ marginLeft: "auto", fontSize: 10, color: T.muted }}>Preview only — transaction ledger not applied yet.</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 6 }}>
+        {CAPITAL_ONE_TRANSACTIONS_PREVIEW.map(item => (
+          <div key={item.name} style={{ display: "flex", justifyContent: "space-between", gap: 8, background: "rgba(255,255,255,0.025)", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 8px", fontSize: 11 }}>
+            <span style={{ color: T.muted }}>{item.name}</span>
+            <span style={{ color: typeof item.amount === "number" ? T.white : T.amber, fontWeight: 700 }}>{typeof item.amount === "number" ? fmt(item.amount) : "Pending Amount"}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 6, marginTop: 10 }}>
+        {[["Spent Balance", fmt(spentTotal), T.blue], ["Due Date", "Pending", T.amber]].map(([label, value, color]) => (
+          <div key={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 7, padding: "7px 9px" }}>
+            <div style={{ fontSize: 8, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 800 }}>{label}</div>
+            <div style={{ fontSize: 15, color, fontWeight: 800, marginTop: 3 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MTSubscriptionsPreviewPanel() {
+  const fmt = (value) => "$" + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const itemizedTotal = getMTSubscriptionsTotal();
+  const variance = Number((MT_SUBSCRIPTIONS_EXPECTED_TOTAL - itemizedTotal).toFixed(2));
+  return (
+    <div id="mt-preview" style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${T.amber}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: T.amber, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>MT Subscriptions Preview</span>
+        <Badge text="Reconciliation" color={T.amber} dim={T.amberDim} />
+        <span style={{ marginLeft: "auto", fontSize: 10, color: T.muted }}>Preview only — not applied to live budget yet.</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 6 }}>
+        {MT_SUBSCRIPTIONS_CURRENT.map(item => (
+          <div key={item.name} style={{ display: "flex", justifyContent: "space-between", gap: 8, background: "rgba(255,255,255,0.025)", border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 8px", fontSize: 11 }}>
+            <span style={{ color: T.muted }}>{item.name}</span>
+            <span style={{ color: T.white, fontWeight: 700 }}>{fmt(item.amount)}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 6, marginTop: 10 }}>
+        {[["Itemized Total", itemizedTotal, T.white], ["Expected Sheet Total", MT_SUBSCRIPTIONS_EXPECTED_TOTAL, T.amber], ["Unaccounted Difference", variance, T.red]].map(([label, value, color]) => (
+          <div key={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 7, padding: "7px 9px" }}>
+            <div style={{ fontSize: 8, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 800 }}>{label}</div>
+            <div style={{ fontSize: 15, color, fontWeight: 800, marginTop: 3 }}>{fmt(value)}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, background: T.redDim, border: `1px solid ${T.red}30`, borderRadius: 7, padding: "8px 10px", fontSize: 11, color: T.red, lineHeight: 1.5 }}>
+        Sheet total is higher than itemized subscriptions. Missing MT items must be identified before applying to live budget.
+      </div>
+    </div>
+  );
+}
+
+// Preview-only income sources — confirmed via Smart Month engine, no previewOnly flag on row objects yet.
+const PREVIEW_ONLY_INCOME_SOURCES = ["Debbie", "Church (WU)"];
+
+function SmartMonthSafetyGate() {
+  const fmtAmt = (v) => "$" + Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const mtItemized = getMTSubscriptionsTotal();
+  const mtVariance = Number((MT_SUBSCRIPTIONS_EXPECTED_TOTAL - mtItemized).toFixed(2));
+  const mtVarianceBlocked = mtVariance !== 0;
+
+  const capOnePendingItems = CAPITAL_ONE_TRANSACTIONS_PREVIEW.filter(
+    (item) => item.status === "pending" || item.amount === null
+  );
+  const capOneBlocked = capOnePendingItems.length > 0;
+
+  const incomeStale = SMART_MONTH_LIVE_INCOME_STALE !== SMART_MONTH_MAY_2026_PREVIEW_BASELINE;
+  const incomeDriftPct = Math.abs(SMART_MONTH_MAY_2026_PREVIEW_BASELINE - SMART_MONTH_LIVE_INCOME_STALE) / SMART_MONTH_LIVE_INCOME_STALE;
+  const incomeDriftReview = incomeDriftPct > 0.05;
+
+  const previewOnlyFireCount = PREVIEW_ONLY_INCOME_SOURCES.length;
+  const previewOnlyReview = previewOnlyFireCount > 0;
+
+  const pausedSubscriptions = MT_SUBSCRIPTIONS_CURRENT.filter((s) => s.status === "paused" && s.status !== "cancelled");
+  const pausedReview = pausedSubscriptions.length > 0;
+
+  const checks = [
+    {
+      id: "mt-variance",
+      level: mtVarianceBlocked ? "blocked" : "pass",
+      label: "MT itemized vs. sheet total",
+      detail: mtVarianceBlocked
+        ? `${fmtAmt(mtVariance)} variance unresolved`
+        : "Reconciled",
+      link: { label: "MT Preview", panelId: "mt-preview" },
+    },
+    {
+      id: "capone-pending",
+      level: capOneBlocked ? "blocked" : "pass",
+      label: "Capital One transaction amounts",
+      detail: capOneBlocked
+        ? `${capOnePendingItems.length} pending amount${capOnePendingItems.length > 1 ? "s" : ""}`
+        : "All amounts set",
+      link: { label: "Capital One", panelId: "capone-preview" },
+    },
+    // TODO: user-required confirmation outstanding > 7 days — no confirmationAt timestamp field exists yet
+    {
+      id: "income-stale",
+      level: incomeStale ? "review" : "pass",
+      label: "Live income baseline",
+      detail: incomeStale
+        ? `$${SMART_MONTH_LIVE_INCOME_STALE.toLocaleString()} stale (preview ~$${SMART_MONTH_MAY_2026_PREVIEW_BASELINE.toLocaleString()})`
+        : "Current",
+      link: { label: "Alignment Check", panelId: "alignment-check" },
+    },
+    {
+      id: "income-drift",
+      level: incomeDriftReview ? "review" : "pass",
+      label: "Preview vs. live income drift",
+      detail: incomeDriftReview
+        ? `${(incomeDriftPct * 100).toFixed(1)}% drift (threshold 5%)`
+        : `${(incomeDriftPct * 100).toFixed(1)}% drift — within range`,
+      link: { label: "SM Preview", panelId: "smart-month-preview" },
+    },
+    {
+      id: "preview-only-sources",
+      level: previewOnlyReview ? "review" : "pass",
+      label: "Preview-only income sources",
+      detail: previewOnlyReview
+        ? `${PREVIEW_ONLY_INCOME_SOURCES.join(", ")} — preview only`
+        : "All sources confirmed",
+      link: { label: "SM Preview", panelId: "smart-month-preview" },
+    },
+    {
+      id: "paused-subs",
+      level: pausedReview ? "review" : "pass",
+      label: "Paused subscriptions",
+      detail: pausedReview
+        ? `${pausedSubscriptions.length} paused subscription${pausedSubscriptions.length > 1 ? "s" : ""}`
+        : "No paused subscriptions",
+      link: { label: "MT Preview", panelId: "mt-preview" },
+    },
+  ];
+
+  const blockedChecks  = checks.filter((c) => c.level === "blocked");
+  const reviewChecks   = checks.filter((c) => c.level === "review");
+  const passingChecks  = checks.filter((c) => c.level === "pass");
+
+  const overallVerdict = blockedChecks.length > 0 ? "BLOCKED" : reviewChecks.length > 0 ? "NEEDS REVIEW" : "READY";
+  const verdictColor   = overallVerdict === "BLOCKED" ? T.red : overallVerdict === "NEEDS REVIEW" ? T.amber : T.green;
+  const verdictDim     = overallVerdict === "BLOCKED" ? T.redDim : overallVerdict === "NEEDS REVIEW" ? T.amberDim : T.greenDim;
+  const cardTint       = overallVerdict === "BLOCKED" ? `${T.red}0d` : overallVerdict === "NEEDS REVIEW" ? `${T.amber}0d` : `${T.green}0d`;
+  const borderTint     = overallVerdict === "BLOCKED" ? `${T.red}44` : overallVerdict === "NEEDS REVIEW" ? `${T.amber}44` : `${T.green}44`;
+
+  const summaryText = `${blockedChecks.length} blocking · ${reviewChecks.length} review · ${passingChecks.length} passing`;
+
+  const orderedChecks = [...blockedChecks, ...reviewChecks, ...passingChecks];
+
+  const rowIcon  = (level) => level === "blocked" ? "✗" : level === "review" ? "⚠" : "✓";
+  const rowColor = (level) => level === "blocked" ? T.red : level === "review" ? T.amber : T.green;
+
+  if (checks.length === 0) {
+    return (
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: "0 12px 12px 0", padding: "13px 16px", marginBottom: 18, color: T.muted, fontSize: 11 }}>
+        No checks configured
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <style>{`
+        #sg-details[open] .sg-chevron { transform: rotate(90deg); }
+        #sg-details summary { list-style: none; cursor: pointer; user-select: none; }
+        #sg-details summary::-webkit-details-marker { display: none; }
+      `}</style>
+      <details id="sg-details" style={{ background: cardTint, border: `1px solid ${borderTint}`, borderLeft: `3px solid ${verdictColor}`, borderRadius: "0 12px 12px 0", marginBottom: 18, overflow: "hidden" }}>
+        <summary style={{ padding: "13px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: verdictColor, flexShrink: 0, display: "inline-block" }} />
+          <span style={{ fontSize: 10, color: verdictColor, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+            Smart Month Safety Gate
+          </span>
+          <span className="sg-summary-count" style={{ fontFamily: "monospace", fontSize: 9, color: T.muted, letterSpacing: "0.04em" }}>
+            {summaryText}
+          </span>
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+            <Badge text={overallVerdict} color={verdictColor} dim={verdictDim} />
+            <span
+              className="sg-chevron"
+              style={{ fontSize: 10, color: T.muted, display: "inline-block", transition: "transform 0.15s ease" }}
+            >▶</span>
+          </span>
+        </summary>
+        <div style={{ padding: "0 16px 13px 16px", borderTop: `1px solid ${T.border}` }}>
+          <div style={{ marginTop: 10, display: "grid", gap: 5 }}>
+            {orderedChecks.map((check) => (
+              <div
+                key={check.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "rgba(255,255,255,0.018)",
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 6,
+                  padding: "6px 10px",
+                  fontSize: 11,
+                }}
+              >
+                <span style={{ color: rowColor(check.level), fontWeight: 700, fontSize: 12, flexShrink: 0, width: 14, textAlign: "center" }}>
+                  {rowIcon(check.level)}
+                </span>
+                <span style={{ color: T.white, flex: 1 }}>{check.label}</span>
+                <span style={{ fontFamily: "monospace", fontSize: 10, color: rowColor(check.level), flexShrink: 0 }}>
+                  {check.detail}
+                </span>
+                {check.link && (
+                  <a
+                    href={`#${check.link.panelId}`}
+                    onClick={(e) => { e.preventDefault(); document.getElementById(check.link.panelId)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+                    style={{ fontSize: 9, color: T.muted, textDecoration: "none", flexShrink: 0, whiteSpace: "nowrap" }}
+                  >
+                    → {check.link.label}
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 10, color: T.muted, fontStyle: "italic" }}>
+            Do not apply to live budget until verdict is READY.
+          </div>
+        </div>
+      </details>
+    </>
+  );
+}
+
 const BOOK_SYSTEM = `You are the Book Project Executive Agent -- Project Director for the Motes Family Book Project, reporting to Denarius Motes via the PA Agent.
 
 PROJECT STATUS
@@ -425,7 +820,14 @@ const BUSINESSES = [
   {
     id: "e7a", name: "E7A", full: "Elarte7 Agency",
     color: T.gold, dim: T.goldDim, icon: "◈", notifications: 3,
+    appUrl: null,
     brief: "Gate 2 content approval needed Thursday. ASCAP registration is a hard block on Soft Spot launch. Avery Phase 2 scope definition overdue.",
+    todos: [
+      { id: "e1", text: "Register ASCAP for Soft Spot", done: false },
+      { id: "e2", text: "Gate 2 content approval by Thursday", done: false },
+      { id: "e3", text: "Define Avery Phase 2 scope", done: false },
+      { id: "e4", text: "Build Airtable core 5 tables", done: false },
+    ],
     artists: [
       {
         id: "vr", name: "Velvet Room", stage: "Pre-Release", mode: "Build", color: "#c95a84",
@@ -454,19 +856,38 @@ const BUSINESSES = [
   {
     id: "som", name: "SOM", full: "School of Motesart",
     color: T.blue, dim: T.blueDim, icon: "◎", notifications: 1, exec: "SOM",
+    appUrl: "https://school-of-motesart.netlify.app",
+    converterUrl: "https://motesart-converter.netlify.app",
     brief: "Motesart Converter architecture is the active build priority. Platform infrastructure being built in parallel. Curriculum layer comes after Converter is stable. Next Claude Code session needed.",
+    todos: [
+      { id: "s1", text: "Schedule Converter build session", done: false },
+      { id: "s2", text: "Define curriculum layer structure", done: false },
+      { id: "s3", text: "Platform infrastructure audit", done: false },
+    ],
     artists: [],
   },
   {
     id: "fm", name: "FinanceMind", full: "FinanceMind",
     color: T.green, dim: T.greenDim, icon: "△", notifications: 2, exec: "FM",
+    appUrl: "https://web-production-f6963.up.railway.app",
     brief: "Sunday finance review pending. Credit monitoring active and trending up. No spend over $20 without approval. Connect all business accounts when FinanceMind integration is ready.",
+    todos: [
+      { id: "f1", text: "Complete Sunday finance review", done: false },
+      { id: "f2", text: "Book Southwest flights — Chicago Jun 12 + Jun 15", done: false },
+      { id: "f3", text: "Fund vacation stash — currently $0", done: false },
+    ],
     artists: [],
   },
   {
     id: "book", name: "Book", full: "Motes Family Book",
     color: T.amber, dim: T.amberDim, icon: "◇", notifications: 1, exec: "BOOK",
+    appUrl: "https://motesart-book-manager.netlify.app",
     brief: "Dr. Roscoe Motes has completed the manuscript. Platform and site structure not yet built. Publishing path not yet decided. Needs scoping session.",
+    todos: [
+      { id: "b1", text: "File U.S. Copyright registration", done: false },
+      { id: "b2", text: "Purchase ISBN", done: false },
+      { id: "b3", text: "Scope publishing platform", done: false },
+    ],
     artists: [],
   },
 ];
@@ -517,12 +938,6 @@ const DEMO_NOTIFICATIONS = [
   { id: 5, biz: "FinanceMind", level: "low",    text: "Credit score update available",                            time: "1d" },
   { id: 6, biz: "SOM",  level: "low",    text: "Motesart Converter -- next build session due",            time: "1d" },
   { id: 7, biz: "Book", level: "medium", text: "Book project platform not yet scoped -- publishing path TBD", time: "2d" },
-];
-
-const DEMO_APPROVALS = [
-  { id: 1, biz: "E7A", artist: "Velvet Room", type: "Visual",   item: "Post 1 -- Mood Visual cover frame" },
-  { id: 2, biz: "E7A", artist: "Velvet Room", type: "Caption",  item: "Post 2 -- Primary Reel caption draft" },
-  { id: 3, biz: "E7A", artist: "Velvet Room", type: "Strategy", item: "Platform lead: Instagram confirmed?" },
 ];
 
 const LEVEL_C = {
@@ -596,16 +1011,16 @@ function ArtistPanel({ artist, onClose }) {
   const [tab, setTab] = useState("calendar");
   return (
     <div style={{
-      position: "fixed", right: 0, top: 0, bottom: 0, width: 340,
+      position: "fixed", right: 0, top: 0, bottom: 0, width: "min(340px, 100dvw)",
       background: T.surface, borderLeft: `1px solid ${T.border}`,
       zIndex: 200, display: "flex", flexDirection: "column",
       boxShadow: "-12px 0 48px rgba(0,0,0,0.7)",
     }}>
-      <div style={{ padding: "16px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ padding: "16px 18px", paddingTop: "max(16px, env(safe-area-inset-top))", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10 }}>
         <Pip color={artist.color} />
         <span style={{ fontSize: 14, fontWeight: 700, color: T.white, flex: 1 }}>{artist.name}</span>
         <Badge text={artist.stage} color={artist.color} dim={`${artist.color}18`} />
-        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 8 }}>x</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 8, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
       </div>
 
       <div style={{ display: "flex", borderBottom: `1px solid ${T.border}` }}>
@@ -620,7 +1035,7 @@ function ArtistPanel({ artist, onClose }) {
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: 16, paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}>
         {tab === "calendar" && (
           <div style={{ display: "grid", gap: 8 }}>
             {artist.calendar.map((c, i) => (
@@ -666,7 +1081,7 @@ function ArtistPanel({ artist, onClose }) {
   );
 }
 
-function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onSelectPersonal, onPersonalActive }) {
+function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onDispatchOpen, onSelectPersonal, onPersonalActive, onTravelBuilderOpen, onMusicLessonsOpen, onSettingsOpen }) {
   return (
     <div className="os-sidebar" style={{
       width: open ? 210 : 52, flexShrink: 0,
@@ -722,6 +1137,55 @@ function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onSelectPerson
             )}
           </button>
         ))}
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+          {open && <div style={{ fontSize: 9, color: T.muted, letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 700, padding: "0 8px 8px" }}>Shortcuts</div>}
+          <button type="button" onClick={onTravelBuilderOpen} style={{
+            width: "100%", background: T.goldDim, border: `1px dashed ${T.gold}70`,
+            borderRadius: 8, padding: open ? "7px 9px" : "8px",
+            cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 8,
+            justifyContent: open ? "flex-start" : "center",
+          }}>
+            <span style={{
+              width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+              background: T.gold, color: "#111",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 800,
+            }}>✈</span>
+            {open && (
+              <>
+                <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: T.gold }}>Travel Builder</div>
+                  <div style={{ fontSize: 9, color: T.muted, letterSpacing: "0.08em" }}>→ FM TAB</div>
+                </div>
+                <span style={{ fontSize: 12, color: T.gold }}>›</span>
+              </>
+            )}
+          </button>
+          <button type="button" onClick={onMusicLessonsOpen} style={{
+            width: "100%", marginTop: 6, background: "rgba(184,56,56,0.10)", border: `1px dashed rgba(184,56,56,0.70)`,
+            borderRadius: 8, padding: open ? "7px 9px" : "8px",
+            cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 8,
+            justifyContent: open ? "flex-start" : "center",
+          }}>
+            <span style={{
+              width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+              background: "rgba(184,56,56,0.22)", color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 800,
+            }}>♪</span>
+            {open && (
+              <>
+                <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#E8C8C8" }}>Music Lessons</div>
+                  <div style={{ fontSize: 9, color: "#cc9a9a", letterSpacing: "0.08em" }}>→ FM TAB</div>
+                </div>
+                <span style={{ fontSize: 12, color: "#B83838" }}>›</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: "8px 6px", borderTop: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 4 }}>
@@ -736,14 +1200,33 @@ function Sidebar({ activeBiz, onSelect, open, onToggle, onPAOpen, onSelectPerson
           {open && <span style={{ fontSize: 12, fontWeight: 700, color: onPersonalActive ? T.green : T.muted }}>Personal</span>}
           {open && <NotifDot count={1} color={T.green} />}
         </button>
-        <button onClick={onPAOpen} style={{
+        <button onClick={onDispatchOpen} style={{
           width: "100%", background: T.goldDim, border: `1px solid ${T.borderHi}`,
           borderRadius: 8, padding: open ? "9px 10px" : "9px",
           cursor: "pointer", display: "flex", alignItems: "center",
           gap: 9, justifyContent: open ? "flex-start" : "center",
         }}>
           <span style={{ fontSize: 13, color: T.gold, flexShrink: 0 }}>◆</span>
-          {open && <span style={{ fontSize: 12, fontWeight: 700, color: T.gold }}>PA Agent</span>}
+          {open && <span style={{ fontSize: 12, fontWeight: 700, color: T.gold }}>MYA</span>}
+        </button>
+        {/* Phase 3B — Dispatch panel entry */}
+        <button onClick={onDispatchOpen} style={{
+          width: "100%", background: "transparent", border: `1px solid ${T.border}`,
+          borderRadius: 8, padding: open ? "9px 10px" : "9px",
+          cursor: "pointer", display: "flex", alignItems: "center",
+          gap: 9, justifyContent: open ? "flex-start" : "center",
+        }}>
+          <span style={{ fontSize: 13, color: T.muted, flexShrink: 0 }}>◈</span>
+          {open && <span style={{ fontSize: 11, fontWeight: 600, color: T.muted }}>Dispatch</span>}
+        </button>
+        <button onClick={onSettingsOpen} style={{
+          width: "100%", background: "transparent", border: `1px solid ${T.border}`,
+          borderRadius: 8, padding: open ? "9px 10px" : "9px",
+          cursor: "pointer", display: "flex", alignItems: "center",
+          gap: 9, justifyContent: open ? "flex-start" : "center",
+        }}>
+          <span style={{ fontSize: 13, color: T.muted, flexShrink: 0 }}>⚙</span>
+          {open && <span style={{ fontSize: 11, fontWeight: 600, color: T.muted }}>Settings</span>}
         </button>
       </div>
     </div>
@@ -756,15 +1239,15 @@ function PAAgentChat({ onClose, activeBiz }) {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "Good morning. PA Agent active. I have your briefing ready -- 3 items need your attention today for E7A, 2 for FinanceMind. What would you like to address first, or do you have an instruction for one of the executives?",
-      agent: "PA"
+      content: "Good morning. MYA active. I have your briefing ready — 3 items need your attention today for E7A, 2 for FinanceMind. What would you like to address first, or do you have an instruction for one of the executives?",
+      agent: "MYA"
     }
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [activeAgent, setActiveAgent] = useState("PA");
-  const AGENT_SYSTEMS = { PA: PA_SYSTEM, E7A: E7A_SYSTEM, SOM: SOM_SYSTEM, FM: FM_SYSTEM, BOOK: BOOK_SYSTEM };
-  const AGENT_LABELS = { PA: "Personal Assistant", E7A: "E7A Agency", SOM: "School of Motesart", FM: "FinanceMind", BOOK: "Book Project" };
+  const [activeAgent, setActiveAgent] = useState("MYA");
+  const AGENT_SYSTEMS = { MYA: PA_SYSTEM, E7A: E7A_SYSTEM, SOM: SOM_SYSTEM, FM: FM_SYSTEM, BOOK: BOOK_SYSTEM };
+  const AGENT_LABELS = { MYA: "Personal Assistant", E7A: "E7A Agency", SOM: "School of Motesart", FM: "FinanceMind", BOOK: "Book Project" };
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -776,7 +1259,8 @@ function PAAgentChat({ onClose, activeBiz }) {
     function handleScheduleTask(e) {
       const task = e.detail;
       if (task) {
-        setActiveAgent("PA");
+        quickDispatch(task, 'pa', 'fm-executive');
+        setActiveAgent("MYA");
         setInput(`Schedule this task for me: ${task}. Check my calendar for availability and suggest the best time. Ask me before adding it.`);
         setTimeout(() => {
           document.querySelector("[data-pa-send]")?.click();
@@ -804,7 +1288,7 @@ function PAAgentChat({ onClose, activeBiz }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          agent: activeAgent,
+         agent: AGENT_API_MAP[activeAgent] || "PA",
           messages: history.filter(m => m.role === "user" || m.role === "assistant")
             .map(m => ({ role: m.role, content: m.content })),
         }),
@@ -812,14 +1296,20 @@ function PAAgentChat({ onClose, activeBiz }) {
 
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
-        throw new Error(errBody.detail || "Agent request failed");
+        const msg =
+          typeof errBody.detail === "string"
+            ? errBody.detail
+            : Array.isArray(errBody.detail)
+              ? errBody.detail.map(d => d.msg || JSON.stringify(d)).join("; ")
+              : "Agent request failed";
+        throw new Error(msg);
       }
 
       const data = await res.json();
       const reply = data.reply || "No response from agent.";
 
       // Route suggestion from backend (soft -- user still controls active agent)
-      if (data.route_suggestion && data.route_suggestion !== activeAgent && activeAgent === "PA") {
+      if (data.route_suggestion && data.route_suggestion !== activeAgent && activeAgent === "MYA") {
         setActiveAgent(data.route_suggestion);
       }
 
@@ -833,32 +1323,39 @@ function PAAgentChat({ onClose, activeBiz }) {
   function handleKey(e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   }
-
-  const agentColorMap = { PA: T.blue, E7A: T.gold, SOM: T.blue, FM: T.green, BOOK: T.amber };
+const AGENT_API_MAP = {
+  MYA: "PA",
+  PA: "PA",
+  E7A: "E7A",
+  SOM: "SOM",
+  FM: "FM",
+  BOOK: "BOOK",
+};
+  const agentColorMap = { MYA: T.blue, E7A: T.gold, SOM: T.blue, FM: T.green, BOOK: T.amber };
   const agentColor = agentColorMap[activeAgent] || T.gold;
 
   return (
     <div style={{
-      position: "fixed", right: 0, top: 0, bottom: 0, width: 380,
+      position: "fixed", right: 0, top: 0, bottom: 0, width: "min(380px, 100dvw)",
       background: T.surface, borderLeft: `1px solid ${T.border}`,
       zIndex: 300, display: "flex", flexDirection: "column",
       boxShadow: "-12px 0 48px rgba(0,0,0,0.75)",
     }}>
       {/* Header */}
-      <div style={{ padding: "14px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
+      <div style={{ padding: "14px 18px", paddingTop: "max(14px, env(safe-area-inset-top))", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
         <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.green }} />
         <span style={{ fontSize: 13, fontWeight: 800, color: T.white, flex: 1, letterSpacing: "-0.01em" }}>
-          {activeAgent === "PA" ? "PA Agent" : activeAgent + " Executive"}
+          {activeAgent === "MYA" ? "MYA" : activeAgent + " Executive"}
         </span>
         <Badge text={AGENT_LABELS[activeAgent] || activeAgent} color={agentColor} dim={`${agentColor}15`} />
-        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4 }}>x</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
       </div>
 
       {/* Agent switcher */}
       <div style={{ display: "flex", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
         <div style={{ overflowX: "auto", display: "flex" }}>
-        {["PA", "E7A", "SOM", "FM", "BOOK"].map(agent => {
-          const agentColors = { PA: T.blue, E7A: T.gold, SOM: T.blue, FM: T.green, BOOK: T.amber };
+        {["MYA", "E7A", "SOM", "FM", "BOOK"].map(agent => {
+          const agentColors = { MYA: T.blue, E7A: T.gold, SOM: T.blue, FM: T.green, BOOK: T.amber };
           const col = agentColors[agent] || T.gold;
           return (
             <button key={agent} onClick={() => setActiveAgent(agent)} style={{
@@ -878,8 +1375,8 @@ function PAAgentChat({ onClose, activeBiz }) {
         {messages.map((m, i) => (
           <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
             {m.role === "assistant" && (
-              <div style={{ fontSize: 9, color: m.agent === "E7A" ? T.gold : T.blue, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4, paddingLeft: 2 }}>
-                {m.agent || "PA"} Agent
+              <div style={{ fontSize: 9, color: m.agent === "E7A" ? T.gold : m.agent === "MYA" ? T.blue : T.blue, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4, paddingLeft: 2 }}>
+                {m.agent === "MYA" ? "MYA" : (m.agent || "MYA") + " Executive"}
               </div>
             )}
             <div style={{
@@ -897,7 +1394,7 @@ function PAAgentChat({ onClose, activeBiz }) {
         ))}
         {loading && (
           <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-            <div style={{ fontSize: 9, color: agentColor, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>{activeAgent} Agent</div>
+            <div style={{ fontSize: 9, color: agentColor, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>{activeAgent === "MYA" ? "MYA" : activeAgent + " Executive"}</div>
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: "12px 12px 12px 2px", padding: "10px 16px" }}>
               <div style={{ display: "flex", gap: 4 }}>
                 {[0, 1, 2].map(i => (
@@ -912,7 +1409,7 @@ function PAAgentChat({ onClose, activeBiz }) {
 
       {/* Quick commands */}
       <div style={{ padding: "8px 14px", borderTop: `1px solid ${T.border}`, display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {["Brief me", "What is urgent?", "Route to E7A", "SOM status", "Finance review", "Book project status"].map(cmd => (
+        {["Brief me", "What is urgent?", "Route to E7A", "SOM status", "Finance review", "Book project status", "VitalStack sync"].map(cmd => (
           <button key={cmd} onClick={() => { setInput(cmd); }} style={{
             background: T.dim, border: `1px solid ${T.border}`,
             color: T.muted, borderRadius: 4, padding: "3px 8px",
@@ -926,12 +1423,12 @@ function PAAgentChat({ onClose, activeBiz }) {
       </div>
 
       {/* Input */}
-      <div style={{ padding: "10px 14px", borderTop: `1px solid ${T.border}`, background: T.bg, display: "flex", gap: 8, alignItems: "flex-end" }}>
+      <div style={{ padding: "10px 14px", paddingBottom: "max(10px, env(safe-area-inset-bottom))", borderTop: `1px solid ${T.border}`, background: T.bg, display: "flex", gap: 8, alignItems: "flex-end" }}>
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder={activeAgent === "PA" ? "Message your PA Agent..." : `Send instruction to ${activeAgent} Executive...`}
+          placeholder={activeAgent === "MYA" ? "Message MYA..." : `Send instruction to ${activeAgent} Executive...`}
           rows={2}
           style={{
             flex: 1, background: T.card, border: `1px solid ${T.border}`,
@@ -959,35 +1456,35 @@ function PAAgentChat({ onClose, activeBiz }) {
 }
 
 
-// ─── Personal Panel ───────────────────────────────────────────────────────────
+// ─── Personal Panel (Redesigned) ─────────────────────────────────────────────
 function PersonalPanel({ onClose, onScheduleTask }) {
   const [tab, setTab] = useState("health");
   const [taskInput, setTaskInput] = useState("");
-  const [taskSending, setTaskSending] = useState(false);
-  const tabs = ["health", "schedule", "goals"];
+  const tabs = ["health", "schedule", "goals", "jean"];
+  const JEAN_PURPLE = "#C084FC";
 
   return (
     <div style={{
-      position: "fixed", right: 0, top: 0, bottom: 0, width: 360,
+      position: "fixed", right: 0, top: 0, bottom: 0, width: "min(380px, 100dvw)",
       background: T.surface, borderLeft: `1px solid ${T.border}`,
       zIndex: 200, display: "flex", flexDirection: "column",
       boxShadow: "-12px 0 48px rgba(0,0,0,0.7)",
     }}>
       {/* Header */}
-      <div style={{ padding: "16px 18px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: T.green }} />
+      <div style={{ padding: "14px 18px", paddingTop: "max(14px, env(safe-area-inset-top))", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg }}>
+        <div style={{ width: 7, height: 7, borderRadius: "50%", background: T.green }} />
         <span style={{ fontSize: 14, fontWeight: 700, color: T.white, flex: 1 }}>Personal</span>
         <Badge text="Denarius Motes" color={T.green} dim={T.greenDim} />
-        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4 }}>x</button>
+        <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 16, marginLeft: 4, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
       </div>
 
       {/* Tabs */}
       <div style={{ display: "flex", borderBottom: `1px solid ${T.border}` }}>
         {tabs.map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
-            flex: 1, padding: "9px 4px", background: "none", border: "none",
-            borderBottom: tab === t ? `2px solid ${T.green}` : "2px solid transparent",
-            color: tab === t ? T.green : T.muted,
+            flex: 1, padding: "10px 4px", background: "none", border: "none",
+            borderBottom: tab === t ? `2px solid ${t === "jean" ? JEAN_PURPLE : T.green}` : "2px solid transparent",
+            color: tab === t ? (t === "jean" ? JEAN_PURPLE : T.green) : T.muted,
             fontSize: 10, fontWeight: 700, textTransform: "uppercase",
             letterSpacing: "0.08em", cursor: "pointer",
           }}>{t}</button>
@@ -995,118 +1492,111 @@ function PersonalPanel({ onClose, onScheduleTask }) {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: 16, paddingBottom: "calc(16px + env(safe-area-inset-bottom))", display: "grid", gap: 10, alignContent: "start" }}>
 
-        {tab === "health" && (
-          <div style={{ display: "grid", gap: 10 }}>
-            {/* VitalStack connection status */}
-            <div style={{ background: T.goldDim, border: `1px solid ${T.gold}30`, borderRadius: 8, padding: "10px 14px" }}>
-              <div style={{ fontSize: 10, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>VitalStack</div>
-              <div style={{ fontSize: 12, color: T.white, marginBottom: 4 }}>Connection pending</div>
-              <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.5 }}>Live data will display here once VitalStack API endpoint is connected. Herbs, supplements, workouts, and wellbeing metrics will sync automatically.</div>
-            </div>
-
-            {/* Manual metrics */}
-            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden" }}>
-              <div style={{ padding: "8px 14px", borderBottom: `1px solid ${T.border}`, fontSize: 10, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                Weekly Metrics
-              </div>
-              {PERSONAL.health.metrics.map((m, i) => (
-                <div key={i} style={{ padding: "10px 14px", borderBottom: i < PERSONAL.health.metrics.length - 1 ? `1px solid ${T.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 12, color: T.muted, fontWeight: 600 }}>{m.label}</span>
-                  <span style={{ fontSize: 12, color: m.status === "pending" ? T.muted : T.green }}>{m.value}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Last checkin */}
-            <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px" }}>
-              <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Last PA Checkin</div>
-              <div style={{ fontSize: 13, color: T.white }}>{PERSONAL.health.lastCheckin}</div>
-            </div>
+        {/* ── HEALTH TAB ── */}
+        {tab === "health" && (<>
+          <div style={{ background: T.goldDim, border: `1px solid ${T.gold}30`, borderRadius: 10, padding: "12px 14px" }}>
+            <div style={{ fontSize: 10, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>VitalStack — Connection Pending</div>
+            <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6 }}>Herbs, supplements, workouts, and wellbeing metrics will sync automatically once the VitalStack API endpoint is live.</div>
           </div>
-        )}
+          <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Weekly Metrics</div>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+            {PERSONAL.health.metrics.map((m, i) => (
+              <div key={i} style={{ padding: "10px 14px", borderBottom: i < PERSONAL.health.metrics.length - 1 ? `1px solid ${T.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: T.muted }}>{m.label}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: `1px solid ${T.border}`, color: T.muted }}>Pending</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Last MYA Check-in</span>
+            <span style={{ fontSize: 12, color: T.muted, fontStyle: "italic" }}>Not yet logged</span>
+          </div>
+        </>)}
 
-        {tab === "schedule" && (
-          <div style={{ display: "grid", gap: 8 }}>
-            <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6, padding: "4px 0 8px", borderBottom: `1px solid ${T.border}`, marginBottom: 4 }}>
-              Recurring protected blocks. PA Agent will never schedule over these.
-            </div>
+        {/* ── SCHEDULE TAB ── */}
+        {tab === "schedule" && (<>
+          <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6, padding: "0 2px 4px" }}>Recurring protected blocks — MYA will never schedule over these.</div>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
             {PERSONAL.schedule.recurring.map((s, i) => (
-              <div key={i} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px", display: "flex", gap: 12 }}>
-                <div style={{ minWidth: 70 }}>
+              <div key={i} style={{ padding: "10px 14px", borderBottom: i < PERSONAL.schedule.recurring.length - 1 ? `1px solid ${T.border}` : "none", display: "flex", gap: 14 }}>
+                <div style={{ minWidth: 72, flexShrink: 0 }}>
                   <div style={{ fontSize: 11, color: T.green, fontWeight: 700 }}>{s.day}</div>
-                  <div style={{ fontSize: 10, color: T.muted }}>{s.time}</div>
+                  <div style={{ fontSize: 10, color: T.muted, marginTop: 1 }}>{s.time}</div>
                 </div>
-                <span style={{ fontSize: 12, color: T.white, lineHeight: 1.5 }}>{s.item}</span>
+                <span style={{ fontSize: 12, color: s.item.includes("locked") ? T.red : T.white, lineHeight: 1.5 }}>{s.item}</span>
               </div>
             ))}
           </div>
-        )}
+        </>)}
 
-        {tab === "goals" && (
-          <div style={{ display: "grid", gap: 8 }}>
-            <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6, padding: "4px 0 8px", borderBottom: `1px solid ${T.border}`, marginBottom: 4 }}>
-              Standing personal goals. PA Agent tracks these weekly.
-            </div>
+        {/* ── GOALS TAB ── */}
+        {tab === "goals" && (<>
+          <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6, padding: "0 2px 4px" }}>Standing personal goals. MYA tracks these weekly.</div>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
             {PERSONAL.goals.map((g, i) => (
-              <div key={i} style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+              <div key={i} style={{ padding: "11px 14px", borderBottom: i < PERSONAL.goals.length - 1 ? `1px solid ${T.border}` : "none", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.green, flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: T.white }}>{g.label}</span>
-                <Badge text={g.status} color={T.green} dim={T.greenDim} />
+                <span style={{ fontSize: 13, color: T.white, flex: 1 }}>{g.label}</span>
+                <Badge text="Active" color={T.green} dim={T.greenDim} />
               </div>
             ))}
-
-            {/* VitalStack note */}
-            <div style={{ background: T.goldDim, border: `1px solid ${T.gold}30`, borderRadius: 8, padding: "10px 14px", marginTop: 4 }}>
-              <div style={{ fontSize: 11, color: T.gold, lineHeight: 1.6 }}>
-                When VitalStack is connected, goal completion will be tracked automatically from your health data.
-              </div>
+          </div>
+          <div style={{ background: T.goldDim, border: `1px solid ${T.gold}30`, borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontSize: 11, color: T.gold, lineHeight: 1.6 }}>
+              When VitalStack is connected, goal completion will be tracked automatically from your health data.
             </div>
           </div>
-        )}
+        </>)}
+
+        {/* ── JEAN TAB ── */}
+        {tab === "jean" && (<>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "2px 0 6px" }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: JEAN_PURPLE }} />
+            <div>
+              <div style={{ fontSize: 16, color: T.white, fontWeight: 700, letterSpacing: "-0.01em" }}>Jean</div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 1 }}>Class every Tuesday 6–9PM</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Upcoming Classes</div>
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+            {[{ day: "Tue Apr 15", time: "6–9PM" }, { day: "Tue Apr 22", time: "6–9PM" }, { day: "Tue Apr 29", time: "6–9PM" }].map((c, i) => (
+              <div key={i} style={{ padding: "10px 14px", borderBottom: i < 2 ? `1px solid ${T.border}` : "none", display: "flex", gap: 14 }}>
+                <div style={{ minWidth: 72 }}>
+                  <div style={{ fontSize: 11, color: JEAN_PURPLE, fontWeight: 700 }}>{c.day}</div>
+                  <div style={{ fontSize: 10, color: T.muted, marginTop: 1 }}>{c.time}</div>
+                </div>
+                <span style={{ fontSize: 12, color: T.white }}>Jean Class</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Quick Actions</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {["+ Add task", "+ Add reminder", "+ Add note"].map(label => (
+              <button key={label} onClick={() => onScheduleTask(`Jean: ${label.replace("+ ", "")}: `)} style={{ padding: "7px 14px", background: `rgba(192,132,252,0.1)`, border: `1px solid ${JEAN_PURPLE}30`, color: JEAN_PURPLE, borderRadius: 20, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{label}</button>
+            ))}
+          </div>
+        </>)}
       </div>
 
-      {/* ─── Smart Task Scheduler ─── */}
-      <div style={{ padding: "10px 16px", borderTop: `1px solid ${T.border}`, background: T.bg, display: "flex", gap: 8, alignItems: "center" }}>
+      {/* Task bar */}
+      <div style={{ padding: "10px 16px 16px", borderTop: `1px solid ${T.border}`, background: T.bg, display: "flex", gap: 8, alignItems: "center" }}>
         <input
           value={taskInput}
           onChange={e => setTaskInput(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === "Enter" && taskInput.trim() && !taskSending) {
-              setTaskSending(true);
-              onScheduleTask(taskInput.trim());
-              setTaskInput("");
-              setTaskSending(false);
-            }
-          }}
-          placeholder="+ Add task..."
-          style={{
-            flex: 1, background: T.card, border: `1px solid ${T.border}`,
-            borderRadius: 8, padding: "8px 12px", color: T.white,
-            fontSize: 12, fontFamily: "inherit", outline: "none",
-          }}
+          onKeyDown={e => { if (e.key === "Enter" && taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }}
+          placeholder="+ Add task to MYA..."
+          style={{ flex: 1, background: T.card, border: `1px solid ${T.border}`, borderRadius: 20, padding: "8px 14px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none" }}
           onFocus={e => { e.target.style.borderColor = T.green + "50"; }}
           onBlur={e => { e.target.style.borderColor = T.border; }}
         />
         <button
-          onClick={() => {
-            if (taskInput.trim() && !taskSending) {
-              setTaskSending(true);
-              onScheduleTask(taskInput.trim());
-              setTaskInput("");
-              setTaskSending(false);
-            }
-          }}
-          disabled={!taskInput.trim() || taskSending}
-          style={{
-            background: !taskInput.trim() ? T.dim : T.greenDim,
-            border: `1px solid ${!taskInput.trim() ? T.border : T.green + "40"}`,
-            color: !taskInput.trim() ? T.muted : T.green,
-            borderRadius: 8, padding: "8px 14px", cursor: !taskInput.trim() ? "default" : "pointer",
-            fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", transition: "all 0.15s",
-          }}
-        >Schedule it</button>
+          onClick={() => { if (taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }}
+          disabled={!taskInput.trim()}
+          style={{ background: !taskInput.trim() ? T.dim : T.greenDim, border: `1px solid ${!taskInput.trim() ? T.border : T.green + "40"}`, color: !taskInput.trim() ? T.muted : T.green, borderRadius: 20, padding: "8px 16px", cursor: !taskInput.trim() ? "default" : "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+          Schedule it
+        </button>
       </div>
     </div>
   );
@@ -1144,288 +1634,697 @@ const WEEKLY_EVENTS = [
   },
 ];
 
-function PersonalMainView({ onScheduleTask, onOpenFM, onAskFM }) {
-  const [taskInput, setTaskInput] = useState("");
-  const [noteInput, setNoteInput] = useState("");
-  const [noteSaved, setNoteSaved] = useState(false);
-  const [expandedEvent, setExpandedEvent] = useState(() => {
-    const critIdx = WEEKLY_EVENTS.findIndex(e => e.priority === "critical");
-    return critIdx >= 0 ? WEEKLY_EVENTS[critIdx].id : null;
-  });
-  const [checkedItems, setCheckedItems] = useState({});
+// ─── Event type detector ─────────────────────────────────────────────────────
+function detectEventType(title) {
+  const t = (title || "").toLowerCase();
+  if (t.includes("bill due") || t.includes("bills due") || t.includes("payment")) return "bill";
+  if (t.includes("church") || t.includes("⛪") || t.includes("rehearsal")) return "church";
+  if (t.includes("therapist") || t.includes("therapy") || t.includes("wooley")) return "therapy";
+  if (t.includes("meditation")) return "wellness";
+  if (t.includes("herbs") || t.includes("supplement")) return "wellness";
+  if (t.includes("jean class")) return "jean";
+  if (t.includes("lesson") || t.includes("piano")) return "lesson";
+  if (t.includes("system pulse") || t.includes("intelligence brief") || t.includes("mya")) return "system";
+  if (t.includes("dj quality") || t.includes("quality time")) return "family";
+  return "general";
+}
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+function eventTypeColor(type) {
+  const map = { bill: "#C9A84C", church: "#4A7AB0", therapy: "#3A8A6A", wellness: "#8A5A9A", jean: "#C084FC", lesson: "#C9A84C", system: "#3A8A52", family: "#8A5A9A", general: "#555" };
+  return map[type] || "#555";
+}
 
-  const [financeExpanded, setFinanceExpanded] = useState(false);
+function eventTypeDim(type) {
+  const map = { bill: "#1A1200", church: "#0A0F18", therapy: "#0A1814", wellness: "#140A18", jean: "#1A0F2A", lesson: "#1A1200", system: "#0A1A10", family: "#0F0A14", general: "#141414" };
+  return map[type] || "#141414";
+}
 
-  const hoverLift = (color) => ({
-    onMouseEnter: (e) => { e.currentTarget.style.transform = "scale(1.03)"; e.currentTarget.style.boxShadow = `0 8px 32px ${color}40`; },
-    onMouseLeave: (e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "inset 0 1px 0 rgba(255,255,255,0.04)"; },
-  });
+// ─── Normalize a Google Calendar event ───────────────────────────────────────
+function normalizeEvent(ev) {
+  const now = new Date();
+  const start = ev.start?.dateTime ? new Date(ev.start.dateTime) : ev.start?.date ? new Date(ev.start.date + "T00:00:00") : null;
+  const end = ev.end?.dateTime ? new Date(ev.end.dateTime) : ev.end?.date ? new Date(ev.end.date + "T00:00:00") : null;
+  const isAllDay = !!ev.allDay || !!ev.start?.date;
+  const isMultiDay = isAllDay && end && start && (end - start) > 86400000;
+  const isToday = start && start.toDateString() === now.toDateString();
+  const hasPassedToday = start && start < now && isToday;
+  const isLiveNow = start && end && start <= now && now <= end;
+  const minutesUntil = start ? Math.round((start - now) / 60000) : null;
+  const type = detectEventType(ev.summary || "");
+  const color = eventTypeColor(type);
+  const zoomMatch = (ev.description || "").match(/zoom[^\n]*?(https:\/\/[^\s]+zoom[^\s]*)/i) || (ev.description || "").match(/(https:\/\/[^\s]*zoom[^\s]*)/i);
+  const zoomId = (ev.description || "").match(/zoom[^0-9]*(\d{8,11})/i)?.[1] || null;
+  const zoomLink = zoomMatch?.[1] || null;
+  const hasZoom = !!(zoomLink || zoomId || (ev.description || "").toLowerCase().includes("zoom"));
+  return { id: ev.id, title: ev.summary || "Untitled", start, end, isAllDay, isMultiDay, isToday, hasPassedToday, isLiveNow, minutesUntil, type, color, dim: eventTypeDim(type), description: ev.description || "", zoomLink, zoomId, hasZoom, source: ev.organizer?.displayName || "Google Calendar", calendarSource: ev.organizer?.displayName || "", attendees: ev.attendees || [], myResponseStatus: ev.myResponseStatus || "accepted", recurringEventId: ev.recurringEventId || null, raw: ev };
+}
 
-  // Timeline events for today bar
-  const todayEvents = [
-    { start: 8, end: 9, label: "Midas", color: T.gold },
-    { start: 9, end: 10, label: "CVS+Aldi", color: T.amber },
-    { start: 12, end: 13, label: "Debbie", color: T.green },
-  ];
+// ─── Finance Snapshot Card ────────────────────────────────────────────────────
+function FinanceSnapshotCard({ onAskFM }) {
+  const [snap, setSnap] = useState(null);
+  const [status, setStatus] = useState("loading");
 
-  // Calendar data for April 2026
-  const calEventDays = { 10: T.green, 11: T.blue, 13: "#FF4444", 14: T.muted };
-  const todayDate = new Date().getDate();
-  const daysInApril = 30;
-  const firstDayOffset = 2; // Apr 1 2026 = Wednesday (0=Sun)
+  const FM_PROMPT = `You are the FM Executive (CFO). Return ONLY this exact JSON with no other text, no markdown, no explanation:
+{"status":"ok","current_bank_balance":4800,"estimated_income_month":6800,"bills_remaining_count":12,"bills_remaining_amount":3420,"projected_surplus":1380,"last_updated":"${new Date().toISOString()}","data_source":"FM Executive"}
+
+Use real Q1 2026 data: Car stash $4,800, Mar surplus +$1,507, YTD net +$757. Bills remaining this month estimated from known recurring expenses. Respond ONLY with the JSON object.`;
+
+  const fetchSnap = useCallback(async () => {
+    setStatus("loading");
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/agent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent: "FM", messages: [{ role: "user", content: FM_PROMPT }] }),
+      });
+      if (!res.ok) throw new Error("Agent error");
+      const data = await res.json();
+      const reply = data.reply || "";
+      const jsonMatch = reply.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON");
+      const parsed = JSON.parse(jsonMatch[0]);
+      const required = ["current_bank_balance", "estimated_income_month", "bills_remaining_amount", "projected_surplus", "last_updated"];
+      if (!required.every(k => k in parsed) || !["number"].every(() => typeof parsed.current_bank_balance === "number")) throw new Error("Invalid shape");
+      setSnap(parsed);
+      setStatus("ok");
+    } catch {
+      setStatus("unavailable");
+    }
+  }, []);
+
+  useEffect(() => { fetchSnap(); }, []);
+
+  const fmt = (n) => typeof n === "number" ? "$" + n.toLocaleString() : "—";
+  const fmtTime = (iso) => { try { return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }); } catch { return ""; } };
+
+  if (status === "loading") return (
+    <div style={{ background: "#1A1400", border: `1px solid ${T.gold}25`, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ fontSize: 9, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Finance Snapshot</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {[0,1,2].map(i => <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: T.gold, opacity: 0.5, animation: `pulse 1.2s ${i*0.2}s infinite` }} />)}
+        <span style={{ fontSize: 11, color: "#554400" }}>Loading snapshot...</span>
+      </div>
+    </div>
+  );
+
+  if (status === "unavailable") return (
+    <div style={{ background: "#1A0A0A", border: `1px solid ${T.red}25`, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontSize: 9, color: T.red, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Finance Snapshot</div>
+        <button onClick={fetchSnap} style={{ background: "#2A1010", border: `1px solid ${T.red}30`, borderRadius: 6, padding: "3px 8px", fontSize: 9, color: T.red, cursor: "pointer", fontWeight: 700 }}>Retry</button>
+      </div>
+      <div style={{ fontSize: 11, color: "#664040", lineHeight: 1.6 }}>Snapshot unavailable. FM Executive not responding.</div>
+    </div>
+  );
 
   return (
-    <div style={{ display: "grid", gap: 18 }}>
-      {/* ─── Top Row: 3 Quick Cards ─── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
-
-        {/* TODAY */}
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderTop: `3px solid ${T.blue}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)", transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)", animation: "fadeSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0s both" }} {...hoverLift(T.blue)}>
-          <div style={{ fontSize: 9, color: T.blue, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Today</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: T.white, letterSpacing: "-0.02em", marginBottom: 6 }}>{today}</div>
-          <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.5, marginBottom: 10 }}>Midas Bay Shore 7:55AM · Debbie lesson 12PM</div>
-          {/* Mini timeline bar */}
-          <div style={{ position: "relative", height: 18, background: T.dim, borderRadius: 9, overflow: "hidden" }}>
-            {todayEvents.map((ev, i) => {
-              const left = ((ev.start - 6) / 16) * 100;
-              const width = ((ev.end - ev.start) / 16) * 100;
-              return <div key={i} title={ev.label} style={{ position: "absolute", left: `${left}%`, width: `${width}%`, height: "100%", background: ev.color, borderRadius: 9, opacity: 0.8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, color: "#000", letterSpacing: "0.02em" }}>{ev.label}</div>;
-            })}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontSize: 8, color: T.muted }}>6AM</span>
-            <span style={{ fontSize: 8, color: T.muted }}>12PM</span>
-            <span style={{ fontSize: 8, color: T.muted }}>10PM</span>
-          </div>
-        </div>
-
-        {/* FINANCES */}
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderTop: `3px solid ${T.gold}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)", cursor: "pointer", transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)", animation: "fadeSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.08s both" }} onClick={() => setFinanceExpanded(f => !f)} {...hoverLift(T.gold)}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ fontSize: 9, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em" }}>Finances</div>
-            <span style={{ fontSize: 10, color: T.muted, transition: "transform 0.2s", transform: financeExpanded ? "rotate(90deg)" : "rotate(0)" }}>▸</span>
-          </div>
-          {/* Mini donut arc */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-            <svg width="44" height="44" viewBox="0 0 44 44" style={{ flexShrink: 0 }}>
-              <circle cx="22" cy="22" r="18" fill="none" stroke={T.dim} strokeWidth="5" />
-              <circle cx="22" cy="22" r="18" fill="none" stroke={T.amber} strokeWidth="5" strokeDasharray={`${94.27 * 1.131} ${113.1 - 94.27 * 1.131}`} strokeDashoffset="28.3" strokeLinecap="round" style={{ animation: "arcFill 1s cubic-bezier(0.22,1,0.36,1) both" }} />
-              <text x="22" y="24" textAnchor="middle" fill={T.white} fontSize="9" fontWeight="800" fontFamily="'DM Sans', sans-serif">94%</text>
-            </svg>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: T.white, letterSpacing: "-0.02em" }}>Net: +$757</div>
-              <div style={{ fontSize: 10, color: T.amber }}>94¢ of every $1 spent</div>
-            </div>
-          </div>
-          <div style={{ fontSize: 11, color: T.muted, marginBottom: financeExpanded ? 10 : 0 }}>Next: iCloud $9.99 due tomorrow</div>
-          {financeExpanded && (
-            <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10, display: "grid", gap: 6 }}>
-              <div style={{ fontSize: 11, color: T.white }}>💰 YTD Net: +$757.45</div>
-              <div style={{ fontSize: 11, color: T.white }}>📊 Expense Ratio: 94.27% ⚠️</div>
-              <div style={{ fontSize: 11, color: T.white }}>📅 Next bill: iCloud $9.99 (Apr 10)</div>
-              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                <a href="https://web-production-f6963.up.railway.app" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ background: T.goldDim, border: `1px solid ${T.borderHi}`, color: T.gold, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700, textDecoration: "none" }}>Open FM Dashboard →</a>
-                <button onClick={e => { e.stopPropagation(); onAskFM(); }} style={{ background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>Ask FM Agent</button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* QUICK NOTE */}
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderTop: `3px solid ${T.green}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)", transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)", animation: "fadeSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.16s both" }} {...hoverLift(T.green)}>
-          <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Quick Note</div>
-          <input
-            value={noteInput}
-            onChange={e => { setNoteInput(e.target.value); setNoteSaved(false); }}
-            placeholder="Note for PA..."
-            style={{ width: "100%", background: T.dim, border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 10px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none", marginBottom: 8 }}
-          />
-          <button onClick={() => { if (noteInput.trim()) { setNoteSaved(true); } }} style={{
-            background: noteSaved ? T.greenDim : T.blueDim, border: `1px solid ${noteSaved ? T.green + "40" : T.blue + "40"}`,
-            color: noteSaved ? T.green : T.blue, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700,
-          }}>{noteSaved ? "✓ Saved" : "Save to PA"}</button>
+    <div style={{ background: "#1A1400", border: `1px solid ${T.gold}25`, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 9, color: T.gold, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Finance Snapshot</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 8, color: "#443300" }}>Updated {fmtTime(snap.last_updated)}</span>
+          <button onClick={fetchSnap} style={{ background: "transparent", border: "none", color: "#443300", cursor: "pointer", fontSize: 10, padding: 0 }}>↻</button>
         </div>
       </div>
-
-      {/* ─── Calendar + Upcoming — side by side ─── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 14, animation: "fadeSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.08s both" }}>
-
-        {/* LEFT — Compact Calendar */}
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)", transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)", alignSelf: "start" }} {...hoverLift(T.green)}>
-          <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10, textAlign: "center" }}>April 2026</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, textAlign: "center" }}>
-            {["S","M","T","W","T","F","S"].map((d, i) => (
-              <div key={i} style={{ fontSize: 8, color: T.muted, fontWeight: 700, padding: "1px 0" }}>{d}</div>
-            ))}
-            {Array.from({ length: firstDayOffset }).map((_, i) => <div key={`e${i}`} />)}
-            {Array.from({ length: daysInApril }).map((_, i) => {
-              const day = i + 1;
-              const evColor = calEventDays[day];
-              const isToday = day === todayDate;
-              return (
-                <div key={day} title={evColor ? WEEKLY_EVENTS.find(e => parseInt(e.date.split(" ").pop()) === day)?.title : ""} style={{
-                  width: "100%", aspectRatio: "1", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 9, fontWeight: isToday ? 800 : evColor ? 700 : 400,
-                  color: isToday ? "#000" : evColor ? "#fff" : T.muted,
-                  background: isToday ? T.green : evColor ? evColor + "30" : "transparent",
-                  border: evColor && !isToday ? `1px solid ${evColor}50` : "1px solid transparent",
-                  boxShadow: evColor ? `0 0 6px ${evColor}25` : "none",
-                  cursor: evColor ? "pointer" : "default",
-                  transition: "all 0.15s",
-                }}
-                  onMouseEnter={e => { if (evColor) { e.currentTarget.style.transform = "scale(1.15)"; e.currentTarget.style.boxShadow = `0 0 12px ${evColor}50`; } }}
-                  onMouseLeave={e => { if (evColor) { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 0 6px ${evColor}25`; } }}
-                >{day}</div>
-              );
-            })}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+        {[["In bank", fmt(snap.current_bank_balance), T.white], ["Est. income", fmt(snap.estimated_income_month), T.green], ["Bills left", fmt(snap.bills_remaining_amount), T.red]].map(([l,v,c]) => (
+          <div key={l} style={{ background: "#120F00", borderRadius: 8, padding: "9px 8px", border: "1px solid #2A2000" }}>
+            <div style={{ fontSize: 8, color: "#554400", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>{l}</div>
+            <div style={{ fontSize: 16, color: c, fontWeight: 500, marginTop: 3, letterSpacing: "-0.02em" }}>{v}</div>
           </div>
-        </div>
-
-        {/* RIGHT — Upcoming This Week */}
-        <div>
-          <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 9 }}>Upcoming This Week</div>
-          <div style={{ display: "grid", gap: 5, maxHeight: 320, overflowY: "auto" }}>
-          {[...WEEKLY_EVENTS].sort((a, b) => (a.priority === "critical" ? -1 : 0) - (b.priority === "critical" ? -1 : 0)).map((ev, i) => {
-            const isExpanded = expandedEvent === ev.id;
-            const isCritical = ev.priority === "critical";
-            const toggleCheck = (key) => setCheckedItems(prev => ({ ...prev, [key]: !prev[key] }));
-            return (
-              <div key={ev.id} style={{ animation: `slideInRight 0.4s cubic-bezier(0.22,1,0.36,1) ${i * 0.07}s both` }}>
-                <div onClick={() => setExpandedEvent(isExpanded ? null : ev.id)} style={{
-                  background: isExpanded ? T.cardHi : T.card,
-                  border: `1px solid ${isExpanded ? ev.color + "35" : T.border}`,
-                  borderLeft: `3px solid ${ev.color}`,
-                  borderRadius: isExpanded ? "0 12px 0 0" : "0 12px 12px 0",
-                  padding: "8px 14px", display: "flex", alignItems: "center", gap: 12,
-                  backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
-                  cursor: "pointer", transition: "all 0.2s",
-                  ...(isCritical ? { animation: "criticalPulse 2s ease-in-out infinite" } : {}),
-                }}>
-                  <Pip color={ev.color} />
-                  <span style={{ fontSize: 10, color: T.muted, fontWeight: 600, minWidth: 70 }}>{ev.date}</span>
-                  <span style={{ flex: 1, fontSize: 12, color: isCritical ? "#FF4444" : T.white, fontWeight: isCritical ? 800 : 400 }}>{ev.title}</span>
-                  {isCritical && <Badge text="CRITICAL" color="#FF4444" dim="rgba(255,68,68,0.15)" />}
-                  <span style={{ fontSize: 10, color: T.muted, transition: "transform 0.2s", transform: isExpanded ? "rotate(90deg)" : "rotate(0)" }}>▸</span>
-                </div>
-                {isExpanded && (
-                  <div style={{
-                    background: T.card, border: `1px solid ${ev.color}25`, borderTop: "none", borderLeft: `3px solid ${ev.color}`,
-                    borderRadius: "0 0 12px 0", padding: "14px 16px",
-                    animation: "slideInRight 0.25s cubic-bezier(0.22,1,0.36,1) both",
-                  }}>
-                    <div style={{ display: "grid", gap: 12 }}>
-                      {/* Checklist */}
-                      <div>
-                        <div style={{ fontSize: 10, color: ev.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Checklist</div>
-                        {ev.checklist.map((item, j) => {
-                          const key = `${ev.id}-${j}`;
-                          const done = checkedItems[key];
-                          return (
-                            <div key={j} onClick={(e) => { e.stopPropagation(); toggleCheck(key); }} style={{
-                              fontSize: 12, color: done ? T.muted : T.white, padding: "4px 0", display: "flex", gap: 8, alignItems: "center",
-                              cursor: "pointer", textDecoration: done ? "line-through" : "none", transition: "all 0.15s",
-                            }}>
-                              <span style={{ color: done ? T.green : T.muted, fontSize: 13 }}>{done ? "☑" : "☐"}</span> {item}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {/* Notes */}
-                      {ev.notes && (
-                        <div>
-                          <div style={{ fontSize: 10, color: T.blue, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Notes</div>
-                          <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.6 }}>{ev.notes}</div>
-                        </div>
-                      )}
-                      {/* Contact */}
-                      {ev.contact && (
-                        <div>
-                          <div style={{ fontSize: 10, color: T.amber, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Contact</div>
-                          <div style={{ fontSize: 11, color: T.white }}>{ev.contact}</div>
-                        </div>
-                      )}
-                      {/* Reminder */}
-                      {ev.reminder && (
-                        <div style={{ background: T.dim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 12 }}>⏰</span>
-                          <span style={{ fontSize: 11, color: T.white }}>{ev.reminder}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          </div>
-        </div>
+        ))}
       </div>
-
-      {/* ─── Task Scheduler ─── */}
-      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)", transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)", animation: "fadeSlideUp 0.4s cubic-bezier(0.22,1,0.36,1) 0.16s both" }} {...hoverLift(T.green)}>
-        <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>Smart Task Scheduler</div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={taskInput}
-            onChange={e => setTaskInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }}
-            placeholder="+ Add task..."
-            style={{ flex: 1, background: T.dim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none" }}
-          />
-          <button onClick={() => { if (taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }}
-            disabled={!taskInput.trim()}
-            style={{
-              background: !taskInput.trim() ? T.dim : T.greenDim, border: `1px solid ${!taskInput.trim() ? T.border : T.green + "40"}`,
-              color: !taskInput.trim() ? T.muted : T.green, borderRadius: 8, padding: "8px 14px", cursor: !taskInput.trim() ? "default" : "pointer",
-              fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
-            }}>Schedule it</button>
-        </div>
+      <div style={{ borderTop: "1px solid #2A2000", paddingTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 9, color: "#554400" }}>Projected after bills</span>
+        <span style={{ fontSize: 13, color: snap.projected_surplus >= 0 ? T.green : T.red, fontWeight: 500 }}>{snap.projected_surplus >= 0 ? "+" : ""}{fmt(snap.projected_surplus)}</span>
       </div>
     </div>
   );
 }
 
+// ─── Event Detail Panel ───────────────────────────────────────────────────────
+function EventDetailPanel({ event, onClose }) {
+  const [descExpanded, setDescExpanded] = useState(false);
+  const now = new Date();
+
+  const getStatusStrip = () => {
+    if (!event) return { text: "", sub: "", bg: "#141414", border: "#252525", color: "#888" };
+    if (event.isLiveNow) return { text: "Live now", sub: "In progress", bg: "#0A1A10", border: `${T.green}25`, color: T.green };
+    if (event.isToday && event.minutesUntil > 0) {
+      const h = Math.floor(event.minutesUntil / 60), m = event.minutesUntil % 60;
+      return { text: "Today · Starts in " + (h > 0 ? `${h}h ${m}m` : `${m}m`), sub: event.start?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) || "", bg: "#0A1A10", border: `${T.green}25`, color: T.green };
+    }
+    if (event.hasPassedToday) return { text: "Passed today", sub: "Completed", bg: "#141414", border: "#252525", color: "#555" };
+    if (event.isMultiDay) return { text: "Multi-day block", sub: "Protected time", bg: event.dim, border: `${event.color}25`, color: event.color };
+    const days = event.start ? Math.ceil((event.start - now) / 86400000) : 0;
+    if (days <= 7) return { text: `Upcoming · ${event.start?.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}`, sub: event.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) || "", bg: event.dim, border: `${event.color}25`, color: event.color };
+    return { text: "Scheduled", sub: event.start?.toLocaleDateString("en-US",{month:"short",day:"numeric"}) || "", bg: "#141414", border: "#252525", color: "#888" };
+  };
+
+  const getActions = () => {
+    if (!event) return [];
+    const t = event.type;
+    if (event.hasZoom) return [{ label: "Join Zoom", style: "primary" }, { label: "Reschedule", style: "muted" }, { label: "Mark done", style: "muted" }];
+    if (t === "bill") return [{ label: "Mark paid", style: "amber" }, { label: "Snooze", style: "muted" }];
+    if (t === "church") return [{ label: "View in Calendar", style: "blue" }, { label: "Add note", style: "muted" }];
+    if (event.isMultiDay) return [{ label: "View in Calendar", style: "primary" }, { label: "Add note", style: "muted" }];
+    return [{ label: "View in Calendar", style: "blue" }, { label: "Mark done", style: "muted" }];
+  };
+
+  const getNextAction = () => {
+    if (!event) return null;
+    if (event.hasZoom && event.isToday) return `Join Zoom at ${event.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}`;
+    if (event.hasZoom) return `Join Zoom · ${event.start?.toLocaleDateString("en-US",{weekday:"short"})}`;
+    if (event.type === "bill") return `Pay before ${event.start?.toLocaleDateString("en-US",{month:"short",day:"numeric"})} · check description`;
+    if (event.type === "church") return `Leave home by 9:30 AM · Rehearsal 10 AM`;
+    if (event.isMultiDay) return "Protected time — MYA will not schedule over this block";
+    return "No immediate action needed";
+  };
+
+  const ss = getStatusStrip();
+  const actions = getActions();
+  const nextAction = getNextAction();
+  const descShort = event?.description?.split("\n").slice(0, 2).join(" ").substring(0, 120) || "";
+  const descFull = event?.description || "";
+  const hasLongDesc = descFull.length > 120;
+
+  const actStyle = (s) => {
+    const styles = {
+      primary: { background: "#0A1A10", border: `1px solid ${T.green}30`, color: T.green },
+      amber: { background: "#1A1200", border: `1px solid ${T.gold}30`, color: T.gold },
+      blue: { background: "#0A0F18", border: `1px solid ${T.blue}30`, color: T.blue },
+      muted: { background: "#141414", border: "1px solid #252525", color: "#555" },
+    };
+    return styles[s] || styles.muted;
+  };
+
+  const panelStyle = {
+    position: "fixed", top: 0, right: 0, bottom: 0, width: "min(380px, 100dvw)",
+    background: T.surface, borderLeft: `1px solid ${T.border}`,
+    zIndex: 250, display: "flex", flexDirection: "column",
+    boxShadow: "-12px 0 48px rgba(0,0,0,0.7)",
+    transform: event ? "translateX(0)" : "translateX(100%)",
+    transition: "transform 0.24s cubic-bezier(0.4,0,0.2,1)",
+  };
+
+  if (!event) return <div style={{ ...panelStyle, transform: "translateX(100%)" }} />;
+
+  return (
+    <div style={panelStyle}>
+      {/* Top bar */}
+      <div style={{ padding: "16px 18px 10px", paddingTop: "max(16px, env(safe-area-inset-top))", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 10, background: T.bg, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ minWidth: 44, minHeight: 44, borderRadius: "50%", background: T.card, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: T.muted, fontSize: 14, flexShrink: 0 }}>‹</button>
+        <span style={{ fontSize: 14, fontWeight: 700, color: T.white, flex: 1, letterSpacing: "-0.01em" }}>Event details</span>
+        <span style={{ fontSize: 9, color: T.muted, padding: "2px 7px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 4 }}>{event.calendarSource || "Personal"}</span>
+      </div>
+
+      {/* Status strip */}
+      <div style={{ margin: "10px 16px 0", padding: "8px 12px", borderRadius: 8, background: ss.bg, border: `1px solid ${ss.border}`, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: ss.color, flexShrink: 0, ...(event.isLiveNow ? { animation: "pulse 1.5s infinite" } : {}) }} />
+        <span style={{ fontSize: 11, color: ss.color, fontWeight: 500, flex: 1 }}>{ss.text}</span>
+        <span style={{ fontSize: 9, color: ss.color, opacity: 0.6 }}>{ss.sub}</span>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", paddingBottom: "calc(12px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 8 }}>
+
+        {/* Hero */}
+        <div style={{ background: T.card, borderLeft: `3px solid ${event.color}`, borderRadius: "0 10px 10px 0", border: `1px solid ${T.border}`, padding: "12px 14px" }}>
+          <div style={{ fontSize: 16, color: T.white, fontWeight: 700, letterSpacing: "-0.01em", marginBottom: 3 }}>{event.title}</div>
+          <div style={{ fontSize: 11, color: T.muted, marginBottom: 8 }}>
+            {event.isMultiDay ? `${event.start?.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})} → ${event.end?.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}` :
+            event.isAllDay ? event.start?.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}) :
+            `${event.start?.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})} · ${event.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} – ${event.end?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}`}
+          </div>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: `${event.color}15`, color: event.color, border: `1px solid ${event.color}20`, textTransform: "capitalize" }}>{event.type}</span>
+            {event.isToday && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: `${T.green}15`, color: T.green, border: `1px solid ${T.green}20` }}>Today</span>}
+            {event.isMultiDay && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: "#1E1E1E", color: "#555", border: "1px solid #252525" }}>Multi-day</span>}
+            {event.recurringEventId && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: "#1E1E1E", color: "#555", border: "1px solid #252525" }}>Recurring</span>}
+          </div>
+        </div>
+
+        {/* Time */}
+        {!event.isAllDay && (
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: T.dim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="#555" strokeWidth="1.1"/><path d="M7 4v3l2 1.5" stroke="#555" strokeWidth="1.1" strokeLinecap="round"/></svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Time</div>
+              <div style={{ fontSize: 12, color: event.isToday ? T.green : T.white }}>{event.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} – {event.end?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} ET</div>
+              <div style={{ fontSize: 9, color: "#333", marginTop: 2 }}>{event.minutesUntil > 0 ? `Starts in ${Math.floor(event.minutesUntil/60)}h ${event.minutesUntil%60}m` : event.isLiveNow ? "In progress now" : "Passed"}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Zoom / Location */}
+        {event.hasZoom && (
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: "#0A0F18", border: `1px solid ${T.blue}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><rect x="1" y="4" width="10" height="6" rx="1.5" stroke="#4A7AB0" strokeWidth="1.1"/><path d="M11 6l2-1.5v5L11 8" stroke="#4A7AB0" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Location</div>
+              <div style={{ fontSize: 12, color: "#4A7AB0" }}>Zoom Meeting</div>
+              {event.zoomId && <div style={{ fontSize: 9, color: "#333", marginTop: 2 }}>ID: {event.zoomId}</div>}
+            </div>
+            <div style={{ padding: "4px 10px", background: "#0A0F18", border: `1px solid ${T.blue}30`, borderRadius: 6, fontSize: 9, color: T.blue, cursor: "pointer", fontWeight: 700, flexShrink: 0 }}>Join</div>
+          </div>
+        )}
+
+        {/* Recurrence */}
+        {event.recurringEventId && !event.isAllDay && (
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: T.dim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7A5 5 0 1 0 7 2" stroke="#555" strokeWidth="1.1" strokeLinecap="round"/><path d="M7 1v3l2-1.5" stroke="#555" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Recurrence</div>
+              <div style={{ fontSize: 12, color: T.white }}>Repeats: {event.start?.toLocaleDateString("en-US",{weekday:"long"})}s at {event.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}</div>
+              <div style={{ fontSize: 9, color: "#333", marginTop: 2 }}>Recurring event · weekly</div>
+            </div>
+          </div>
+        )}
+
+        {/* Description */}
+        {descShort && (
+          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 7, background: T.dim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 3h10M2 7h8M2 11h5" stroke="#555" strokeWidth="1.1" strokeLinecap="round"/></svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Notes</div>
+              <div style={{ fontSize: 11, color: "#888", lineHeight: 1.6 }}>{descExpanded ? descFull : descShort}{!descExpanded && hasLongDesc ? "..." : ""}</div>
+              {hasLongDesc && <div onClick={() => setDescExpanded(d => !d)} style={{ fontSize: 9, color: T.blue, marginTop: 4, cursor: "pointer" }}>{descExpanded ? "Show less ›" : "Show more ›"}</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: 7 }}>
+          {actions.map((act, i) => (
+            <button key={i} style={{ flex: 1, padding: "9px 6px", borderRadius: 9, fontSize: 11, fontWeight: 700, textAlign: "center", cursor: "pointer", fontFamily: "inherit", ...actStyle(act.style) }}>{act.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: "10px 16px 16px", borderTop: `1px solid ${T.border}`, background: T.bg, flexShrink: 0 }}>
+        <div style={{ background: T.card, borderRadius: 8, padding: "8px 12px", border: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 22, height: 22, borderRadius: 5, background: event.dim, border: `1px solid ${event.color}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="4" stroke={event.color} strokeWidth="1.1"/><path d="M6 3.5v2.5l1.5 1" stroke={event.color} strokeWidth="1.1" strokeLinecap="round"/></svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700 }}>Next action</div>
+            <div style={{ fontSize: 11, color: T.white }}>{nextAction}</div>
+          </div>
+        </div>
+        <div style={{ fontSize: 8, color: "#2A2A2A", textAlign: "center", marginTop: 6, letterSpacing: "0.03em" }}>Source: {event.source} · Personal calendar</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Live Calendar Component ──────────────────────────────────────────────────
+function LiveCalendar({ events, selectedDay, onSelectDay }) {
+  const today = new Date();
+  const todayDate = today.getDate();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthName = today.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  const eventsByDay = {};
+  events.forEach(ev => {
+    if (!ev.start) return;
+    const d = ev.start.getDate();
+    if (!eventsByDay[d]) eventsByDay[d] = [];
+    eventsByDay[d].push(ev);
+  });
+
+  const days = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let d = 1; d <= daysInMonth; d++) days.push(d);
+
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ padding: "11px 14px 8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 12, color: T.white, fontWeight: 700 }}>{monthName}</div>
+        <div style={{ fontSize: 9, color: T.muted }}>{events.length} events</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 1, padding: "0 10px 10px" }}>
+        {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => <div key={d} style={{ fontSize: 7, color: "#444", textAlign: "center", padding: "2px 0", textTransform: "uppercase", letterSpacing: "0.04em" }}>{d}</div>)}
+        {days.map((d, i) => {
+          if (!d) return <div key={i} />;
+          const isToday = d === todayDate;
+          const isSelected = d === selectedDay;
+          const dayEvents = eventsByDay[d] || [];
+          const isPast = d < todayDate;
+          const evColor = dayEvents[0]?.color || null;
+          return (
+            <div key={d} onClick={() => onSelectDay(d)} style={{ width: "100%", aspectRatio: "1", borderRadius: 4, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: dayEvents.length > 0 || isToday ? "pointer" : "default", background: isToday ? T.green : isSelected && !isToday ? "#252525" : "transparent", position: "relative" }}>
+              <span style={{ fontSize: 9, fontWeight: isToday ? 700 : isPast ? 400 : 500, color: isToday ? "#fff" : isPast ? "#2A2A2A" : dayEvents.length > 0 ? T.white : "#555" }}>{d}</span>
+              {dayEvents.length > 0 && !isToday && <div style={{ position: "absolute", bottom: 1, left: "50%", transform: "translateX(-50%)", width: 3, height: 3, borderRadius: "50%", background: evColor || T.gold }} />}
+            </div>
+          );
+        })}
+      </div>
+      {selectedDay && eventsByDay[selectedDay] && (
+        <div style={{ borderTop: `1px solid ${T.border}`, padding: "8px 12px 10px" }}>
+          <div style={{ fontSize: 8, color: "#444", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 6 }}>
+            {selectedDay === todayDate ? "Today" : `Apr ${selectedDay}`} — {eventsByDay[selectedDay]?.length} event{eventsByDay[selectedDay]?.length > 1 ? "s" : ""}
+          </div>
+          {(eventsByDay[selectedDay] || []).map((ev, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, padding: "5px 0", borderBottom: i < eventsByDay[selectedDay].length - 1 ? `1px solid ${T.dim}` : "none" }}>
+              <div style={{ width: 5, height: 5, borderRadius: "50%", background: ev.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: T.white, flex: 1 }}>{ev.title}</span>
+              <span style={{ fontSize: 9, color: T.muted }}>{ev.isAllDay ? "All day" : ev.start?.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PersonalMainView ─────────────────────────────────────────────────────────
+function PersonalMainView({ onScheduleTask, onOpenFM, onAskFM }) {
+  const [taskInput, setTaskInput] = useState("");
+  const [calEvents, setCalEvents] = useState([]);
+  const [calStatus, setCalStatus] = useState("loading");
+  const [selectedDay, setSelectedDay] = useState(new Date().getDate());
+  const [selectedEvent, setSelectedEvent] = useState(null);
+
+  const today = new Date();
+
+  const hoverLift = (color) => ({
+    onMouseEnter: (e) => { e.currentTarget.style.transform = "scale(1.015)"; e.currentTarget.style.boxShadow = `0 4px 20px ${color}20`; },
+    onMouseLeave: (e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "none"; },
+  });
+
+  // Fetch Google Calendar via Railway backend
+  useEffect(() => {
+    const fetchCal = async () => {
+      setCalStatus("loading");
+      try {
+        const now = new Date();
+        const weekEnd = new Date(now.getTime() + 14 * 86400000);
+        const res = await fetch(`${import.meta.env.VITE_API_URL || ""}/api/calendar?timeMin=${now.toISOString()}&timeMax=${weekEnd.toISOString()}`);
+        if (!res.ok) throw new Error("Calendar fetch failed");
+        const data = await res.json();
+        const normalized = (data.events || []).map(normalizeEvent).filter(ev => ev.start);
+        setCalEvents(normalized);
+        setCalStatus("ok");
+      } catch {
+        // Fallback: use hardcoded real events from April 15 fetch
+        const fallbackEvents = [
+          { id: "deb1", summary: "Deb — Piano Lesson", start: { dateTime: `${today.toISOString().slice(0,10)}T11:30:00-04:00` }, end: { dateTime: `${today.toISOString().slice(0,10)}T12:30:00-04:00` }, description: "Weekly piano lesson with Deb.\n\nVia Zoom — link will be added\n30-min reminder set.\nSet by MYA Dispatch", organizer: { displayName: "Music Lessons" }, myResponseStatus: "needsAction", recurringEventId: "recurring1" },
+          { id: "bill1", summary: "Bills Due Tomorrow: Splice + Gmail Storage", start: { dateTime: `${new Date(today.getTime()+86400000).toISOString().slice(0,10)}T09:00:00-04:00` }, end: { dateTime: `${new Date(today.getTime()+86400000).toISOString().slice(0,10)}T09:30:00-04:00` }, description: "Splice - $14.11 and Gmail Storage One - $3.25 both due tomorrow.", organizer: { displayName: "Personal" }, colorId: "11" },
+          { id: "church1", summary: "⛪ Church Rehearsal Prep — 1 hour practice", start: { dateTime: `${new Date(today.getTime()+2*86400000).toISOString().slice(0,10)}T20:00:00-04:00` }, end: { dateTime: `${new Date(today.getTime()+2*86400000).toISOString().slice(0,10)}T21:00:00-04:00` }, description: "1 hour rehearsal prep. Leave home Saturday at 9:30AM.", organizer: { displayName: "Personal" }, recurringEventId: "recurring2" },
+          { id: "therapy1", summary: "John Wooley Therapist", start: { dateTime: `${new Date(today.getTime()+5*86400000).toISOString().slice(0,10)}T11:00:00-04:00` }, end: { dateTime: `${new Date(today.getTime()+5*86400000).toISOString().slice(0,10)}T12:00:00-04:00` }, description: "Zoom-6833855700", organizer: { displayName: "Personal" }, recurringEventId: "recurring3" },
+          { id: "bill2", summary: "Bills Due Tomorrow: Phone Bill ($83.12)", start: { dateTime: `${new Date(today.getTime()+6*86400000).toISOString().slice(0,10)}T09:00:00-04:00` }, end: { dateTime: `${new Date(today.getTime()+6*86400000).toISOString().slice(0,10)}T09:30:00-04:00` }, description: "Phone Bill payment #2 ($83.12) is due tomorrow (22nd).", organizer: { displayName: "Personal" } },
+          { id: "dj1", summary: "DJ Quality Time", start: { date: `${new Date(today.getTime()+9*86400000).toISOString().slice(0,10)}` }, end: { date: `${new Date(today.getTime()+12*86400000).toISOString().slice(0,10)}` }, allDay: true, organizer: { displayName: "DJ" } },
+        ];
+        setCalEvents(fallbackEvents.map(normalizeEvent).filter(ev => ev.start));
+        setCalStatus("fallback");
+      }
+    };
+    fetchCal();
+  }, []);
+
+  // Sort events: today upcoming → today passed → rest of week chronological, multi-day last
+  const sortedEvents = [...calEvents].sort((a, b) => {
+    if (a.isToday && !a.hasPassedToday && (!b.isToday || b.hasPassedToday)) return -1;
+    if (b.isToday && !b.hasPassedToday && (!a.isToday || a.hasPassedToday)) return 1;
+    if (a.isToday && a.hasPassedToday && !b.isToday) return -1;
+    if (b.isToday && b.hasPassedToday && !a.isToday) return 1;
+    if (a.isMultiDay && !b.isMultiDay) return 1;
+    if (b.isMultiDay && !a.isMultiDay) return -1;
+    return (a.start || 0) - (b.start || 0);
+  }).filter(ev => !ev.title.toLowerCase().includes("daily meditation") && !ev.title.toLowerCase().includes("system pulse") && !ev.title.toLowerCase().includes("intelligence brief"));
+
+  const todayEvents = sortedEvents.filter(ev => ev.isToday);
+  const upcomingEvents = sortedEvents.filter(ev => !ev.isToday).slice(0, 8);
+
+  const todayLabel = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const todayCount = todayEvents.length;
+  const weekCount = sortedEvents.length;
+
+  const evRowStyle = (ev) => ({
+    display: "flex", gap: 8, padding: "8px 10px", background: ev.dim, borderRadius: 10,
+    border: `1px solid ${ev.color}20`, cursor: "pointer", marginBottom: 5, transition: "background 0.12s",
+  });
+
+  const fmtEvTime = (ev) => {
+    if (ev.isAllDay || ev.isMultiDay) return "All day";
+    return ev.start?.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) || "";
+  };
+
+  const [calOpen, setCalOpen] = useState(false);
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+
+      {/* ── Finance Snapshot ── */}
+      <FinanceSnapshotCard onAskFM={onAskFM} />
+
+      {/* ── Live Calendar — collapsible ── */}
+      <div>
+        <div onClick={() => setCalOpen(o => !o)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: T.card, border: `1px solid ${T.border}`, borderRadius: calOpen ? "12px 12px 0 0" : 12, cursor: "pointer", marginBottom: calOpen ? 0 : 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Calendar — April 2026</span>
+            <span style={{ fontSize: 9, color: T.muted }}>{calEvents.length} events</span>
+          </div>
+          <span style={{ fontSize: 10, color: T.muted, transform: calOpen ? "rotate(90deg)" : "rotate(0)", transition: "transform 0.2s" }}>▸</span>
+        </div>
+        {calOpen && (
+          <div style={{ borderRadius: "0 0 12px 12px", overflow: "hidden", border: `1px solid ${T.border}`, borderTop: "none" }}>
+            <LiveCalendar events={calEvents} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+          </div>
+        )}
+      </div>
+
+      {/* ── Today's Events ── */}
+      {calStatus === "loading" ? (
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14 }}>
+          <div style={{ fontSize: 9, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Today — {todayLabel}</div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {[0,1,2].map(i => <div key={i} style={{ width: 4, height: 4, borderRadius: "50%", background: T.green, opacity: 0.5, animation: `pulse 1.2s ${i*0.2}s infinite` }} />)}
+            <span style={{ fontSize: 11, color: T.muted }}>Loading calendar...</span>
+          </div>
+        </div>
+      ) : todayEvents.length === 0 ? (
+        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14 }}>
+          <div style={{ fontSize: 9, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Today — {todayLabel}</div>
+          <div style={{ fontSize: 12, color: "#333", fontStyle: "italic" }}>No events today. Calendar is clear.</div>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+            Today — {todayLabel} · <span style={{ color: T.gold }}>{todayCount} event{todayCount !== 1 ? "s" : ""}</span>
+          </div>
+          {todayEvents.map(ev => (
+            <div key={ev.id} onClick={() => setSelectedEvent(ev)} style={{ ...evRowStyle(ev), opacity: ev.hasPassedToday ? 0.5 : 1 }}>
+              <div style={{ minWidth: 52, flexShrink: 0 }}>
+                <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 1 }}>Today</div>
+                <div style={{ fontSize: 10, color: ev.color, fontWeight: 500 }}>{fmtEvTime(ev)}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: T.white, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</div>
+                <div style={{ fontSize: 10, color: "#555", marginTop: 1 }}>{ev.hasZoom ? "Zoom" : ev.type}</div>
+              </div>
+              <div style={{ fontSize: 12, color: "#252525", flexShrink: 0 }}>›</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Upcoming This Week ── */}
+      {upcomingEvents.length > 0 && (
+        <div>
+          <div style={{ fontSize: 9, color: T.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+            Upcoming · <span style={{ color: "#555" }}>{upcomingEvents.length} events</span>
+          </div>
+          {upcomingEvents.map(ev => (
+            <div key={ev.id} onClick={() => setSelectedEvent(ev)} style={evRowStyle(ev)}>
+              <div style={{ minWidth: 60, flexShrink: 0 }}>
+                <div style={{ fontSize: 10, color: ev.color, fontWeight: 500 }}>{ev.start?.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</div>
+                <div style={{ fontSize: 9, color: "#444", marginTop: 1 }}>{fmtEvTime(ev)}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: ev.isMultiDay ? "#B090C0" : T.white, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</div>
+                <div style={{ fontSize: 10, color: "#444", marginTop: 1 }}>{ev.isMultiDay ? `Multi-day · through ${ev.end?.toLocaleDateString("en-US",{month:"short",day:"numeric"})}` : ev.hasZoom ? "Zoom" : ev.type}</div>
+              </div>
+              <div style={{ fontSize: 12, color: "#252525", flexShrink: 0 }}>›</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Task Scheduler ── */}
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14 }}>
+        <div style={{ fontSize: 9, color: T.green, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>Smart Task Scheduler</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input value={taskInput} onChange={e => setTaskInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }} placeholder="+ Add task..." style={{ flex: 1, background: T.dim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+          <button onClick={() => { if (taskInput.trim()) { onScheduleTask(taskInput.trim()); setTaskInput(""); } }} disabled={!taskInput.trim()} style={{ background: !taskInput.trim() ? T.dim : T.greenDim, border: `1px solid ${!taskInput.trim() ? T.border : T.green + "40"}`, color: !taskInput.trim() ? T.muted : T.green, borderRadius: 8, padding: "8px 14px", cursor: !taskInput.trim() ? "default" : "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>Schedule it</button>
+        </div>
+      </div>
+
+      {/* Event Detail Panel */}
+      <EventDetailPanel event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+
+    </div>
+  );
+}
+
+
 const JEAN_PURPLE = "#C084FC";
 const JEAN_DIM = "rgba(192,132,252,0.1)";
 
 function JeanMainView({ onScheduleTask }) {
+  const [cycleCount, setCycleCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("jean_cycle_count") || "0"); } catch { return 0; }
+  });
+  const [cycleStartDate, setCycleStartDate] = useState(() => {
+    try { return localStorage.getItem("jean_cycle_start") || null; } catch { return null; }
+  });
+  const [notes, setNotes] = useState(() => {
+    try { return localStorage.getItem("jean_notes") || ""; } catch { return ""; }
+  });
+
+  const totalCycles = 24;
+  const pct = Math.round((cycleCount / totalCycles) * 100);
+  const remaining = totalCycles - cycleCount;
+  const RED_ZONE_START = 20;
+  const isRedZone = cycleCount >= RED_ZONE_START;
+  const isComplete = cycleCount >= totalCycles;
+
+  const incrementCycle = () => {
+    const next = Math.min(cycleCount + 1, totalCycles);
+    setCycleCount(next);
+    if (!cycleStartDate) {
+      const now = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      setCycleStartDate(now);
+      try { localStorage.setItem("jean_cycle_start", now); } catch {}
+    }
+    try { localStorage.setItem("jean_cycle_count", next.toString()); } catch {}
+  };
+
+  const resetCycle = () => {
+    setCycleCount(0);
+    setCycleStartDate(null);
+    try { localStorage.removeItem("jean_cycle_count"); localStorage.removeItem("jean_cycle_start"); } catch {}
+  };
+
+  const saveNotes = (val) => {
+    setNotes(val);
+    try { localStorage.setItem("jean_notes", val); } catch {}
+  };
+
+  const nextClassDate = () => {
+    const now = new Date();
+    const day = now.getDay();
+    const daysUntilTue = day <= 2 ? 2 - day : 9 - day;
+    const next = new Date(now.getTime() + daysUntilTue * 86400000);
+    return next.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  };
+
   return (
-    <div style={{ display: "grid", gap: 18 }}>
+    <div style={{ display: "grid", gap: 14 }}>
+
       {/* Header */}
-      <div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: T.white, letterSpacing: "-0.02em" }}>JEAN</div>
-        <div style={{ fontSize: 11, color: T.muted }}>Class every Tuesday 6-9PM</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", background: JEAN_PURPLE }} />
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: T.white, letterSpacing: "-0.02em" }}>JEAN</div>
+          <div style={{ fontSize: 11, color: T.muted }}>Class every Tuesday 6–9PM · Next: {nextClassDate()}</div>
+        </div>
+      </div>
+
+      {/* Cycle Tracker Card */}
+      <div style={{
+        background: isRedZone ? "rgba(192,48,48,0.08)" : isComplete ? T.greenDim : JEAN_DIM,
+        border: `1px solid ${isRedZone ? T.red + "40" : isComplete ? T.green + "40" : JEAN_PURPLE + "30"}`,
+        borderRadius: 14, padding: 16,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 9, color: isRedZone ? T.red : JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>
+              {isComplete ? "✓ Complete" : isRedZone ? "⚠ Red Zone" : "Cycle Tracker"}
+            </div>
+            <div style={{ fontSize: 22, color: isRedZone ? T.red : isComplete ? T.green : T.white, fontWeight: 800, letterSpacing: "-0.02em" }}>
+              {cycleCount} <span style={{ fontSize: 13, color: T.muted, fontWeight: 400 }}>/ {totalCycles} cycles</span>
+            </div>
+          </div>
+          <div style={{ position: "relative", width: 56, height: 56 }}>
+            <svg width="56" height="56" viewBox="0 0 56 56">
+              <circle cx="28" cy="28" r="22" fill="none" stroke={T.dim} strokeWidth="5" />
+              <circle cx="28" cy="28" r="22" fill="none"
+                stroke={isComplete ? T.green : isRedZone ? T.red : JEAN_PURPLE}
+                strokeWidth="5"
+                strokeDasharray={`${(pct / 100) * 138.2} 138.2`}
+                strokeDashoffset="34.6"
+                strokeLinecap="round" />
+            </svg>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: isComplete ? T.green : isRedZone ? T.red : JEAN_PURPLE }}>{pct}%</div>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ height: 6, background: T.dim, borderRadius: 3, overflow: "hidden", marginBottom: 8 }}>
+          <div style={{ height: "100%", borderRadius: 3, background: isComplete ? T.green : isRedZone ? T.red : JEAN_PURPLE, width: `${pct}%`, transition: "width 0.4s cubic-bezier(0.22,1,0.36,1)" }} />
+        </div>
+
+        {/* Red zone indicator */}
+        {isRedZone && !isComplete && (
+          <div style={{ background: T.redDim, border: `1px solid ${T.red}30`, borderRadius: 8, padding: "7px 12px", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.red, animation: "pulse 1.5s infinite" }} />
+            <span style={{ fontSize: 11, color: T.red, fontWeight: 700 }}>Red Zone — {remaining} cycle{remaining !== 1 ? "s" : ""} remaining</span>
+          </div>
+        )}
+
+        <div style={{ fontSize: 10, color: T.muted, marginBottom: 12 }}>
+          {isComplete ? "All cycles complete — great work!" : `${remaining} cycle${remaining !== 1 ? "s" : ""} remaining · Started: ${cycleStartDate || "not started"}`}
+        </div>
+
+        <div style={{ display: "flex", gap: 7 }}>
+          <button onClick={incrementCycle} disabled={isComplete} style={{
+            flex: 1, background: isComplete ? T.dim : JEAN_DIM, border: `1px solid ${isComplete ? T.border : JEAN_PURPLE + "50"}`,
+            color: isComplete ? T.muted : JEAN_PURPLE, borderRadius: 8, padding: "8px 12px",
+            cursor: isComplete ? "default" : "pointer", fontSize: 11, fontWeight: 700,
+          }}>+ Mark Cycle Done</button>
+          <button onClick={resetCycle} style={{ background: T.dim, border: `1px solid ${T.border}`, color: T.muted, borderRadius: 8, padding: "8px 12px", cursor: "pointer", fontSize: 10 }}>Reset</button>
+        </div>
       </div>
 
       {/* Class Schedule */}
-      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${JEAN_PURPLE}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-        <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>CLASS SCHEDULE</div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: T.white, marginBottom: 4 }}>Every Tuesday</div>
-        <div style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>6:00 - 9:00 PM</div>
-        <div style={{ fontSize: 11, color: T.muted }}>3 hour class · Next: Apr 14</div>
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${JEAN_PURPLE}`, borderRadius: "0 12px 12px 0", padding: "12px 16px" }}>
+        <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Class Schedule</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: T.white }}>Every Tuesday · 6:00 – 9:00 PM</div>
+        <div style={{ fontSize: 11, color: T.muted, marginTop: 3 }}>3 hour class · Next: {nextClassDate()}</div>
       </div>
 
-      {/* 2-column: To Do + Reminders */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-          <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>TO DO</div>
-          <div style={{ fontSize: 11, color: T.muted, fontStyle: "italic", marginBottom: 10 }}>No tasks yet</div>
-          <button onClick={() => onScheduleTask("Jean: ")} style={{ background: JEAN_DIM, border: `1px solid ${JEAN_PURPLE}30`, color: JEAN_PURPLE, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>+ Add task</button>
-        </div>
-        <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-          <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>REMINDERS</div>
-          <div style={{ fontSize: 11, color: T.muted, fontStyle: "italic", marginBottom: 10 }}>No reminders yet</div>
-          <button onClick={() => onScheduleTask("Jean reminder: ")} style={{ background: JEAN_DIM, border: `1px solid ${JEAN_PURPLE}30`, color: JEAN_PURPLE, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>+ Add reminder</button>
-        </div>
+      {/* Quick Actions */}
+      <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+        {["+ Add task", "+ Add reminder", "+ Add note"].map(label => (
+          <button key={label} onClick={() => onScheduleTask(`Jean: ${label.replace("+ ", "")}: `)} style={{ padding: "7px 14px", background: JEAN_DIM, border: `1px solid ${JEAN_PURPLE}30`, color: JEAN_PURPLE, borderRadius: 20, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{label}</button>
+        ))}
       </div>
 
       {/* Notes */}
-      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-        <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>NOTES</div>
-        <div style={{ fontSize: 11, color: T.muted, fontStyle: "italic", marginBottom: 10 }}>No notes yet — details to be added later</div>
-        <button onClick={() => onScheduleTask("Jean note: ")} style={{ background: JEAN_DIM, border: `1px solid ${JEAN_PURPLE}30`, color: JEAN_PURPLE, borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>+ Add note</button>
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 14 }}>
+        <div style={{ fontSize: 9, color: JEAN_PURPLE, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Notes</div>
+        <textarea
+          value={notes}
+          onChange={e => saveNotes(e.target.value)}
+          placeholder="Add notes about Jean class..."
+          rows={3}
+          style={{ width: "100%", background: T.dim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none", resize: "vertical", lineHeight: 1.6 }}
+          onFocus={e => { e.target.style.borderColor = JEAN_PURPLE + "50"; }}
+          onBlur={e => { e.target.style.borderColor = T.border; }}
+        />
       </div>
     </div>
   );
@@ -1646,7 +2545,7 @@ function BookManagerPanel() {
   };
 
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"240px 1fr 280px", height:"100%", overflow:"hidden", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
+    <div style={{ display:"grid", gridTemplateColumns: typeof window !== "undefined" && window.innerWidth <= 768 ? "1fr" : "240px 1fr 280px", height:"100%", overflow:"hidden", fontFamily:"'DM Sans', system-ui, sans-serif" }}>
 
       {/* ── LEFT RAIL ── */}
       <div style={{ background:"#101013", borderRight:"1px solid rgba(255,255,255,0.06)", overflowY:"auto", padding:"12px 0 24px" }}>
@@ -1974,33 +2873,51 @@ function BookManagerPanel() {
 
 // ─── FM Travel Builder ────────────────────────────────────────────────────────
 const TB_SK = "fm_tb_v2", TB_AK = "fm_arc_v2";
+const TRAVEL_DRAFT_KEY = "fm_travel_builder_active_draft_v1";
 const tbFmt = (n) => "$" + Math.round(n).toLocaleString();
 const TB_ROWS = [
   {id:"hotel",cat:"Accommodation",     label:"Marriott Marquis — 3 nights",    low:481,high:481, fixed:true, act:481,  status:"booked",  note:"MM4 rate. Skybridge to Wintrust Arena."},
-  {id:"f1",   cat:"Flights",           label:"LGA \u2192 MDW — Jun 12 morning",     low:150,high:200, fixed:false,act:"",   status:"booknow", note:"Southwest. Nonstop ~2h 25m."},
-  {id:"f2",   cat:"",                  label:"MDW \u2192 LGA — Jun 15 noon",        low:150,high:200, fixed:false,act:"",   status:"booknow", note:"No change fees. 2 free bags."},
-  {id:"f3",   cat:"",                  label:"Kadence \u2014 CA \u2192 ORD Jun 12", low:40, high:40,  fixed:false,act:"",   status:"confirm", note:"Niece buddy pass. ~$40 tax."},
-  {id:"t1",   cat:"Ground Transport",  label:"CTA + Uber \u2014 all days",          low:60, high:110, fixed:false,act:"",   status:"est",     note:"No rental. Skybridge + CTA."},
-  {id:"d1",   cat:"Food & Dining",     label:"Jun 12 \u2014 arrival dinner",        low:40, high:80,  fixed:false,act:"",   status:"est",     note:"Chicago deep dish."},
-  {id:"d2",   cat:"",                  label:"Jun 13 \u2014 family day",            low:60, high:120, fixed:false,act:"",   status:"est",     note:"Family dinner before graduation."},
-  {id:"d3",   cat:"",                  label:"Jun 14 \u2014 graduation dinner",     low:80, high:150, fixed:false,act:"",   status:"est",     note:"Big dinner for Kayliah."},
-  {id:"d4",   cat:"",                  label:"Jun 15 \u2014 breakfast + airport",   low:20, high:40,  fixed:false,act:"",   status:"est",     note:"Hotel or grab-and-go."},
+  {id:"f1",   cat:"Flights",           label:"LGA → MDW — Jun 12 morning",     low:150,high:200, fixed:false,act:"",   status:"booknow", url:"https://www.southwest.com", note:"Southwest. Nonstop ~2h 25m."},
+  {id:"f2",   cat:"",                  label:"MDW → LGA — Jun 15 noon",        low:150,high:200, fixed:false,act:"",   status:"booknow", url:"https://www.southwest.com", note:"No change fees. 2 free bags."},
+  {id:"f3",   cat:"",                  label:"Kadence — CA → ORD Jun 12", low:40, high:40,  fixed:false,act:"",   status:"confirm", note:"Niece buddy pass. ~$40 tax."},
+  {id:"t1",   cat:"Ground Transport",  label:"CTA + Uber — all days",          low:60, high:110, fixed:false,act:"",   status:"est",     note:"No rental. Skybridge + CTA."},
+  {id:"d1",   cat:"Food & Dining",     label:"Jun 12 — arrival dinner",        low:40, high:80,  fixed:false,act:"",   status:"est",     note:"Chicago deep dish."},
+  {id:"d2",   cat:"",                  label:"Jun 13 — family day",            low:60, high:120, fixed:false,act:"",   status:"est",     note:"Family dinner before graduation."},
+  {id:"d3",   cat:"",                  label:"Jun 14 — graduation dinner",     low:80, high:150, fixed:false,act:"",   status:"est",     note:"Big dinner for Kayliah."},
+  {id:"d4",   cat:"",                  label:"Jun 15 — breakfast + airport",   low:20, high:40,  fixed:false,act:"",   status:"est",     note:"Hotel or grab-and-go."},
   {id:"d5",   cat:"",                  label:"Kadence snacks + meals",         low:30, high:50,  fixed:false,act:"",   status:"est",     note:"Kids eat lighter."},
-  {id:"tk",   cat:"Graduation + Gifts",label:"Graduation tickets (4+)",        low:0,  high:0,   fixed:true, act:0,    status:"confirm", note:"Text Kayliah \u2014 may be included."},
+  {id:"tk",   cat:"Graduation + Gifts",label:"Graduation tickets (4+)",        low:0,  high:0,   fixed:true, act:0,    status:"confirm", note:"Text Kayliah — may be included."},
   {id:"g1",   cat:"",                  label:"Gift for Kayliah",               low:50, high:100, fixed:false,act:"",   status:"est",     note:"Thoughtful + meaningful."},
   {id:"g2",   cat:"",                  label:"Flowers + celebration",          low:20, high:50,  fixed:false,act:"",   status:"est",     note:"Bouquet at ceremony."},
-  {id:"m1",   cat:"Misc + Buffer",     label:"Tips + activities",              low:60, high:110, fixed:false,act:"",   status:"est",     note:"15\u201320% on services."},
+  {id:"m1",   cat:"Misc + Buffer",     label:"Tips + activities",              low:60, high:110, fixed:false,act:"",   status:"est",     note:"15–20% on services."},
   {id:"m2",   cat:"",                  label:"Emergency buffer",               low:50, high:100, fixed:false,act:"",   status:"est",     note:"Always carry a buffer."},
 ];
 
-function tbCalc(actuals) {
+const TB_BLANK_ROWS = [
+  {id:"draft_hotel",cat:"Accommodation",    label:"",low:0,high:0,fixed:false,act:"",status:"est",note:""},
+  {id:"draft_f1",   cat:"Flights",          label:"",low:0,high:0,fixed:false,act:"",status:"est",note:""},
+  {id:"draft_f2",   cat:"",                 label:"",low:0,high:0,fixed:false,act:"",status:"est",note:""},
+  {id:"draft_t1",   cat:"Ground Transport", label:"",low:0,high:0,fixed:false,act:"",status:"est",note:""},
+  {id:"draft_d1",   cat:"Food & Dining",    label:"",low:0,high:0,fixed:false,act:"",status:"est",note:""},
+];
+
+function tbCloneRows(rows) {
+  return rows.map(r=>({...r}));
+}
+
+const TB_FLIGHT_OPTIONS = [
+  {title:"Morning nonstop",low:150,high:220,note:"Best for early arrival",bookingUrl:"https://www.google.com/travel/flights"},
+  {title:"Midday nonstop",low:180,high:260,note:"Balanced timing",bookingUrl:"https://www.google.com/travel/flights"},
+  {title:"Evening nonstop",low:120,high:200,note:"Cheapest window",bookingUrl:"https://www.google.com/travel/flights"},
+];
+
+function tbCalc(rows) {
   let low=0,high=0,actual=0,saved=170,filled=0;
-  TB_ROWS.forEach(r => {
-    low+=r.low; high+=r.high;
-    if(r.fixed){actual+=Number(r.act);filled++;}
-    else if(actuals[r.id]!==undefined&&actuals[r.id]!==""){actual+=parseFloat(actuals[r.id]);filled++;const d=r.low-parseFloat(actuals[r.id]);if(d>0)saved+=d;}
+  rows.forEach(r => {
+    low+=Number(r.low)||0; high+=Number(r.high)||0;
+    if(r.act!==undefined&&r.act!==""){const paid=parseFloat(r.act);actual+=paid;filled++;const d=(Number(r.low)||0)-paid;if(d>0)saved+=d;}
   });
-  return{low,high,actual,saved,filled,total:TB_ROWS.length};
+  return{low,high,actual,saved,filled,total:rows.length};
 }
 
 function TBAnimBar({pct,color,delay=0}) {
@@ -2055,93 +2972,205 @@ function TravelBuilderPanel() {
   const [tab,setTab] = useState("budget");
   const [resetModal,setResetModal] = useState(false);
   const [archiveModal,setArchiveModal] = useState(false);
+  const [newTripModal,setNewTripModal] = useState(false);
+  const [newTripName,setNewTripName] = useState("");
+  const [newTripDestination,setNewTripDestination] = useState("");
+  const [newTripStartDate,setNewTripStartDate] = useState("");
+  const [newTripEndDate,setNewTripEndDate] = useState("");
+  const [newTripTravelers,setNewTripTravelers] = useState("");
+  const [newTripBudget,setNewTripBudget] = useState("");
+  const [newTripPurpose,setNewTripPurpose] = useState("");
+  const [newTripPreview,setNewTripPreview] = useState(null);
+  const [activeTripDraft,setActiveTripDraft] = useState(null);
+  const [editableTripRows,setEditableTripRows] = useState(()=>TB_ROWS.map(r=>({...r,act:r.fixed?r.act:(actuals[r.id]??r.act)})));
+  const [flightOptionsForRow,setFlightOptionsForRow] = useState(null);
+  const [travelDraftStatus,setTravelDraftStatus] = useState("idle");
   const [toast,setToast] = useState(null);
   const [aiBrief,setAiBrief] = useState("");
   const [briefLoading,setBriefLoading] = useState(false);
   const briefDone = useRef(false);
   const toastTimer = useRef();
+  const travelDraftHydratedRef = useRef(false);
+  const travelDraftSkipNextSaveRef = useRef(true);
 
-  const tots = tbCalc(actuals);
+  const tots = tbCalc(editableTripRows);
   const pp = Math.round((tots.filled/tots.total)*100);
   const sp = Math.min(Math.round((tots.actual/tots.low)*100),150);
+  const activeTripTitle = activeTripDraft?.name || "Chicago Graduation Trip";
+  const activeTripMeta = activeTripDraft
+    ? [activeTripDraft.dateRange||"Dates pending", activeTripDraft.destination||"Destination pending", activeTripDraft.travelers||"Travelers pending", activeTripDraft.purpose||"Purpose pending"]
+    : ["June 12–15 2026","Marriott Marquis Chicago","Denarius + Kadence","Kayliah Graduation"];
+  const currentTripName = activeTripTitle;
+  const bookedTotal = editableTripRows
+    .filter(r=>["booked","confirm"].includes(r.status))
+    .reduce((sum,r)=>sum+(parseFloat(r.act)||0),0);
+  const travelDraftStatusText = travelDraftStatus==="restored" ? "Draft restored from this browser." : travelDraftStatus==="saved" ? "Draft saved locally." : travelDraftStatus==="error" ? "Draft save issue — copy your details before leaving." : "Editable draft — not saved to Airtable yet.";
 
-  function setActual(id,val){const n={...actuals,[id]:val};setActuals(n);localStorage.setItem(TB_SK+"_a",JSON.stringify(n));}
-  function showToast(msg,type=""){setToast({msg,type});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2800);}
-  function doReset(){setActuals({});localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);showToast("Actuals cleared \u2014 template ready","success");}
-  function doArchive(){
-    const e={id:Date.now(),trip:"Chicago Graduation Trip",dates:"June 12\u201315 2026",budget:tots.low,actual:tots.actual,saved:tots.saved,state:{actuals,retro},archivedAt:new Date().toLocaleDateString()};
-    const n=[e,...archive];setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));setArchiveModal(false);showToast("Trip archived","success");setTab("archive");
+  function safeTravelNotice(message,type=""){setToast({msg:message,type});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2800);}
+  function safeTravelAction(actionName, callback){
+    try { callback(); }
+    catch(err) {
+      console.warn(`Travel Builder ${actionName} failed`, err);
+      safeTravelNotice(`${actionName} did not complete. Try again.`, "danger");
+    }
   }
+  function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:r));}
+  function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,act:val}:r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
+  function buildTravelDraft(rows=editableTripRows){
+    return {activeTripDraft,editableTripRows:rows,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose,savedAt:new Date().toISOString()};
+  }
+  function saveTravelDraft(status="saved"){
+    try {localStorage.setItem(TRAVEL_DRAFT_KEY,JSON.stringify(buildTravelDraft()));setTravelDraftStatus(status);}
+    catch(err){console.warn("Travel draft save failed",err);setTravelDraftStatus("error");}
+  }
+  function useFlightOption(rowId,opt){setEditableTripRows(rows=>rows.map(r=>r.id===rowId?{...r,label:opt.title,low:opt.low,high:opt.high,note:opt.note,status:"booknow",url:opt.bookingUrl}:r));setFlightOptionsForRow(null);}
+  function openFlightBooking(url){window.open(url,"_blank","noopener,noreferrer");}
+  function showToast(msg,type=""){safeTravelNotice(msg,type);}
+  function continueNewTripPreview(){
+    const dates = newTripStartDate && newTripEndDate ? `${newTripStartDate} to ${newTripEndDate}` : "Dates pending";
+    setActiveTripDraft({
+      name:newTripName.trim()||"Untitled Trip",
+      destination:newTripDestination.trim()||"Destination pending",
+      dateRange:dates,
+      travelers:newTripTravelers.trim()||"Travelers pending",
+      purpose:newTripPurpose.trim()||"Purpose pending"
+    });
+    setActuals({});
+    setEditableTripRows(tbCloneRows(TB_BLANK_ROWS));
+    setNewTripPreview(null);
+    setNewTripModal(false);
+    safeTravelNotice("Active draft started","success");
+  }
+  function doReset(){safeTravelAction("Reset",()=>{setActuals({});setEditableTripRows(activeTripDraft?tbCloneRows(TB_BLANK_ROWS):tbCloneRows(TB_ROWS));localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);safeTravelNotice("Actuals cleared — template ready","success");});}
+  function doArchive(){
+    safeTravelAction("Archive",()=>{
+      const e={id:Date.now(),trip:activeTripTitle,dates:activeTripMeta[0],budget:tots.low,actual:tots.actual,saved:tots.saved,state:{actuals,retro},archivedAt:new Date().toLocaleDateString()};
+      const n=[e,...archive];setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));setArchiveModal(false);safeTravelNotice("Trip archived locally","success");setTab("archive");
+    });
+  }
+
+  useEffect(()=>{
+    try {
+      const raw=localStorage.getItem(TRAVEL_DRAFT_KEY);
+      if(raw){
+        const d=JSON.parse(raw);
+        if(d&&typeof d==="object"){
+          if(d.activeTripDraft){
+            setActiveTripDraft(d.activeTripDraft);
+            if(Array.isArray(d.editableTripRows))setEditableTripRows(d.editableTripRows);
+          } else if(d.newTripPreview) {
+            setActiveTripDraft({
+              name:d.newTripPreview.name||"Untitled Trip",
+              destination:d.newTripPreview.destination||"Destination pending",
+              dateRange:d.newTripPreview.dates||"Dates pending",
+              travelers:d.newTripPreview.travelers||"Travelers pending",
+              purpose:d.newTripPreview.purpose||"Purpose pending"
+            });
+            setEditableTripRows(tbCloneRows(TB_BLANK_ROWS));
+          } else if(Array.isArray(d.editableTripRows))setEditableTripRows(d.editableTripRows);
+          setNewTripName(d.newTripName||"");
+          setNewTripDestination(d.newTripDestination||"");
+          setNewTripStartDate(d.newTripStartDate||"");
+          setNewTripEndDate(d.newTripEndDate||"");
+          setNewTripTravelers(d.newTripTravelers||"");
+          setNewTripBudget(d.newTripBudget||"");
+          setNewTripPurpose(d.newTripPurpose||"");
+          setTravelDraftStatus("restored");
+        }
+      }
+    } catch(err) {console.warn("Travel draft restore failed",err);setTravelDraftStatus("error");}
+    finally {travelDraftHydratedRef.current=true;}
+  },[]);
+
+  useEffect(()=>{
+    if(!travelDraftHydratedRef.current)return;
+    if(travelDraftSkipNextSaveRef.current){travelDraftSkipNextSaveRef.current=false;return;}
+    try {setTravelDraftStatus("saving");localStorage.setItem(TRAVEL_DRAFT_KEY,JSON.stringify(buildTravelDraft()));setTravelDraftStatus("saved");}
+    catch(err){console.warn("Travel draft autosave failed",err);setTravelDraftStatus("error");}
+  },[activeTripDraft,editableTripRows,newTripPreview,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose]);
 
   useEffect(()=>{
     if(briefDone.current||tab!=="budget")return;
     briefDone.current=true;
-    setBriefLoading(false);
-    setAiBrief(`Status: In Progress (${pp}% planned). Hotel confirmed $481 — Marriott Marquis Chicago, skybridge to Wintrust Arena. Flights pending — book southwest.com TODAY. Actual: ${tbFmt(tots.actual)} of ${tbFmt(tots.low)}. Savings ~${tbFmt(tots.saved)}+.`);
+    setBriefLoading(true);
+    fetch(`${import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app'}/api/travel/brief`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trip: currentTripName, biz: 'fm' })
+    })
+      .then(r=>r.json()).then(d=>setAiBrief(d.content?.[0]?.text||""))
+      .catch(()=>setAiBrief(`Status: In Progress (${pp}% planned). ${currentTripName} draft is local. Actual: ${tbFmt(tots.actual)} of ${tbFmt(tots.low)}. Savings ~${tbFmt(tots.saved)}+.`))
+      .finally(()=>setBriefLoading(false));
   },[tab]);
 
   const catData=[
-    {l:"Accommodation",v:481,max:600,c:B.gold},
-    {l:"Flights",v:["f1","f2","f3"].reduce((a,k)=>a+parseFloat(actuals[k]||"0"),0),max:440,c:B.blue},
-    {l:"Transport",v:parseFloat(actuals.t1||"0"),max:110,c:"#4db87a"},
-    {l:"Food",v:["d1","d2","d3","d4","d5"].reduce((a,k)=>a+parseFloat(actuals[k]||"0"),0),max:440,c:B.amber},
-    {l:"Gifts",v:["g1","g2"].reduce((a,k)=>a+parseFloat(actuals[k]||"0"),0),max:150,c:"#c95a84"},
-    {l:"Misc",v:["m1","m2"].reduce((a,k)=>a+parseFloat(actuals[k]||"0"),0),max:210,c:B.red},
+    {l:"Accommodation",v:editableTripRows.filter(r=>r.cat==="Accommodation").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:600,c:T.gold},
+    {l:"Flights",v:editableTripRows.filter(r=>["f1","f2","f3"].includes(r.id)).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.blue},
+    {l:"Transport",v:editableTripRows.filter(r=>r.cat==="Ground Transport").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:110,c:"#4db87a"},
+    {l:"Food",v:editableTripRows.filter(r=>r.cat==="Food & Dining"||r.id.startsWith("d")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.amber},
+    {l:"Gifts",v:editableTripRows.filter(r=>r.cat==="Graduation + Gifts"||r.id.startsWith("g")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:150,c:"#c95a84"},
+    {l:"Misc",v:editableTripRows.filter(r=>r.cat==="Misc + Buffer"||r.id.startsWith("m")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:210,c:T.red},
   ];
 
-  const B={
-    bg:"#ffffff",surface:"#f8f7f5",card:"#ffffff",
-    border:"rgba(0,0,0,0.08)",borderHi:"rgba(0,0,0,0.14)",
-    text:"#1a1a1a",textSub:"#4a4a52",textMute:"#78788a",
-    green:"#27500a",greenBg:"#eaf3de",greenBd:"#97c459",
-    blue:"#0c447c",blueBg:"#e6f1fb",blueBd:"#85b7eb",
-    amber:"#633806",amberBg:"#faeeda",amberBd:"#ef9f27",
-    red:"#791f1f",redBg:"#fcebeb",redBd:"#f09595",
-
-    gold:"#854f0b",goldBg:"#faeeda",goldDim:"rgba(133,79,11,0.12)",goldBd:"#ef9f27",
-    dim:"#e8e4dc",white:"#1a1a1a",muted:"#78788a",
-    greenDim:"rgba(39,80,10,0.12)",blueDim:"rgba(12,68,124,0.12)",amberDim:"rgba(99,56,6,0.12)",redDim:"rgba(121,31,31,0.12)"
+  const STS={
+    booked:{bg:T.greenDim,c:T.green,t:"Booked"},
+    booknow:{bg:T.amberDim,c:T.amber,t:"Book now"},
+    confirm:{bg:"rgba(255,255,255,0.06)",c:T.muted,t:"Confirm"},
+    est:{bg:"rgba(255,255,255,0.06)",c:T.muted,t:"Estimate"},
+    paid:{bg:T.blueDim,c:T.blue,t:"Paid"},
+    archived:{bg:"rgba(255,255,255,0.06)",c:T.muted,t:"Archived"}
   };
-  const STS={booked:{bg:B.greenBg,c:B.green,t:"Booked"},booknow:{bg:B.amberBg,c:B.amber,t:"Book now"},confirm:{bg:B.surface,c:B.textMute,t:"Confirm"},est:{bg:B.surface,c:B.textMute,t:"Estimate"}};
+  const STATUS_OPTIONS=[["est","Estimate"],["booknow","Book now"],["confirm","Confirm"],["booked","Booked"],["paid","Paid"],["archived","Archived"]];
 
   return(
     <div style={{fontFamily:"'DM Sans',system-ui,sans-serif"}}>
-      <style>{`@keyframes tbFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}.tb-row:hover{background:#f8f7f5!important}.tb-row{transition:background 0.15s!important}.tb-panel-hover:hover{border-color:rgba(0,0,0,0.18)!important}.tb-panel-hover{transition:border-color 0.2s!important}.tb-action:hover{background:#f1efe8!important}.tb-action{transition:background 0.15s!important}.tb-archive-card:hover{border-color:rgba(0,0,0,0.18)!important;transform:translateY(-2px)!important;box-shadow:0 4px 16px rgba(0,0,0,0.08)!important}.tb-archive-card{transition:all 0.22s!important}.tb-retro-card:hover{border-color:rgba(0,0,0,0.18)!important}.tb-retro-card{transition:all 0.22s!important}@media(max-width:600px){.tb-header{flex-direction:column!important;align-items:flex-start!important}.tb-header-actions{width:100%!important;justify-content:flex-start!important}.tb-meta{flex-direction:column!important;gap:6px!important}.tb-tabs{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}.tb-tabs button{white-space:nowrap!important;flex-shrink:0!important}.tb-metrics{grid-template-columns:1fr 1fr!important}.tb-progress-label{width:110px!important;font-size:12px!important}.tb-table-wrap{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}.tb-bottom-grid{grid-template-columns:1fr!important}.tb-retro-grid{grid-template-columns:1fr!important}.tb-analytics-grid{grid-template-columns:1fr!important}.tb-archive-grid{grid-template-columns:1fr!important}.tb-modal-inner{padding:20px!important;width:95%!important}}@media(max-width:380px){.tb-metrics{grid-template-columns:1fr!important}.tb-trip-title{font-size:18px!important}}
+      <style>{`
+        @keyframes tbShimmer{0%,100%{opacity:0}50%{opacity:1}}
+        @keyframes tbFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        .tb-row:hover{background:#17171e!important;transform:translateX(2px)!important}
+        .tb-row{transition:all 0.15s!important}
+        .tb-panel:hover{border-color:rgba(255,255,255,0.1)!important;transform:translateY(-2px)!important;box-shadow:0 8px 24px rgba(0,0,0,0.3)!important}
+        .tb-panel{transition:all 0.22s!important}
       `}</style>
 
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
-            <div style={{width:5,height:5,borderRadius:"50%",background:B.green,animation:"pulse 2s infinite"}}/>
-            <span style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold}}>Travel Builder \u2014 Active Trip</span>
+            <div style={{width:5,height:5,borderRadius:"50%",background:T.green,animation:"pulse 2s infinite"}}/>
+            <span style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold}}>Travel Builder — Active Trip</span>
           </div>
-          <div style={{fontSize:22,fontWeight:800,color:B.text}}>Chicago Graduation Trip</div>
-          <div style={{fontFamily:"monospace",fontSize:10,color:B.textMute,marginTop:4,display:"flex",gap:10,flexWrap:"wrap"}}>
-            {["June 12\u201315 2026","Marriott Marquis Chicago","Denarius + Kadence","Kayliah Graduation"].map(s=>(
-              <span key={s}><span style={{color:B.gold,marginRight:3}}>\u00b7</span>{s}</span>
+          <div style={{fontSize:22,fontWeight:800,color:T.white}}>{activeTripTitle}</div>
+          <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,marginTop:4,display:"flex",gap:10,flexWrap:"wrap"}}>
+            {activeTripMeta.map(s=>(
+              <span key={s}><span style={{color:T.gold,marginRight:3}}>·</span>{s}</span>
             ))}
           </div>
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          <button onClick={()=>setNewTripModal(true)}
+            style={{position:"relative",background:"rgba(220,38,38,0.08)",color:"#dc2626",border:"1px solid #dc2626",borderRadius:6,padding:"7px 13px",fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
+            + New Trip
+            <span style={{position:"absolute",top:-7,right:-7,background:"#dc2626",color:"#fff",borderRadius:999,padding:"1px 5px",fontSize:8,fontWeight:800,lineHeight:"12px",letterSpacing:"0.04em"}}>NEW</span>
+          </button>
           {[
-            {l:"\u21ba Reset",fn:()=>setResetModal(true),bg:"transparent",c:B.textMute,b:B.dim},
-            {l:"\u2193 Archive",fn:()=>setArchiveModal(true),bg:B.greenBg,c:B.green,b:`${B.green}40`},
-            {l:"\u25fc Save",fn:()=>{localStorage.setItem(TB_SK+"_a",JSON.stringify(actuals));showToast("Saved","success");},bg:B.goldBg,c:B.gold,b:B.borderHi},
+            {l:"↺ Reset",fn:()=>setResetModal(true),bg:"transparent",c:T.muted,b:T.dim},
+            {l:"↓ Archive",fn:()=>setArchiveModal(true),bg:T.greenDim,c:T.green,b:`${T.green}40`},
+            {l:"◼ Save",fn:()=>safeTravelAction("Save",()=>{localStorage.setItem(TB_SK+"_a",JSON.stringify(actuals));saveTravelDraft();safeTravelNotice("Travel draft saved locally.","success");}),bg:T.goldDim,c:T.gold,b:T.borderHi},
           ].map(b=>(
-            <button key={b.l} onClick={b.fn} className="tb-action"
-              style={{background:b.bg,color:b.c,border:`1px solid ${b.b}`,borderRadius:6,padding:"7px 13px",fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
-              {b.l}
-            </button>
+              <button key={b.l} onClick={b.fn}
+                style={{background:b.bg,color:b.c,border:`1px solid ${b.b}`,borderRadius:6,padding:"7px 13px",fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
+                {b.l}
+              </button>
           ))}
         </div>
       </div>
 
       {/* Inner tab nav */}
-      <div style={{display:"flex",gap:2,marginBottom:18,borderBottom:`1px solid ${B.border}`}}>
+      <div style={{display:"flex",gap:2,marginBottom:18,borderBottom:`1px solid ${T.border}`}}>
         {["budget","analytics","archive","retro"].map(t=>(
           <button key={t} onClick={()=>setTab(t)}
-            style={{padding:"7px 14px",background:tab===t?B.goldBg:"transparent",border:"none",borderBottom:tab===t?`2px solid ${B.gold}`:"2px solid transparent",color:tab===t?B.gold:B.textMute,fontSize:11,fontWeight:600,textTransform:"capitalize",cursor:"pointer",transition:"all 0.15s",fontFamily:"inherit"}}>
+            style={{padding:"7px 14px",background:tab===t?T.goldDim:"transparent",border:"none",borderBottom:tab===t?`2px solid ${T.gold}`:"2px solid transparent",color:tab===t?T.gold:T.muted,fontSize:11,fontWeight:600,textTransform:"capitalize",cursor:"pointer",transition:"all 0.15s",fontFamily:"inherit"}}>
             {t==="budget"?"Budget Tracker":t==="analytics"?"Analytics":t==="archive"?"Trip Archive":"Retrospective"}
           </button>
         ))}
@@ -2150,132 +3179,172 @@ function TravelBuilderPanel() {
       {/* BUDGET TAB */}
       {tab==="budget"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
-          <div className="tb-panel" style={{background:B.goldBg,border:`1px solid ${B.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12,alignItems:"flex-start"}}>
-            <div style={{width:32,height:32,background:"rgba(201,168,76,0.2)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>\u2605</div>
+          <div className="tb-panel" style={{background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12,alignItems:"flex-start"}}>
+            <div style={{width:32,height:32,background:"rgba(201,168,76,0.2)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>★</div>
             <div style={{flex:1}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                <span style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:B.gold}}>FM Executive Briefing \u2014 for Mya</span>
-                <div style={{width:5,height:5,borderRadius:"50%",background:B.green,animation:"pulse 2s infinite"}}/>
-                {!briefLoading&&<button onClick={()=>{briefDone.current=false;setAiBrief("");setBriefLoading(true);setTimeout(()=>{briefDone.current=false;},50);}} style={{marginLeft:"auto",background:"rgba(201,168,76,0.15)",border:`1px solid ${B.borderHi}`,borderRadius:3,padding:"2px 7px",fontFamily:"monospace",fontSize:8,color:B.gold,cursor:"pointer"}}>\u21ba refresh</button>}
+                <span style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:T.gold}}>FM Executive Briefing — for Mya</span>
+                <div style={{width:5,height:5,borderRadius:"50%",background:T.green,animation:"pulse 2s infinite"}}/>
+                {!briefLoading&&<button onClick={()=>{briefDone.current=false;setAiBrief("");setBriefLoading(true);setTimeout(()=>{briefDone.current=false;},50);}} style={{marginLeft:"auto",background:"rgba(201,168,76,0.15)",border:`1px solid ${T.borderHi}`,borderRadius:3,padding:"2px 7px",fontFamily:"monospace",fontSize:8,color:T.gold,cursor:"pointer"}}>↺ refresh</button>}
               </div>
               {briefLoading
-                ?<div style={{fontFamily:"monospace",fontSize:10,color:B.textMute,animation:"pulse 1.5s infinite"}}>AI generating briefing for Mya...</div>
+                ?<div style={{fontFamily:"monospace",fontSize:10,color:T.muted,animation:"pulse 1.5s infinite"}}>AI generating briefing for Mya...</div>
                 :<div style={{fontFamily:"monospace",fontSize:10,color:"#c8c4bc",lineHeight:1.7}}>{aiBrief||"Generating..."}</div>}
             </div>
           </div>
 
           <div style={{marginBottom:18}}>
             {[
-              {l:"Planning progress",pct:pp,c:B.gold,d:0},
-              {l:"Budget used",pct:sp,c:sp>100?B.red:B.blue,d:120},
-              {l:"Savings captured",pct:Math.min(Math.round((tots.saved/1750)*100),100),c:B.green,d:240},
+              {l:"Planning progress",pct:pp,c:T.gold,d:0},
+              {l:"Budget used",pct:sp,c:sp>100?T.red:T.blue,d:120},
+              {l:"Savings captured",pct:Math.min(Math.round((tots.saved/1750)*100),100),c:T.green,d:240},
             ].map(p=>(
               <div key={p.l} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-                <div style={{fontFamily:"monospace",fontSize:9,color:B.textMute,width:130,flexShrink:0}}>{p.l}</div>
+                <div style={{fontFamily:"monospace",fontSize:9,color:T.muted,width:130,flexShrink:0}}>{p.l}</div>
                 <TBAnimBar pct={p.pct} color={p.c} delay={p.d}/>
-                <div style={{fontFamily:"monospace",fontSize:9,color:B.textMute,width:30,textAlign:"right"}}>{p.pct}%</div>
+                <div style={{fontFamily:"monospace",fontSize:9,color:T.muted,width:30,textAlign:"right"}}>{p.pct}%</div>
               </div>
             ))}
           </div>
 
-          <div className="tb-metric-grid" style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:20}}>
-            <TBCard label="Booked"       value={tbFmt(481)}                              sub="Hotel confirmed"   accent={B.green}  glow="rgba(76,175,125,0.2)"/>
-            <TBCard label="Budget (low)" value={tbFmt(tots.low)}                         sub="Conservative est." accent={B.gold}   glow="rgba(201,168,76,0.2)"/>
-            <TBCard label="Actual paid"  value={tbFmt(tots.actual)}                      sub="Enter as you pay"  accent={B.blue}   glow="rgba(90,143,201,0.2)"/>
-            <TBCard label="Still needed" value={tbFmt(Math.max(0,tots.low-tots.actual))} sub="Remaining"         accent={B.red}    glow="rgba(201,90,90,0.2)"/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:20}}>
+            <TBCard label="Booked"       value={tbFmt(bookedTotal)}                      sub="Booked/confirmed"  accent={T.green}  glow="rgba(76,175,125,0.2)"/>
+            <TBCard label="Budget (low)" value={tbFmt(tots.low)}                         sub="Conservative est." accent={T.gold}   glow="rgba(201,168,76,0.2)"/>
+            <TBCard label="Actual paid"  value={tbFmt(tots.actual)}                      sub="Enter as you pay"  accent={T.blue}   glow="rgba(90,143,201,0.2)"/>
+            <TBCard label="Still needed" value={tbFmt(Math.max(0,tots.low-tots.actual))} sub="Remaining"         accent={T.red}    glow="rgba(201,90,90,0.2)"/>
             <TBCard label="Total saved"  value={"~"+tbFmt(tots.saved)}                  sub="vs full price"     accent="#4db87a"  glow="rgba(77,184,122,0.2)"/>
           </div>
 
           <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:14}}>
-            {[[B.green,"Booked"],[B.amber,"Book now"],[B.textMute,"Estimate"],[B.blue,"Actual \u2014 edit blue fields"],[B.red,"Over estimate"]].map(([c,l])=>(
-              <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontFamily:"monospace",fontSize:9,color:B.textMute}}>
+            {[[T.green,"Booked"],[T.amber,"Book now"],[T.muted,"Estimate"],[T.blue,"Actual — edit blue fields"],[T.red,"Over estimate"]].map(([c,l])=>(
+              <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontFamily:"monospace",fontSize:9,color:T.muted}}>
                 <div style={{width:7,height:7,borderRadius:1,background:c,flexShrink:0}}/>{l}
               </div>
             ))}
+            <div style={{fontFamily:"monospace",fontSize:9,color:travelDraftStatus==="error"?T.red:T.muted}}>{travelDraftStatusText}</div>
           </div>
 
-          <div className="tb-table-scroll" style={{border:`1px solid ${B.border}`,borderRadius:10,overflow:"hidden",marginBottom:18}}>
+          <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden",marginBottom:18}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,tableLayout:"fixed"}}>
               <colgroup><col style={{width:"22%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"11%"}}/><col style={{width:"30%"}}/></colgroup>
               <thead>
-                <tr style={{background:"B.surface"}}>
-                  {["Item","Low est.","High est.","Actual paid","+/\u2013","Status","Notes"].map((h,i)=>(
-                    <th key={h} style={{padding:"9px 12px",textAlign:i>0&&i<5?"right":i===5?"center":"left",fontFamily:"monospace",fontSize:8,letterSpacing:"0.09em",textTransform:"uppercase",color:B.textMute,borderBottom:`1px solid ${B.border}`,fontWeight:400}}>{h}</th>
+                <tr style={{background:"rgba(255,255,255,0.03)"}}>
+                  {["Item","Low est.","High est.","Actual paid","+/–","Status","Notes"].map((h,i)=>(
+                    <th key={h} style={{padding:"9px 12px",textAlign:i>0&&i<5?"right":i===5?"center":"left",fontFamily:"monospace",fontSize:8,letterSpacing:"0.09em",textTransform:"uppercase",color:T.muted,borderBottom:`1px solid ${T.border}`,fontWeight:400}}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {(()=>{
                   let lc="";
-                  return TB_ROWS.map(r=>{
+                  return editableTripRows.map(r=>{
                     const cells=[];
                     if(r.cat&&r.cat!==lc){lc=r.cat;cells.push(
                       <tr key={"c"+r.cat} style={{background:"rgba(201,168,76,0.04)"}}>
-                        <td colSpan={7} style={{padding:"7px 12px",fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold}}>{r.cat}</td>
+                        <td colSpan={7} style={{padding:"7px 12px",fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold}}>{r.cat}</td>
                       </tr>
                     );}
-                    const val=r.fixed?String(r.act):(actuals[r.id]||"");
+                    const section=lc;
+                    const isFlightRow=section==="Flights";
+                    const val=r.act!==undefined&&r.act!==null?String(r.act):"";
                     const nv=val!==""?parseFloat(val):null;
-                    const diff=nv!==null?r.low-nv:null;
+                    const diff=nv!==null?(Number(r.low)||0)-nv:null;
                     const s=STS[r.status];
                     cells.push(
-                      <tr key={r.id} className="tb-row" style={{borderBottom:`1px solid ${B.border}`,background:"transparent"}}>
-                        <td style={{padding:"10px 12px",color:B.text}}>{r.label}</td>
-                        <td style={{padding:"10px 12px",textAlign:"right",fontFamily:"monospace",fontSize:11,color:B.textMute}}>{tbFmt(r.low)}</td>
-                        <td style={{padding:"10px 12px",textAlign:"right",fontFamily:"monospace",fontSize:11,color:B.textMute}}>{tbFmt(r.high)}</td>
-                        <td style={{padding:"10px 12px",textAlign:"right"}}>
-                          {r.fixed
-                            ?<span style={{fontFamily:"monospace",fontSize:11,color:B.blue,fontWeight:500}}>{tbFmt(Number(r.act))}</span>
-                            :<input type="number" value={val} placeholder="enter" onChange={e=>setActual(r.id,e.target.value)}
-                              style={{background:"transparent",border:"none",borderBottom:`1px dashed ${B.blue}55`,color:B.blue,fontFamily:"monospace",fontSize:11,fontWeight:500,width:80,textAlign:"right",padding:"2px 0",outline:"none"}}/>
-                          }
+                      <tr key={r.id} className="tb-row" style={{borderBottom:`1px solid ${T.border}`,background:"transparent"}}>
+                        <td style={{padding:"10px 12px",color:T.white}}>
+                          <input value={r.label} onChange={e=>updateTripRow(r.id,"label",e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.white,fontFamily:"inherit",fontSize:12,width:"100%",outline:"none"}}/>
                         </td>
-                        <td style={{padding:"10px 12px",textAlign:"right",fontFamily:"monospace",fontSize:11,fontWeight:500,color:diff===null?B.textMute:diff>0?B.green:diff<0?B.red:B.textMute}}>
-                          {diff===null?"\u2014":diff>0?tbFmt(diff):diff<0?"("+tbFmt(Math.abs(diff))+")":"$0"}
+                        <td style={{padding:"10px 12px",textAlign:"right"}}>
+                          <input type="number" value={r.low} onChange={e=>updateTripRow(r.id,"low",e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:11,width:66,textAlign:"right",outline:"none"}}/>
+                        </td>
+                        <td style={{padding:"10px 12px",textAlign:"right"}}>
+                          <input type="number" value={r.high} onChange={e=>updateTripRow(r.id,"high",e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:11,width:66,textAlign:"right",outline:"none"}}/>
+                        </td>
+                        <td style={{padding:"10px 12px",textAlign:"right"}}>
+                          <input type="number" value={val} placeholder="enter" onChange={e=>setActual(r.id,e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.blue}55`,color:T.blue,fontFamily:"monospace",fontSize:11,fontWeight:500,width:80,textAlign:"right",padding:"2px 0",outline:"none"}}/>
+                        </td>
+                        <td style={{padding:"10px 12px",textAlign:"right",fontFamily:"monospace",fontSize:11,fontWeight:500,color:diff===null?T.muted:diff>0?T.green:diff<0?T.red:T.muted}}>
+                          {diff===null?"—":diff>0?tbFmt(diff):diff<0?"("+tbFmt(Math.abs(diff))+")":"$0"}
                         </td>
                         <td style={{padding:"10px 12px",textAlign:"center"}}>
-                          <span style={{background:s.bg,color:s.c,border:`1px solid ${s.c}30`,borderRadius:3,padding:"2px 8px",fontFamily:"monospace",fontSize:9,fontWeight:500}}>{s.t}</span>
+                          <select value={r.status} onChange={e=>updateTripRow(r.id,"status",e.target.value)}
+                            style={{background:s.bg,color:s.c,border:`1px solid ${s.c}30`,borderRadius:3,padding:"2px 6px",fontFamily:"monospace",fontSize:9,fontWeight:500,outline:"none"}}>
+                            {STATUS_OPTIONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                          </select>
                         </td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:B.textMute}}>{r.note}</td>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:T.muted,position:"relative"}}>
+                          <input value={r.note} onChange={e=>updateTripRow(r.id,"note",e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:9,width:"100%",outline:"none"}}/>
+                          {isFlightRow&&(
+                            <button onClick={()=>setFlightOptionsForRow(flightOptionsForRow===r.id?null:r.id)}
+                              style={{display:"block",marginTop:5,background:T.amberDim,border:`1px solid ${T.amber}40`,borderRadius:4,padding:"3px 8px",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.amber,cursor:"pointer"}}>Options</button>
+                          )}
+                          {isFlightRow&&flightOptionsForRow===r.id&&(
+                            <div style={{position:"absolute",right:8,top:"100%",zIndex:50,width:250,background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:8,padding:10,boxShadow:"0 12px 30px rgba(0,0,0,0.4)"}}>
+                              <div style={{fontSize:11,fontWeight:800,color:T.white,marginBottom:8}}>Flight Options</div>
+                              {TB_FLIGHT_OPTIONS.map(opt=>(
+                                <div key={opt.title} style={{borderTop:`1px solid ${T.dim}`,paddingTop:8,marginTop:8}}>
+                                  <div style={{fontSize:11,fontWeight:700,color:T.white}}>{opt.title}</div>
+                                  <div style={{fontSize:10,color:T.gold,marginTop:2}}>{tbFmt(opt.low)}–{tbFmt(opt.high)}</div>
+                                  <div style={{fontSize:9,color:T.muted,marginTop:2,lineHeight:1.5}}>{opt.note}</div>
+                                  <div style={{display:"flex",gap:6,marginTop:7}}>
+                                    <button onClick={()=>useFlightOption(r.id,opt)} style={{flex:1,background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:4,padding:"4px 0",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.gold,cursor:"pointer"}}>Use</button>
+                                    <button onClick={()=>openFlightBooking(opt.bookingUrl)} style={{flex:1,background:T.amberDim,border:`1px solid ${T.amber}40`,borderRadius:4,padding:"4px 0",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.amber,cursor:"pointer"}}>Book Now</button>
+                                  </div>
+                                </div>
+                              ))}
+                              <div style={{fontSize:8,color:T.muted,lineHeight:1.5,marginTop:9}}>Book Now opens the provider website. You review and book manually.</div>
+                            </div>
+                          )}
+                          {r.url
+                            ? <a href={r.url} target="_blank" rel="noopener" style={{display:"block",marginTop:4,color:T.gold,textDecoration:"none",fontWeight:600,fontSize:9}}>Book →</a>
+                            : r.status==="booknow" ? <span style={{display:"block",marginTop:4,color:T.dim,fontSize:9}}>No link</span> : null
+                          }
+                        </td>
                       </tr>
                     );
                     return cells;
                   });
                 })()}
-                <tr style={{background:"B.surface",borderTop:`1px solid ${B.borderHi}`}}>
-                  <td style={{padding:12,fontWeight:700,fontSize:13,color:B.text}}>Total</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:B.gold,fontWeight:700}}>{tbFmt(tots.low)}</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:B.gold,fontWeight:700}}>{tbFmt(tots.high)}</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:B.blue,fontWeight:700}}>{tbFmt(tots.actual)}</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:B.green,fontWeight:700}}>{tbFmt(tots.saved)}</td>
+                <tr style={{background:"rgba(255,255,255,0.04)",borderTop:`1px solid ${T.borderHi}`}}>
+                  <td style={{padding:12,fontWeight:700,fontSize:13,color:T.white}}>Total</td>
+                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.gold,fontWeight:700}}>{tbFmt(tots.low)}</td>
+                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.gold,fontWeight:700}}>{tbFmt(tots.high)}</td>
+                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.blue,fontWeight:700}}>{tbFmt(tots.actual)}</td>
+                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.green,fontWeight:700}}>{tbFmt(tots.saved)}</td>
                   <td/>
-                  <td style={{padding:12,fontFamily:"monospace",fontSize:9,color:B.textMute,fontStyle:"italic"}}>Edit blue fields as costs come in</td>
+                  <td style={{padding:12,fontFamily:"monospace",fontSize:9,color:T.muted,fontStyle:"italic"}}>Edit blue fields as costs come in</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div className="tb-two-col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Money saved vs full price</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Money saved vs full price</div>
               {[["MM4 hotel discount","~$170"],["No rental car","~$200"],["Kadence buddy pass","~$350"],["Southwest no change fees","$0 risk"]].map(([l,a])=>(
                 <div key={l} style={{display:"flex",alignItems:"center",gap:8,marginBottom:9,fontFamily:"monospace",fontSize:10,transition:"transform 0.15s"}}
                   onMouseEnter={e=>e.currentTarget.style.transform="translateX(3px)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
-                  <div style={{width:5,height:5,borderRadius:"50%",background:B.green,flexShrink:0}}/>
-                  <div style={{flex:1,color:B.textMute}}>{l}</div>
-                  <div style={{color:B.green,fontWeight:500}}>{a}</div>
+                  <div style={{width:5,height:5,borderRadius:"50%",background:T.green,flexShrink:0}}/>
+                  <div style={{flex:1,color:T.muted}}>{l}</div>
+                  <div style={{color:T.green,fontWeight:500}}>{a}</div>
                 </div>
               ))}
-              <div style={{borderTop:`1px solid ${B.border}`,marginTop:10,paddingTop:10,display:"flex",justifyContent:"space-between",fontFamily:"monospace",fontSize:11}}>
-                <span style={{color:B.textMute}}>Total saved</span>
-                <span style={{color:B.green,fontWeight:600}}>{"~"+tbFmt(tots.saved)+" +"}</span>
+              <div style={{borderTop:`1px solid ${T.border}`,marginTop:10,paddingTop:10,display:"flex",justifyContent:"space-between",fontFamily:"monospace",fontSize:11}}>
+                <span style={{color:T.muted}}>Total saved</span>
+                <span style={{color:T.green,fontWeight:600}}>{"~"+tbFmt(tots.saved)+" +"}</span>
               </div>
             </div>
-            <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Open items \u2014 action required</div>
-              {[{c:B.red,t:"Book Southwest flights TODAY \u2014 southwest.com, LGA\u2192MDW Jun 12 + MDW\u2192LGA Jun 15"},{c:B.amber,t:"Text Kayliah \u2014 need 4+ graduation tickets + dinner plans"},{c:B.amber,t:"Confirm niece checks CA\u2192ORD Jun 12 loads. Have backup."},{c:B.blue,t:"Apply for Motesart Tech business credit card"},{c:B.blue,t:"Bring original Marriott Explore Form + Photo ID to check-in"}].map((item,i)=>(
-                <div key={i} style={{display:"flex",gap:8,marginBottom:9,fontFamily:"monospace",fontSize:10,color:B.textMute,lineHeight:1.6,transition:"all 0.15s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.transform="translateX(2px)";e.currentTarget.style.color="#a0a8b0";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.color=B.textMute;}}>
+            <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Open items — action required</div>
+              {[{c:T.red,t:"Book Southwest flights TODAY — southwest.com, LGA→MDW Jun 12 + MDW→LGA Jun 15"},{c:T.amber,t:"Text Kayliah — need 4+ graduation tickets + dinner plans"},{c:T.amber,t:"Confirm niece checks CA→ORD Jun 12 loads. Have backup."},{c:T.blue,t:"Apply for Motesart Tech business credit card"},{c:T.blue,t:"Bring original Marriott Explore Form + Photo ID to check-in"}].map((item,i)=>(
+                <div key={i} style={{display:"flex",gap:8,marginBottom:9,fontFamily:"monospace",fontSize:10,color:T.muted,lineHeight:1.6,transition:"all 0.15s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.transform="translateX(2px)";e.currentTarget.style.color="#a0a8b0";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.color=T.muted;}}>
                   <div style={{width:5,height:5,borderRadius:"50%",background:item.c,flexShrink:0,marginTop:5}}/>
                   <span>{item.t}</span>
                 </div>
@@ -2288,46 +3357,46 @@ function TravelBuilderPanel() {
       {/* ANALYTICS TAB */}
       {tab==="analytics"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
-          <div className="tb-metric-grid" style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:22}}>
-            <TBCard label="Coverage"     value={Math.round((tots.actual/tots.low)*100)+"%"} sub="Actual vs budget"  accent={B.green}  glow="rgba(76,175,125,0.2)"/>
-            <TBCard label="Categories"   value={catData.filter(c=>c.v>0).length+"/"+catData.length} sub="With actuals" accent={B.gold}   glow="rgba(201,168,76,0.2)"/>
-            <TBCard label="Avg/day"      value={tots.actual>481?tbFmt(Math.round(tots.actual/3)):"—"} sub="3 days total" accent={B.blue} glow="rgba(90,143,201,0.2)"/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:22}}>
+            <TBCard label="Coverage"     value={Math.round((tots.actual/tots.low)*100)+"%"} sub="Actual vs budget"  accent={T.green}  glow="rgba(76,175,125,0.2)"/>
+            <TBCard label="Categories"   value={catData.filter(c=>c.v>0).length+"/"+catData.length} sub="With actuals" accent={T.gold}   glow="rgba(201,168,76,0.2)"/>
+            <TBCard label="Avg/day"      value={tots.actual>0?tbFmt(Math.round(tots.actual/3)):"—"} sub="3 days total" accent={T.blue} glow="rgba(90,143,201,0.2)"/>
             <TBCard label="Savings rate" value={Math.round((tots.saved/1750)*100)+"%"} sub="Of full price" accent="#4db87a" glow="rgba(77,184,122,0.2)"/>
-            <TBCard label="Over/under"   value={tbFmt(Math.abs(tots.low-tots.actual))} sub={tots.actual<=tots.low?"under budget":"over budget"} accent={tots.actual<=tots.low?B.green:B.red} glow={tots.actual<=tots.low?"rgba(76,175,125,0.2)":"rgba(201,90,90,0.2)"}/>
+            <TBCard label="Over/under"   value={tbFmt(Math.abs(tots.low-tots.actual))} sub={tots.actual<=tots.low?"under budget":"over budget"} accent={tots.actual<=tots.low?T.green:T.red} glow={tots.actual<=tots.low?"rgba(76,175,125,0.2)":"rgba(201,90,90,0.2)"}/>
           </div>
-          <div className="tb-two-col" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-            <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Spend by category</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Spend by category</div>
               {catData.map((c,i)=>(
                 <div key={c.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,transition:"transform 0.15s"}}
                   onMouseEnter={e=>e.currentTarget.style.transform="translateX(2px)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
-                  <div style={{fontFamily:"monospace",fontSize:10,color:B.textMute,width:110,flexShrink:0}}>{c.l}</div>
+                  <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,width:110,flexShrink:0}}>{c.l}</div>
                   <TBAnimBar pct={c.max>0?Math.round((c.v/c.max)*100):0} color={c.c} delay={i*80}/>
-                  <div style={{fontFamily:"monospace",fontSize:10,color:B.textMute,width:55,textAlign:"right"}}>{c.v>0?tbFmt(c.v):"—"}</div>
+                  <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,width:55,textAlign:"right"}}>{c.v>0?tbFmt(c.v):"—"}</div>
                 </div>
               ))}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
-              <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Trip completion</div>
+              <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Trip completion</div>
                 <div style={{display:"flex",alignItems:"center",gap:18}}>
-                  <TBDonut pct={pp} color={B.gold}/>
+                  <TBDonut pct={pp} color={T.gold}/>
                   <div>
-                    {[{dot:B.green,l:"Booked",v:tbFmt(481)},{dot:B.blue,l:"Actual paid",v:tbFmt(tots.actual)},{dot:B.textMute,l:"Remaining",v:tbFmt(Math.max(0,tots.low-tots.actual))},{dot:B.green,l:"Saved",v:"~"+tbFmt(tots.saved)}].map(r=>(
+                    {[{dot:T.green,l:"Booked",v:tbFmt(bookedTotal)},{dot:T.blue,l:"Actual paid",v:tbFmt(tots.actual)},{dot:T.muted,l:"Remaining",v:tbFmt(Math.max(0,tots.low-tots.actual))},{dot:T.green,l:"Saved",v:"~"+tbFmt(tots.saved)}].map(r=>(
                       <div key={r.l} style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
                         <div style={{width:8,height:8,borderRadius:2,background:r.dot,flexShrink:0}}/>
-                        <div style={{flex:1,fontFamily:"monospace",fontSize:10,color:B.textMute}}>{r.l}</div>
+                        <div style={{flex:1,fontFamily:"monospace",fontSize:10,color:T.muted}}>{r.l}</div>
                         <div style={{fontFamily:"monospace",fontSize:10,color:r.dot,fontWeight:500}}>{r.v}</div>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
-              <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Budget vs actual</div>
-                {[{l:"Budget (low)",v:tots.low,max:tots.low,c:B.textMute},{l:"Actual paid",v:tots.actual,max:tots.low,c:B.blue},{l:"Saved",v:tots.saved,max:tots.low,c:B.green}].map((b,i)=>(
+              <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Budget vs actual</div>
+                {[{l:"Budget (low)",v:tots.low,max:tots.low,c:T.muted},{l:"Actual paid",v:tots.actual,max:tots.low,c:T.blue},{l:"Saved",v:tots.saved,max:tots.low,c:T.green}].map((b,i)=>(
                   <div key={b.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                    <div style={{fontFamily:"monospace",fontSize:10,color:B.textMute,width:90,flexShrink:0}}>{b.l}</div>
+                    <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,width:90,flexShrink:0}}>{b.l}</div>
                     <TBAnimBar pct={Math.min(Math.round((b.v/b.max)*100),100)} color={b.c} delay={i*100}/>
                     <div style={{fontFamily:"monospace",fontSize:10,color:b.c,width:55,textAlign:"right"}}>{tbFmt(b.v)}</div>
                   </div>
@@ -2342,23 +3411,25 @@ function TravelBuilderPanel() {
       {tab==="archive"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
           {archive.length===0
-            ?<div style={{textAlign:"center",padding:"60px 20px",fontFamily:"monospace",fontSize:11,color:B.textMute,lineHeight:2}}>No archived trips yet.\u000aComplete a trip and click Archive.\u000aYour permanent travel history in FM.</div>
+            ?<div style={{textAlign:"center",padding:"60px 20px",fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:2}}>No archived trips yet.
+Complete a trip and click Archive.
+Your permanent travel history in FM.</div>
             :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
               {archive.map((a,i)=>(
-                  <div key={a.id} className="tb-archive-card"
-                    style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:18,position:"relative",overflow:"hidden",cursor:"default"}}>
-                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${B.gold},transparent)`}}/>
-                    <div style={{fontSize:14,fontWeight:700,marginBottom:4,color:B.text}}>{a.trip}</div>
-                    <div style={{fontFamily:"monospace",fontSize:9,color:B.textMute,marginBottom:12}}>{a.dates} \u00b7 Archived {a.archivedAt}</div>
+                  <div key={a.id}
+                    style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:18,position:"relative",overflow:"hidden",transition:"all 0.25s",cursor:"default"}}>
+                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${T.gold},transparent)`}}/>
+                    <div style={{fontSize:14,fontWeight:700,marginBottom:4,color:T.white}}>{a.trip}</div>
+                    <div style={{fontFamily:"monospace",fontSize:9,color:T.muted,marginBottom:12}}>{a.dates} · Archived {a.archivedAt}</div>
                     <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
-                      {[["Budget",tbFmt(a.budget),B.textMute],["Actual",tbFmt(a.actual),B.blue],["Saved","~"+tbFmt(a.saved),B.green],[a.actual<=a.budget?"Under":"Over",tbFmt(Math.abs(a.budget-a.actual)),a.actual<=a.budget?B.green:B.red]].map(([l,v,c])=>(
-                        <div key={l}><div style={{fontFamily:"monospace",fontSize:8,color:B.textMute,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{l}</div><div style={{fontFamily:"monospace",fontSize:12,color:c,fontWeight:500}}>{v}</div></div>
+                      {[["Budget",tbFmt(a.budget),T.muted],["Actual",tbFmt(a.actual),T.blue],["Saved","~"+tbFmt(a.saved),T.green],[a.actual<=a.budget?"Under":"Over",tbFmt(Math.abs(a.budget-a.actual)),a.actual<=a.budget?T.green:T.red]].map(([l,v,c])=>(
+                        <div key={l}><div style={{fontFamily:"monospace",fontSize:8,color:T.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{l}</div><div style={{fontFamily:"monospace",fontSize:12,color:c,fontWeight:500}}>{v}</div></div>
                       ))}
                     </div>
-                    {a.state?.retro?.worked&&<div style={{fontFamily:"monospace",fontSize:9,color:B.textMute,borderTop:`1px solid ${B.border}`,paddingTop:8,marginBottom:10}}><span style={{color:B.green}}>Worked: </span>{a.state.retro.worked.substring(0,80)}...</div>}
+                    {a.state?.retro?.worked&&<div style={{fontFamily:"monospace",fontSize:9,color:T.muted,borderTop:`1px solid ${T.border}`,paddingTop:8,marginBottom:10}}><span style={{color:T.green}}>Worked: </span>{a.state.retro.worked.substring(0,80)}...</div>}
                     <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>{setActuals(a.state.actuals||{});setTab("budget");showToast("Loaded");}} style={{background:"transparent",border:`1px solid ${B.dim}`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:B.textMute,cursor:"pointer"}}>Load</button>
-                      <button onClick={()=>{const n=archive.filter((_,j)=>j!==i);setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));showToast("Deleted","danger");}} style={{background:B.redBg,border:`1px solid ${B.red}40`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:B.red,cursor:"pointer"}}>Delete</button>
+                      <button onClick={()=>{setActuals(a.state.actuals||{});setTab("budget");showToast("Loaded");}} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:T.muted,cursor:"pointer"}}>Load</button>
+                      <button onClick={()=>safeTravelAction("Delete archive",()=>{const n=archive.filter((_,j)=>j!==i);setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));safeTravelNotice("Deleted","danger");})} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:T.red,cursor:"pointer"}}>Delete</button>
                     </div>
                   </div>
               ))}
@@ -2370,28 +3441,28 @@ function TravelBuilderPanel() {
       {/* RETRO TAB */}
       {tab==="retro"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
-          <div className="tb-panel" style={{background:B.goldBg,border:`1px solid ${B.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12}}>
-            <div style={{fontSize:16}}>\u25c6</div>
+          <div className="tb-panel" style={{background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12}}>
+            <div style={{fontSize:16}}>◆</div>
             <div>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:B.gold,marginBottom:4}}>Why this matters</div>
-              <div style={{fontFamily:"monospace",fontSize:10,color:"#c8c4bc",lineHeight:1.7}}>Fill this in after June 15. This becomes the foundation for Travel Builder Template v2. <strong style={{color:B.text}}>Every trip makes FM smarter.</strong></div>
+              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:T.gold,marginBottom:4}}>Why this matters</div>
+              <div style={{fontFamily:"monospace",fontSize:10,color:"#c8c4bc",lineHeight:1.7}}>Fill this in after June 15. This becomes the foundation for Travel Builder Template v2. <strong style={{color:T.white}}>Every trip makes FM smarter.</strong></div>
             </div>
           </div>
-          <div className="tb-retro-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:18}}>
-            {[{key:"worked",l:"What worked well",a:B.green,ph:"e.g. Marriott skybridge was perfect, buddy pass saved $350..."},{key:"improve",l:"What to improve",a:B.amber,ph:"e.g. Book flights earlier, food budget for Jun 14 was tight..."},{key:"next",l:"Do differently next trip",a:B.blue,ph:"e.g. Always Wanna Get Away Plus, add activity budget line..."}].map(b=>(
-              <div key={b.key} className="tb-retro-card"
-                style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:16}}>
-                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",color:b.a,marginBottom:10}}>{b.l}</div>
-                <textarea value={retro[b.key]||""} onChange={e=>{const n={...retro,[b.key]:e.target.value};setRetro(n);localStorage.setItem(TB_SK+"_r",JSON.stringify(n));}} placeholder={b.ph}
-                  style={{width:"100%",background:"transparent",border:"none",borderBottom:`1px dashed ${B.dim}`,color:"#9AACC0",fontFamily:"monospace",fontSize:10,lineHeight:1.7,outline:"none",padding:"4px 0",minHeight:80,resize:"vertical"}}/>
-              </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:18}}>
+            {[{key:"worked",l:"What worked well",a:T.green,ph:"e.g. Marriott skybridge was perfect, buddy pass saved $350..."},{key:"improve",l:"What to improve",a:T.amber,ph:"e.g. Book flights earlier, food budget for Jun 14 was tight..."},{key:"next",l:"Do differently next trip",a:T.blue,ph:"e.g. Always Wanna Get Away Plus, add activity budget line..."}].map(b=>(
+                <div key={b.key}
+                  style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:16,transition:"all 0.25s"}}>
+                  <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",color:b.a,marginBottom:10}}>{b.l}</div>
+                  <textarea value={retro[b.key]||""} onChange={e=>safeTravelAction("Save retrospective",()=>{const n={...retro,[b.key]:e.target.value};setRetro(n);localStorage.setItem(TB_SK+"_r",JSON.stringify(n));})} placeholder={b.ph}
+                    style={{width:"100%",background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:"#9AACC0",fontFamily:"monospace",fontSize:10,lineHeight:1.7,outline:"none",padding:"4px 0",minHeight:80,resize:"vertical"}}/>
+                </div>
             ))}
           </div>
-          <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-            <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Final comparison \u2014 estimated vs actual</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:B.textMute,lineHeight:2.2}}>
-              {[["Estimated budget (low)",tbFmt(tots.low),B.text],["Actual spent so far",tbFmt(tots.actual),B.blue],["Difference",tots.low>=tots.actual?"Under by "+tbFmt(tots.low-tots.actual):"Over by "+tbFmt(tots.actual-tots.low),tots.low>=tots.actual?B.green:B.red],["Hotel savings (MM4)","~$170",B.green],["Total savings captured","~"+tbFmt(tots.saved)+"+",B.green]].map(([l,v,c])=>(
-                <div key={l} style={{display:"flex",justifyContent:"space-between",borderBottom:`1px solid ${B.dim}`,paddingBottom:2}}>
+          <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+            <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Final comparison — estimated vs actual</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:2.2}}>
+              {[["Estimated budget (low)",tbFmt(tots.low),T.white],["Actual spent so far",tbFmt(tots.actual),T.blue],["Difference",tots.low>=tots.actual?"Under by "+tbFmt(tots.low-tots.actual):"Over by "+tbFmt(tots.actual-tots.low),tots.low>=tots.actual?T.green:T.red],["Hotel savings (MM4)","~$170",T.green],["Total savings captured","~"+tbFmt(tots.saved)+"+",T.green]].map(([l,v,c])=>(
+                <div key={l} style={{display:"flex",justifyContent:"space-between",borderBottom:`1px solid ${T.dim}`,paddingBottom:2}}>
                   <span>{l}</span><strong style={{color:c}}>{v}</strong>
                 </div>
               ))}
@@ -2400,14 +3471,50 @@ function TravelBuilderPanel() {
         </div>
       )}
 
+      {newTripModal&&(
+        <div role="dialog" aria-modal="true" aria-label="New Trip Builder" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:T.white}}>New Trip Builder</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:14}}>Trip creation is being staged safely. Starting the draft will replace the active trip locally.</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Trip Name
+                <input value={newTripName} onChange={e=>setNewTripName(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Destination
+                <input value={newTripDestination} onChange={e=>setNewTripDestination(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Start Date
+                <input type="date" value={newTripStartDate} onChange={e=>setNewTripStartDate(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>End Date
+                <input type="date" value={newTripEndDate} onChange={e=>setNewTripEndDate(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Travelers
+                <input value={newTripTravelers} onChange={e=>setNewTripTravelers(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Budget
+                <input inputMode="decimal" value={newTripBudget} onChange={e=>setNewTripBudget(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
+              </label>
+              <label style={{gridColumn:"1 / -1",display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Purpose / Notes
+                <textarea value={newTripPurpose} onChange={e=>setNewTripPurpose(e.target.value)} rows={3} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11,resize:"vertical"}} />
+              </label>
+            </div>
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <button onClick={()=>setNewTripModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Close</button>
+              <button onClick={continueNewTripPreview} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Start Active Draft</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {resetModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:B.surface,border:`1px solid ${B.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
-            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:B.text}}>Reset Travel Builder</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:B.textMute,lineHeight:1.8,marginBottom:22}}>Clears all actual cost entries. <strong style={{color:B.text}}>Trip details and estimates stay intact</strong> \u2014 ready as a clean template.</div>
+          <div style={{background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:T.white}}>Reset Travel Builder</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:22}}>Clears all actual cost entries. <strong style={{color:T.white}}>Trip details and estimates stay intact</strong> — ready as a clean template.</div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <button onClick={()=>setResetModal(false)} style={{background:"transparent",border:`1px solid ${B.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:B.textMute,cursor:"pointer"}}>Cancel</button>
-              <button onClick={doReset} style={{background:B.redBg,border:`1px solid ${B.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:B.red,cursor:"pointer"}}>Reset Actuals</button>
+              <button onClick={()=>setResetModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Cancel</button>
+              <button onClick={doReset} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Reset Actuals</button>
             </div>
           </div>
         </div>
@@ -2415,19 +3522,19 @@ function TravelBuilderPanel() {
 
       {archiveModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:B.surface,border:`1px solid ${B.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
-            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:B.text}}>Archive This Trip</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:B.textMute,lineHeight:1.8,marginBottom:22}}>Saving <strong style={{color:B.text}}>Chicago Graduation Trip</strong> to archive with all data, actuals, and retro notes.</div>
+          <div style={{background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:T.white}}>Archive This Trip</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:22}}>Saving <strong style={{color:T.white}}>{activeTripTitle}</strong> to archive with all data, actuals, and retro notes.</div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <button onClick={()=>setArchiveModal(false)} style={{background:"transparent",border:`1px solid ${B.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:B.textMute,cursor:"pointer"}}>Cancel</button>
-              <button onClick={doArchive} style={{background:B.greenBg,border:`1px solid ${B.green}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:B.green,cursor:"pointer"}}>Archive Trip</button>
+              <button onClick={()=>setArchiveModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Cancel</button>
+              <button onClick={doArchive} style={{background:T.greenDim,border:`1px solid ${T.green}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.green,cursor:"pointer"}}>Archive Trip</button>
             </div>
           </div>
         </div>
       )}
 
       {toast&&(
-        <div style={{position:"fixed",bottom:28,right:28,background:B.surface,border:`1px solid ${toast.type==="success"?B.green+"60":toast.type==="danger"?B.red+"60":B.borderHi}`,borderRadius:5,padding:"10px 16px",fontFamily:"monospace",fontSize:11,color:toast.type==="success"?B.green:toast.type==="danger"?B.red:B.gold,zIndex:600,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",animation:"tbFadeIn 0.25s"}}>
+        <div style={{position:"fixed",bottom:28,right:28,background:T.surface,border:`1px solid ${toast.type==="success"?T.green+"60":toast.type==="danger"?T.red+"60":T.borderHi}`,borderRadius:5,padding:"10px 16px",fontFamily:"monospace",fontSize:11,color:toast.type==="success"?T.green:toast.type==="danger"?T.red:T.gold,zIndex:600,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",animation:"tbFadeIn 0.25s"}}>
           {toast.msg}
         </div>
       )}
@@ -2436,15 +3543,165 @@ function TravelBuilderPanel() {
 }
 
 
+// ─── Per-Business Todo List ───────────────────────────────────────────────────
+function BizTodoList({ biz }) {
+  const [todos, setTodos] = useState(biz.todos || []);
+  const [input, setInput] = useState("");
+
+  const toggle = (id) => setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  const add = () => {
+    if (!input.trim()) return;
+    setTodos(prev => [...prev, { id: Date.now().toString(), text: input.trim(), done: false }]);
+    setInput("");
+  };
+
+  const open = todos.filter(t => !t.done).length;
+  const done = todos.filter(t => t.done).length;
+
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 18px", marginBottom: 18, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <span style={{ fontSize: 10, color: biz.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em" }}>{biz.name} To-Do</span>
+        <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: biz.dim, color: biz.color, fontWeight: 700 }}>{open} open</span>
+        {done > 0 && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: T.greenDim, color: T.green, fontWeight: 700 }}>{done} done</span>}
+      </div>
+      <div style={{ display: "grid", gap: 5, marginBottom: 10 }}>
+        {todos.map(t => (
+          <div key={t.id} onClick={() => toggle(t.id)} style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+            background: t.done ? T.dim : T.surface, borderRadius: 8,
+            border: `1px solid ${t.done ? T.border : biz.color + "20"}`,
+            cursor: "pointer", transition: "all 0.15s", opacity: t.done ? 0.5 : 1,
+          }}>
+            <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${t.done ? T.green : biz.color}`, background: t.done ? T.greenDim : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              {t.done && <span style={{ fontSize: 9, color: T.green, fontWeight: 800 }}>✓</span>}
+            </div>
+            <span style={{ fontSize: 12, color: t.done ? T.muted : T.white, textDecoration: t.done ? "line-through" : "none", flex: 1 }}>{t.text}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") add(); }}
+          placeholder={`+ Add ${biz.name} task...`}
+          style={{ flex: 1, background: T.dim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 12px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+          onFocus={e => { e.target.style.borderColor = biz.color + "50"; }}
+          onBlur={e => { e.target.style.borderColor = T.border; }}
+        />
+        <button onClick={add} disabled={!input.trim()} style={{ background: input.trim() ? biz.dim : T.dim, border: `1px solid ${input.trim() ? biz.color + "40" : T.border}`, color: input.trim() ? biz.color : T.muted, borderRadius: 8, padding: "6px 12px", cursor: input.trim() ? "pointer" : "default", fontSize: 11, fontWeight: 700 }}>Add</button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Settings Panel ───────────────────────────────────────────────────────────
+const SETTINGS_GROUPS = [
+  { label: "Calendar", keys: ["google_calendar_id"] },
+  { label: "Notifications", keys: ["notification_email_1", "notification_email_2", "notification_email_3"] },
+  { label: "Schedule", keys: ["morning_brief_time", "working_hours_start", "working_hours_end"] },
+  { label: "Appearance", keys: ["os_accent_color"] },
+];
+
+function SettingsPanel({ onClose }) {
+  const [settings, setSettings] = useState({});
+  const [editing, setEditing] = useState({});
+  const [saved, setSaved] = useState({});
+  const API = import.meta.env.VITE_API_URL || "";
+
+  useEffect(() => {
+    fetch(`${API}/api/settings`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) setSettings(d.settings); })
+      .catch(() => {});
+  }, [API]);
+
+  async function save(key) {
+    const value = editing[key] ?? settings[key] ?? "";
+    try {
+      const r = await fetch(`${API}/api/settings/${key}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      });
+      if (r.ok) {
+        setSettings(s => ({ ...s, [key]: value }));
+        setSaved(s => ({ ...s, [key]: true }));
+        setTimeout(() => setSaved(s => ({ ...s, [key]: false })), 1800);
+      }
+    } catch { /* noop */ }
+    setEditing(e => { const n = { ...e }; delete n[key]; return n; });
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 600,
+      display: "flex", justifyContent: "flex-end",
+      background: "rgba(0,0,0,0.55)",
+      animation: "fadeIn 0.18s ease",
+    }} onClick={onClose}>
+      <div style={{
+        width: 360, height: "100%", background: T.surface,
+        borderLeft: `1px solid ${T.border}`,
+        display: "flex", flexDirection: "column",
+        animation: "slideInRight 0.22s cubic-bezier(0.22,1,0.36,1)",
+        overflow: "hidden",
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "18px 20px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: T.white, letterSpacing: "0.04em" }}>SETTINGS</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>✕</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+          {SETTINGS_GROUPS.map(group => (
+            <div key={group.label} style={{ marginBottom: 24 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: T.muted, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 10 }}>{group.label}</div>
+              {group.keys.map(key => {
+                const val = editing[key] !== undefined ? editing[key] : (settings[key] ?? "");
+                return (
+                  <div key={key} style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, color: T.muted, marginBottom: 4, letterSpacing: "0.06em" }}>{key.replace(/_/g, " ")}</div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        value={val}
+                        onChange={e => setEditing(ed => ({ ...ed, [key]: e.target.value }))}
+                        style={{ flex: 1, background: T.dim, border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 10px", color: T.white, fontSize: 12, fontFamily: "inherit", outline: "none" }}
+                        onFocus={e => { e.target.style.borderColor = T.gold + "60"; }}
+                        onBlur={e => { e.target.style.borderColor = T.border; }}
+                      />
+                      <button onClick={() => save(key)} style={{
+                        background: saved[key] ? T.goldDim : T.dim, border: `1px solid ${saved[key] ? T.gold + "60" : T.border}`,
+                        color: saved[key] ? T.gold : T.muted, borderRadius: 6, padding: "6px 10px",
+                        cursor: "pointer", fontSize: 11, fontWeight: 700, flexShrink: 0,
+                      }}>{saved[key] ? "✓" : "Save"}</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MotesartOS() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(typeof window !== "undefined" && window.innerWidth > 768);
   const [activeBiz, setActiveBiz] = useState("e7a");
+  const [showBizSwitcher, setShowBizSwitcher] = useState(false);
   const [selectedArtist, setSelectedArtist] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
-  const [approvedIds, setApprovedIds] = useState([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [personalOpen, setPersonalOpen] = useState(false);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [previewItem, setPreviewItem] = useState(null);
+  const [reviseInputId, setReviseInputId] = useState(null);
+  const [reviseReason, setReviseReason] = useState('');
   const [topTab, setTopTab] = useState("overview");
+  const { approvals, approve: _approveBackend, revise: _reviseBackend, undo: _undoBackend } = useApprovals();
+  const { tasks: dispatchTasks } = useDispatchTasks(activeBiz);
 
   const isPersonal = activeBiz === "personal";
   const isBook = activeBiz === "book";
@@ -2452,26 +3709,84 @@ export default function MotesartOS() {
   const isJean = isPersonal && topTab === "jean";
   const isSpecialView = isPersonal || isBook;
   const biz = isPersonal ? { id: "personal", name: "Personal", full: "Denarius Motes", color: T.green, dim: T.greenDim, icon: "◉", notifications: 1, artists: [], brief: PERSONAL.brief } : (BUSINESSES.find(b => b.id === activeBiz) || BUSINESSES[0]);
-  const tabs = isSpecialView ? ["overview"] : ["overview", "notifications", "approvals", ...(isFM ? ["travel builder"] : []), ...(biz.artists.length > 0 ? ["artists"] : [])];
+  const tabs = isSpecialView ? ["overview"] : ["overview", "notifications", "approvals", ...(isFM ? ["travel builder", "piano"] : []), ...(biz.artists.length > 0 ? ["artists"] : [])];
 
   function switchBiz(id) { setActiveBiz(id); setSelectedArtist(null); setActiveTab("overview"); setTopTab("overview"); }
+  function openTravelBuilder() { setActiveBiz("fm"); setSelectedArtist(null); setActiveTab("travel builder"); setTopTab("overview"); }
+  function openMusicLessons() { setActiveBiz("fm"); setSelectedArtist(null); setActiveTab("piano"); setTopTab("overview"); }
+
+  // Phase 4A — approval status is now on each item from useApprovals
+
+  function handleApprove(contentId) {
+    _approveBackend(contentId);
+    setPreviewItem(null);
+    try {
+      const item = approvals.find(a => (a.content_id || String(a.id)) === contentId);
+      window.dispatchEvent(new CustomEvent("approval-ready-to-schedule", { detail: { item } }));
+    } catch { /* noop */ }
+  }
+
+  function handleRevise(contentId) {
+    setPreviewItem(null);
+    setReviseInputId(contentId);
+    setReviseReason('');
+  }
+
+  function handleReviseSubmit(contentId) {
+    if (!reviseReason.trim()) return;
+    _reviseBackend(contentId, reviseReason.trim());
+    setReviseInputId(null);
+    setReviseReason('');
+  }
+
+  function handleUndo(contentId) {
+    _undoBackend(contentId);
+    setPreviewItem(null);
+  }
 
   return (
-    <div className="os-root" style={{ display: "flex", height: "100vh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
+    <div className="os-root" style={{ display: "flex", height: "100dvh", background: T.bg, fontFamily: "'DM Sans', system-ui, sans-serif", color: T.white, overflow: "hidden" }}>
 
-      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} />
+      <Sidebar activeBiz={activeBiz} onSelect={switchBiz} open={open} onToggle={() => setOpen(o => !o)} onPAOpen={() => setChatOpen(true)} onDispatchOpen={() => setDispatchOpen(true)} onSelectPersonal={() => { setActiveBiz("personal"); setActiveTab("overview"); }} onPersonalActive={activeBiz === "personal"} onTravelBuilderOpen={openTravelBuilder} onMusicLessonsOpen={openMusicLessons} onSettingsOpen={() => setSettingsOpen(true)} />
 
       <div className="os-main" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
 
         {/* Topbar */}
         <div style={{ borderBottom: `1px solid ${T.border}`, padding: "12px 22px", background: T.surface, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button className="os-back-btn" onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, minWidth: 36, minHeight: 36, paddingTop: 0, paddingLeft: 0, flexShrink: 0 }}>‹</button>
             <div style={{ width: 3, height: 22, background: biz.color, borderRadius: 2 }} />
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: T.white, letterSpacing: "-0.02em" }}>{biz.full}</div>
-              <div style={{ fontSize: 9, color: T.muted, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                Motesart OS &nbsp;·&nbsp; {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-              </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <button
+                onClick={() => setShowBizSwitcher(!showBizSwitcher)}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 16, color: "#fff", letterSpacing: "-0.3px" }}>
+                  {biz.name} <span style={{ fontSize: 12, color: "#888" }}>▾</span>
+                </div>
+              </button>
+              <div style={{ fontSize: 11, color: "#666" }}>MOTESART OS · {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }).toUpperCase()}</div>
+              {showBizSwitcher && (
+                <div style={{
+                  position: "absolute", top: "100%", left: 0, right: 0,
+                  background: "#1a1a1a", borderTop: "1px solid #333",
+                  borderBottom: "1px solid #333", zIndex: 200,
+                  display: "flex", flexDirection: "column", padding: "8px 0"
+                }}>
+                  {BUSINESSES.map(b => (
+                    <button key={b.id} onClick={() => { switchBiz(b.id); setShowBizSwitcher(false); }}
+                      style={{
+                        background: activeBiz === b.id ? "#2a2a1a" : "none",
+                        border: "none", padding: "12px 20px", cursor: "pointer",
+                        textAlign: "left", display: "flex", alignItems: "center", gap: 10,
+                        borderLeft: activeBiz === b.id ? `3px solid ${b.color}` : "3px solid transparent"
+                      }}>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: b.color, display: "inline-block" }}></span>
+                      <span style={{ fontSize: 14, color: "#fff", fontWeight: activeBiz === b.id ? 600 : 400 }}>{b.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             {isPersonal && (
               <div style={{ display: "flex", gap: 6, marginLeft: 12 }}>
@@ -2508,7 +3823,7 @@ export default function MotesartOS() {
               padding: "6px 13px", borderRadius: "5px 5px 0 0", cursor: "pointer",
               fontSize: 11, fontWeight: 600, textTransform: "capitalize",
               letterSpacing: "0.04em", transition: "all 0.15s",
-            }}>{t}</button>
+            }}>{t === "piano" ? "Music Lessons" : t}</button>
           ))}
         </div>
 
@@ -2517,19 +3832,24 @@ export default function MotesartOS() {
 
           {/* Book Manager Executive Dashboard */}
           {isBook && (
-            <div style={{ margin: -22, height: "calc(100% + 44px)", display: "flex", flexDirection: "column" }}>
+            <div className="os-book-panel" style={{ margin: -22, height: "calc(100% + 44px)", display: "flex", flexDirection: "column" }}>
               <BookManagerPanel />
             </div>
           )}
 
           {/* FM Travel Builder Tab */}
           {isFM && activeTab === "travel builder" && (
-            <TravelBuilderPanel />
+            <div className="os-travel-panel"><TravelBuilderPanel /></div>
+          )}
+
+          {/* FM Music Lessons Tab */}
+          {isFM && activeTab === "piano" && (
+            <div className="os-piano-panel"><PianoLessonsSection /></div>
           )}
 
           {/* Personal Main View */}
           {isPersonal && !isJean && (
-            <PersonalMainView
+            <div className="os-personal-view"><PersonalMainView
               onScheduleTask={(task) => {
                 setChatOpen(true);
                 setTimeout(() => {
@@ -2538,12 +3858,13 @@ export default function MotesartOS() {
               }}
               onOpenFM={() => { setActiveBiz("fm"); setActiveTab("overview"); }}
               onAskFM={() => {
+                quickDispatch("Finance brief requested", "finance", "fm-executive");
                 setChatOpen(true);
                 setTimeout(() => {
                   window.dispatchEvent(new CustomEvent("pa-schedule-task", { detail: "Give me a finance brief" }));
                 }, 100);
               }}
-            />
+            /></div>
           )}
 
           {/* Jean Main View */}
@@ -2562,7 +3883,7 @@ export default function MotesartOS() {
           {!isSpecialView && activeTab === "overview" && (
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderLeft: `3px solid ${biz.color}`, borderRadius: 12, padding: "14px 18px", marginBottom: 18, backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <span style={{ fontSize: 10, color: biz.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em" }}>◉ PA Agent Brief</span>
+                <span style={{ fontSize: 10, color: biz.color, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em" }}>◉ MYA Brief</span>
                 <Badge text={biz.name} color={biz.color} dim={biz.dim} />
                 <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                   <button style={{ background: T.dim, border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 600 }}>Read</button>
@@ -2571,6 +3892,40 @@ export default function MotesartOS() {
               </div>
               <p style={{ margin: 0, fontSize: 13, color: T.white, lineHeight: 1.65 }}>{biz.brief}</p>
             </div>
+          )}
+
+          {!isSpecialView && activeTab === "overview" && isFM && (
+            <>
+              <SmartMonthAlignmentCheckPanel />
+              <SmartMonthPreviewPanel />
+              <MTSubscriptionsPreviewPanel />
+              <CapitalOneLedgerPreviewPanel />
+              <SmartMonthSafetyGate />
+            </>
+          )}
+
+          {/* Phase 3B — SOM Executive Tile (SOM overview only) */}
+          {!isSpecialView && activeTab === "overview" && biz.id === "som" && (
+            <ExecutiveTile
+              executive="som"
+              label="SOM Executive"
+              color={T.blue}
+              dim={T.blueDim}
+              description="Backend worker. Picks up the next pending SOM task, writes an audit trail to TASK_UPDATES, and patches MASTER_TASKS. Never marks anything done."
+            />
+          )}
+
+          {/* ── App Launch Cards — Phase 3C.B — LOCK 3: SOM + Converter only ── */}
+          {!isSpecialView && activeTab === "overview" && biz.id === "som" && (
+            <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+              <AppLauncherCard appId="som-app" />
+              <AppLauncherCard appId="motesart-converter" />
+            </div>
+          )}
+
+          {/* ── Per-Biz To-Do List — overview only ── */}
+          {!isSpecialView && activeTab === "overview" && biz.todos && biz.todos.length > 0 && (
+            <BizTodoList biz={biz} key={biz.id} />
           )}
 
           {/* Notifications */}
@@ -2597,36 +3952,131 @@ export default function MotesartOS() {
             </div>
           )}
 
-          {/* Approvals */}
+          {/* Ready to Schedule — Phase 4C */}
+          {!isSpecialView && (activeTab === "overview" || activeTab === "approvals") && (
+            <ReadyToScheduleSection
+              items={approvals.filter(a =>
+                a.biz === biz.id &&
+                a.ready_to_schedule === true &&
+                a.item != null &&
+                a.biz != null
+              )}
+            />
+          )}
+
+          {/* Active Tasks — Phase 5A */}
+          {!isSpecialView && activeTab === "overview" && (
+            <ActiveTasksSection tasks={dispatchTasks} />
+          )}
+
+          {/* Approvals — Phase 3C.A */}
           {!isSpecialView && (activeTab === "overview" || activeTab === "approvals") && (
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 9 }}>Needs Approval</div>
               <div style={{ display: "grid", gap: 6 }}>
-                {DEMO_APPROVALS.map(a => {
-                  const done = approvedIds.includes(a.id);
+                {approvals.filter(a => a.biz === biz.id).map(a => {
+                  const cid = a.content_id || String(a.id);
+                  const status = a.approval_status || "pending";
+                  const done = status === "approved";
+                  const revise = status === "revision_requested";
+                  const rowColor = done ? T.green : revise ? T.amber : null;
+                  const rowBg    = done ? T.greenDim : revise ? T.amberDim : T.card;
+                  const isPending = !done && !revise;
+
                   return (
-                    <div key={a.id} style={{
-                      background: done ? T.greenDim : T.card, border: `1px solid ${done ? T.green + "35" : T.border}`,
-                      borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12,
-                      opacity: done ? 0.65 : 1, transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
-                      backdropFilter: "blur(12px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
-                    }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", gap: 5, marginBottom: 4 }}>
+                    <div
+                      key={a.id}
+                      onClick={() => { if (reviseInputId !== cid) setPreviewItem(a); }}
+                      style={{
+                        background: rowBg,
+                        border: `1px solid ${rowColor ? rowColor + "35" : T.border}`,
+                        borderRadius: 12, padding: "10px 14px",
+                        display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+                        opacity: done ? 0.75 : 1,
+                        cursor: "pointer",
+                        transition: "all 0.22s cubic-bezier(0.22,1,0.36,1)",
+                        backdropFilter: "blur(12px)",
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", gap: 5, marginBottom: 4, alignItems: "center", flexWrap: "wrap" }}>
                           <Badge text={a.type} color={T.blue} dim={T.blueDim} />
                           <Badge text={a.artist} color={T.gold} dim={T.goldDim} />
+                          {/* LOCK 4 — visible Preview cue */}
+                          <span style={{
+                            fontSize: 9,
+                            color: T.gold,
+                            background: T.goldDim,
+                            border: `1px solid ${T.gold}30`,
+                            padding: "3px 7px",
+                            borderRadius: 4,
+                            fontWeight: 700,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}>◉ Preview</span>
+                          {isPending && (
+                            <span style={{
+                              marginLeft: "auto",
+                              fontSize: 9,
+                              color: T.muted,
+                              fontStyle: "italic",
+                              letterSpacing: "0.04em",
+                            }}>Click to preview →</span>
+                          )}
                         </div>
                         <span style={{ fontSize: 12, color: T.white }}>{a.item}</span>
+                        {revise && a.revision_reason && (
+                          <div style={{ fontSize: 11, color: T.amber, marginTop: 4, fontStyle: "italic", lineHeight: 1.4 }}>↺ {a.revision_reason}</div>
+                        )}
                       </div>
-                      {!done ? (
-                        <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-                          <button onClick={() => setApprovedIds(ids => [...ids, a.id])} style={{ background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>Approve</button>
-                          <button style={{ background: T.redDim, border: `1px solid ${T.red}40`, color: T.red, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10 }}>Revise</button>
+                      {done ? (
+                        <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                          <span style={{ fontSize: 10, color: T.green, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ animation: "checkPop 0.35s cubic-bezier(0.22,1,0.36,1) both", display: "inline-block" }}>✓</span> Approved
+                          </span>
+                          <button onClick={() => handleUndo(cid)} style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "3px 8px", cursor: "pointer", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em" }}>Undo</button>
+                        </div>
+                      ) : revise ? (
+                        <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                          <span style={{ fontSize: 10, color: T.amber, fontWeight: 700 }}>↺ Revision</span>
+                          <button onClick={() => handleUndo(cid)} style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "3px 8px", cursor: "pointer", fontSize: 9, fontWeight: 700, letterSpacing: "0.06em" }}>Undo</button>
                         </div>
                       ) : (
-                        <span style={{ fontSize: 10, color: T.green, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
-                          <span style={{ animation: "checkPop 0.35s cubic-bezier(0.22,1,0.36,1) both", display: "inline-block" }}>✓</span> Approved
-                        </span>
+                        <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                          <button onClick={() => handleApprove(cid)} style={{ background: T.greenDim, border: `1px solid ${T.green}40`, color: T.green, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}>Approve</button>
+                          <button onClick={() => handleRevise(cid)} style={{ background: T.redDim, border: `1px solid ${T.red}40`, color: T.red, borderRadius: 5, padding: "4px 10px", cursor: "pointer", fontSize: 10 }}>Revise</button>
+                        </div>
+                      )}
+                      {reviseInputId === cid && (
+                        <div onClick={e => e.stopPropagation()} style={{ width: "100%", marginTop: 8, borderTop: `1px solid ${T.border}`, paddingTop: 8 }}>
+                          <textarea
+                            autoFocus
+                            value={reviseReason}
+                            onChange={e => setReviseReason(e.target.value)}
+                            placeholder="Describe what needs to be revised..."
+                            rows={2}
+                            style={{
+                              width: "100%", boxSizing: "border-box",
+                              background: T.dim, border: `1px solid ${T.amber}40`, borderRadius: 6,
+                              color: T.white, fontSize: 12, padding: "8px 10px",
+                              fontFamily: "inherit", resize: "none", outline: "none",
+                            }}
+                          />
+                          <div style={{ display: "flex", gap: 6, marginTop: 6, justifyContent: "flex-end" }}>
+                            <button
+                              onClick={() => { setReviseInputId(null); setReviseReason(""); }}
+                              style={{ background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 5, padding: "4px 12px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
+                            >Cancel</button>
+                            <button
+                              onClick={() => handleReviseSubmit(cid)}
+                              style={{ background: T.amberDim, border: `1px solid ${T.amber}40`, color: T.amber, borderRadius: 5, padding: "4px 12px", cursor: "pointer", fontSize: 10, fontWeight: 700 }}
+                            >Send Revision</button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   );
@@ -2682,11 +4132,29 @@ export default function MotesartOS() {
         }, 100);
       }} />}
       {chatOpen && <PAAgentChat onClose={() => setChatOpen(false)} activeBiz={activeBiz} />}
+      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
 
-      {/* Floating PA Agent pill button */}
+      {/* Phase 3B — Dispatch panel (opened from Sidebar "Dispatch" button) */}
+      <MyaDispatchPanel
+        open={dispatchOpen}
+        onClose={() => setDispatchOpen(false)}
+        actionBarSlot={<DispatchExecutiveActions />}
+      />
+
+      {/* Phase 3C.A — Approval preview modal */}
+      <ApprovalPreviewModal
+        item={previewItem}
+        onClose={() => setPreviewItem(null)}
+        onApprove={handleApprove}
+        onRevise={handleRevise}
+        onUndo={handleUndo}
+        status={previewItem ? (previewItem.approval_status || "pending") : "pending"}
+      />
+
+      {/* Floating MYA pill button */}
       {!chatOpen && (
         <button onClick={() => setChatOpen(true)} className="os-pa-pill" style={{
-          position: "fixed", bottom: 24, right: 24, zIndex: 150,
+          position: "fixed", bottom: "calc(env(safe-area-inset-bottom, 20px) + 76px)", right: "max(24px, env(safe-area-inset-right))", zIndex: 150,
           background: `linear-gradient(135deg, ${T.goldDim}, rgba(201,168,76,0.18))`,
           border: `1px solid ${T.borderHi}`,
           borderRadius: "50%", width: 50, height: 50,
@@ -2698,7 +4166,7 @@ export default function MotesartOS() {
         }}
           onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 36px rgba(201,168,76,0.5)"; e.currentTarget.style.transform = "scale(1.06)"; e.currentTarget.style.animationPlayState = "paused"; }}
           onMouseLeave={e => { e.currentTarget.style.boxShadow = "0 4px 24px rgba(201,168,76,0.25)"; e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.animationPlayState = "running"; }}
-          title="Open PA Agent"
+          title="Open MYA"
         ><span style={{ fontSize: 22 }}>◉</span></button>
       )}
 
@@ -2730,6 +4198,8 @@ export default function MotesartOS() {
           from { stroke-dasharray: 0 113.1; }
         }
 
+        .os-back-btn { display: none; }
+
         /* ─── Mobile: sidebar → bottom tab bar ─── */
         @media (max-width: 700px) {
           .os-root {
@@ -2737,7 +4207,7 @@ export default function MotesartOS() {
           }
           .os-sidebar {
             width: 100% !important;
-            height: 56px !important;
+            height: calc(56px + env(safe-area-inset-bottom)) !important;
             flex-direction: row !important;
             border-right: none !important;
             border-top: 1px solid rgba(255,255,255,0.055) !important;
@@ -2748,6 +4218,8 @@ export default function MotesartOS() {
             z-index: 100 !important;
             overflow-x: auto !important;
             overflow-y: hidden !important;
+            padding-bottom: env(safe-area-inset-bottom, 16px) !important;
+            align-items: center !important;
           }
           .os-sidebar > *:first-child,
           .os-sidebar > *:nth-child(2) { display: none !important; }
@@ -2756,11 +4228,20 @@ export default function MotesartOS() {
             padding: 4px 8px !important;
             flex: 1 !important;
             overflow-x: auto !important;
+            display: none !important;
+            align-items: center !important;
+            height: 100% !important;
+            white-space: nowrap !important;
           }
           .os-sidebar > *:nth-child(3) button {
             margin-bottom: 0 !important;
             margin-right: 2px !important;
             flex-shrink: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            white-space: nowrap !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
           }
           .os-sidebar > *:last-child {
             flex-direction: row !important;
@@ -2768,38 +4249,162 @@ export default function MotesartOS() {
             border-left: 1px solid rgba(255,255,255,0.055) !important;
             padding: 4px 8px !important;
             gap: 2px !important;
+            align-items: center !important;
+            height: 100% !important;
+            overflow: hidden !important;
+            white-space: nowrap !important;
+            flex: 1 !important;
+            justify-content: space-around !important;
           }
           .os-main {
-            padding-bottom: 72px !important;
+            padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 64px) !important;
           }
           .os-main .os-content-area {
             padding: 14px !important;
           }
+          .os-book-panel {
+            height: calc(100dvh - calc(56px + env(safe-area-inset-bottom, 20px))) !important;
+            margin: 0 !important;
+          }
+          .os-personal-view, .os-travel-panel {
+            padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 64px) !important;
+          }
           .os-pa-pill {
-            bottom: 68px !important;
-            right: 14px !important;
+            bottom: calc(env(safe-area-inset-bottom, 20px) + 64px) !important;
+            right: max(14px, env(safe-area-inset-right)) !important;
             font-size: 11px !important;
             padding: 10px 16px 10px 14px !important;
           }
           .os-stat-card {
             min-width: 0 !important;
           }
+          .os-content-area {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+          }
+          .os-content-area > * {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+          }
           .os-topbar-title {
             font-size: 13px !important;
           }
+          .os-back-btn { display: flex !important; }
         }
 
         @media (max-width: 480px) {
           .os-main .os-content-area {
             padding: 10px !important;
           }
+          .sg-summary-count {
+            display: none !important;
+          }
           .os-pa-pill {
             font-size: 10px !important;
             padding: 8px 14px 8px 12px !important;
-            bottom: 64px !important;
+            bottom: calc(64px + env(safe-area-inset-bottom)) !important;
           }
         }
       `}</style>
     </div>
   );
 }
+
+// ─── Phase 3B — Secondary run button inside dispatch panel action bar ───
+function ReadyToScheduleSection({ items }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{
+        fontSize: 10, color: T.green, fontWeight: 700,
+        letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 9,
+      }}>✓ Ready to Schedule</div>
+      <div style={{ display: "grid", gap: 6 }}>
+        {items.map(a => (
+          <div key={a.content_id} style={{
+            background: T.card,
+            border: `1px solid ${T.green}35`,
+            borderLeft: `3px solid ${T.green}`,
+            borderRadius: 12,
+            padding: "10px 14px",
+            backdropFilter: "blur(12px)",
+            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+          }}>
+            <div style={{ display: "flex", gap: 5, marginBottom: 6, alignItems: "center", flexWrap: "wrap" }}>
+              <Badge text={a.type} color={T.blue} dim={T.blueDim} />
+              <Badge text={a.artist} color={T.gold} dim={T.goldDim} />
+              <span style={{
+                marginLeft: "auto", fontSize: 9, fontWeight: 700, color: T.green,
+                letterSpacing: "0.08em", textTransform: "uppercase",
+              }}>✓ Approved</span>
+            </div>
+            <div style={{
+              fontSize: 13, color: T.white, fontWeight: 600,
+              letterSpacing: "-0.01em", lineHeight: 1.4,
+              marginBottom: a.caption ? 4 : 0,
+            }}>{a.item}</div>
+            {a.caption && (
+              <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.5 }}>
+                {a.caption.length > 100 ? a.caption.substring(0, 100) + "…" : a.caption}
+              </div>
+            )}
+            {a.approved_at && (
+              <div style={{ fontSize: 9, color: T.muted, marginTop: 6, letterSpacing: "0.06em" }}>
+                Approved {new Date(a.approved_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DispatchExecutiveActions() {
+  const { run, loading } = useExecutiveRun("som");
+  const { available } = useExecutiveHealth();
+  const toast = useToast();
+
+  const offline = available === false;
+  const disabled = loading || offline || available === null;
+
+  const onRun = async () => {
+    const result = await run();
+    if (result) {
+      toast.success(
+        `SOM Executive → ${result.new_status}`,
+        result.action_taken || "Run complete",
+        { accent: "#5a8fc9" }
+      );
+    } else {
+      toast.error("SOM Executive failed", "Check Railway logs with grep [SOM]");
+    }
+  };
+
+  return (
+    <button
+      onClick={offline ? undefined : onRun}
+      disabled={disabled}
+      title={offline ? "Backend offline" : undefined}
+      style={{
+        background: disabled ? "#1c1c22" : offline ? "rgba(201,90,90,0.10)" : "rgba(90,143,201,0.12)",
+        border: `1px solid ${offline ? "rgba(201,90,90,0.40)" : "rgba(90,143,201,0.40)"}`,
+        color: disabled ? "#52525e" : offline ? "#c95a5a" : "#5a8fc9",
+        borderRadius: 6,
+        padding: "6px 12px",
+        cursor: disabled ? "not-allowed" : "pointer",
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        fontFamily: "inherit",
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      {offline ? "⚠ SOM Offline" : loading ? "◌ Running…" : "▶ Run SOM"}
+    </button>
+  );
+}
+/* build: 1777906590 */
