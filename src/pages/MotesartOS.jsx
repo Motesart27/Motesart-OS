@@ -3104,22 +3104,21 @@ function TravelBuilderPanel() {
   },[tab]);
 
   const catData=[
-    {l:"Accommodation",v:editableTripRows.filter(r=>r.cat==="Accommodation").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:600,c:B.gold},
-    {l:"Flights",v:editableTripRows.filter(r=>["f1","f2","f3"].includes(r.id)).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:B.blue},
+    {l:"Accommodation",v:editableTripRows.filter(r=>r.cat==="Accommodation").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:600,c:T.gold},
+    {l:"Flights",v:editableTripRows.filter(r=>["f1","f2","f3"].includes(r.id)).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.blue},
     {l:"Transport",v:editableTripRows.filter(r=>r.cat==="Ground Transport").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:110,c:"#4db87a"},
-    {l:"Food",v:editableTripRows.filter(r=>r.cat==="Food & Dining"||r.id.startsWith("d")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:B.amber},
+    {l:"Food",v:editableTripRows.filter(r=>r.cat==="Food & Dining"||r.id.startsWith("d")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.amber},
     {l:"Gifts",v:editableTripRows.filter(r=>r.cat==="Graduation + Gifts"||r.id.startsWith("g")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:150,c:"#c95a84"},
-    {l:"Misc",v:editableTripRows.filter(r=>r.cat==="Misc + Buffer"||r.id.startsWith("m")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:210,c:B.red},
+    {l:"Misc",v:editableTripRows.filter(r=>r.cat==="Misc + Buffer"||r.id.startsWith("m")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:210,c:T.red},
   ];
 
-  const B={bg:"#ffffff",surface:"#f8f7f5",card:"#ffffff",border:"rgba(0,0,0,0.08)",borderHi:"rgba(0,0,0,0.14)",text:"#1a1a1a",textSub:"#4a4a52",textMute:"#78788a",green:"#27500a",greenBg:"#eaf3de",greenBd:"#97c459",blue:"#0c447c",blueBg:"#e6f1fb",blueBd:"#85b7eb",amber:"#633806",amberBg:"#faeeda",amberBd:"#ef9f27",red:"#791f1f",redBg:"#fcebeb",redBd:"#f09595",gold:"#854f0b",goldBg:"rgba(133,79,11,0.08)",goldDim:"rgba(133,79,11,0.12)",goldBd:"#ef9f27",dim:"#e8e4dc",white:"#1a1a1a",muted:"#78788a",greenDim:"rgba(39,80,10,0.12)",blueDim:"rgba(12,68,124,0.12)",amberDim:"rgba(99,56,6,0.12)",redDim:"rgba(121,31,31,0.12)"};
   const STS={
-    booked:{bg:B.greenDim,c:B.green,t:"Booked"},
-    booknow:{bg:B.amberDim,c:B.amber,t:"Book now"},
-    confirm:{bg:"rgba(255,255,255,0.06)",c:B.textMute,t:"Confirm"},
-    est:{bg:"rgba(255,255,255,0.06)",c:B.textMute,t:"Estimate"},
-    paid:{bg:B.blueDim,c:B.blue,t:"Paid"},
-    archived:{bg:"rgba(255,255,255,0.06)",c:B.textMute,t:"Archived"}
+    booked:{bg:T.greenDim,c:T.green,t:"Booked"},
+    booknow:{bg:T.amberDim,c:T.amber,t:"Book now"},
+    confirm:{bg:"rgba(255,255,255,0.06)",c:T.muted,t:"Confirm"},
+    est:{bg:"rgba(255,255,255,0.06)",c:T.muted,t:"Estimate"},
+    paid:{bg:T.blueDim,c:T.blue,t:"Paid"},
+    archived:{bg:"rgba(255,255,255,0.06)",c:T.muted,t:"Archived"}
   };
   const STATUS_OPTIONS=[["est","Estimate"],["booknow","Book now"],["confirm","Confirm"],["booked","Booked"],["paid","Paid"],["archived","Archived"]];
 
@@ -3138,13 +3137,13 @@ function TravelBuilderPanel() {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
-            <div style={{width:5,height:5,borderRadius:"50%",background:B.green,animation:"pulse 2s infinite"}}/>
-            <span style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold}}>Travel Builder — Active Trip</span>
+            <div style={{width:5,height:5,borderRadius:"50%",background:T.green,animation:"pulse 2s infinite"}}/>
+            <span style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold}}>Travel Builder — Active Trip</span>
           </div>
-          <div style={{fontSize:22,fontWeight:800,color:B.text}}>{activeTripTitle}</div>
-          <div style={{fontFamily:"monospace",fontSize:10,color:B.textMute,marginTop:4,display:"flex",gap:10,flexWrap:"wrap"}}>
+          <div style={{fontSize:22,fontWeight:800,color:T.white}}>{activeTripTitle}</div>
+          <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,marginTop:4,display:"flex",gap:10,flexWrap:"wrap"}}>
             {activeTripMeta.map(s=>(
-              <span key={s}><span style={{color:B.gold,marginRight:3}}>·</span>{s}</span>
+              <span key={s}><span style={{color:T.gold,marginRight:3}}>·</span>{s}</span>
             ))}
           </div>
         </div>
@@ -3155,9 +3154,9 @@ function TravelBuilderPanel() {
             <span style={{position:"absolute",top:-7,right:-7,background:"#dc2626",color:"#fff",borderRadius:999,padding:"1px 5px",fontSize:8,fontWeight:800,lineHeight:"12px",letterSpacing:"0.04em"}}>NEW</span>
           </button>
           {[
-            {l:"↺ Reset",fn:()=>setResetModal(true),bg:"transparent",c:B.textMute,b:B.dim},
-            {l:"↓ Archive",fn:()=>setArchiveModal(true),bg:B.greenDim,c:B.green,b:`${B.green}40`},
-            {l:"◼ Save",fn:()=>safeTravelAction("Save",()=>{localStorage.setItem(TB_SK+"_a",JSON.stringify(actuals));saveTravelDraft();safeTravelNotice("Travel draft saved locally.","success");}),bg:B.goldDim,c:B.gold,b:B.borderHi},
+            {l:"↺ Reset",fn:()=>setResetModal(true),bg:"transparent",c:T.muted,b:T.dim},
+            {l:"↓ Archive",fn:()=>setArchiveModal(true),bg:T.greenDim,c:T.green,b:`${T.green}40`},
+            {l:"◼ Save",fn:()=>safeTravelAction("Save",()=>{localStorage.setItem(TB_SK+"_a",JSON.stringify(actuals));saveTravelDraft();safeTravelNotice("Travel draft saved locally.","success");}),bg:T.goldDim,c:T.gold,b:T.borderHi},
           ].map(b=>(
               <button key={b.l} onClick={b.fn}
                 style={{background:b.bg,color:b.c,border:`1px solid ${b.b}`,borderRadius:6,padding:"7px 13px",fontFamily:"inherit",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
@@ -3168,10 +3167,10 @@ function TravelBuilderPanel() {
       </div>
 
       {/* Inner tab nav */}
-      <div style={{display:"flex",gap:2,marginBottom:18,borderBottom:`1px solid ${B.border}`}}>
+      <div style={{display:"flex",gap:2,marginBottom:18,borderBottom:`1px solid ${T.border}`}}>
         {["budget","analytics","archive","retro"].map(t=>(
           <button key={t} onClick={()=>setTab(t)}
-            style={{padding:"7px 14px",background:tab===t?B.goldDim:"transparent",border:"none",borderBottom:tab===t?`2px solid ${B.gold}`:"2px solid transparent",color:tab===t?B.gold:B.textMute,fontSize:11,fontWeight:600,textTransform:"capitalize",cursor:"pointer",transition:"all 0.15s",fontFamily:"inherit"}}>
+            style={{padding:"7px 14px",background:tab===t?T.goldDim:"transparent",border:"none",borderBottom:tab===t?`2px solid ${T.gold}`:"2px solid transparent",color:tab===t?T.gold:T.muted,fontSize:11,fontWeight:600,textTransform:"capitalize",cursor:"pointer",transition:"all 0.15s",fontFamily:"inherit"}}>
             {t==="budget"?"Budget Tracker":t==="analytics"?"Analytics":t==="archive"?"Trip Archive":"Retrospective"}
           </button>
         ))}
@@ -3180,58 +3179,58 @@ function TravelBuilderPanel() {
       {/* BUDGET TAB */}
       {tab==="budget"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
-          <div className="tb-panel" style={{background:B.goldDim,border:`1px solid ${B.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12,alignItems:"flex-start"}}>
+          <div className="tb-panel" style={{background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12,alignItems:"flex-start"}}>
             <div style={{width:32,height:32,background:"rgba(201,168,76,0.2)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>★</div>
             <div style={{flex:1}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                <span style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:B.gold}}>FM Executive Briefing — for Mya</span>
-                <div style={{width:5,height:5,borderRadius:"50%",background:B.green,animation:"pulse 2s infinite"}}/>
-                {!briefLoading&&<button onClick={()=>{briefDone.current=false;setAiBrief("");setBriefLoading(true);setTimeout(()=>{briefDone.current=false;},50);}} style={{marginLeft:"auto",background:"rgba(201,168,76,0.15)",border:`1px solid ${B.borderHi}`,borderRadius:3,padding:"2px 7px",fontFamily:"monospace",fontSize:8,color:B.gold,cursor:"pointer"}}>↺ refresh</button>}
+                <span style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:T.gold}}>FM Executive Briefing — for Mya</span>
+                <div style={{width:5,height:5,borderRadius:"50%",background:T.green,animation:"pulse 2s infinite"}}/>
+                {!briefLoading&&<button onClick={()=>{briefDone.current=false;setAiBrief("");setBriefLoading(true);setTimeout(()=>{briefDone.current=false;},50);}} style={{marginLeft:"auto",background:"rgba(201,168,76,0.15)",border:`1px solid ${T.borderHi}`,borderRadius:3,padding:"2px 7px",fontFamily:"monospace",fontSize:8,color:T.gold,cursor:"pointer"}}>↺ refresh</button>}
               </div>
               {briefLoading
-                ?<div style={{fontFamily:"monospace",fontSize:10,color:B.textMute,animation:"pulse 1.5s infinite"}}>AI generating briefing for Mya...</div>
+                ?<div style={{fontFamily:"monospace",fontSize:10,color:T.muted,animation:"pulse 1.5s infinite"}}>AI generating briefing for Mya...</div>
                 :<div style={{fontFamily:"monospace",fontSize:10,color:"#c8c4bc",lineHeight:1.7}}>{aiBrief||"Generating..."}</div>}
             </div>
           </div>
 
           <div style={{marginBottom:18}}>
             {[
-              {l:"Planning progress",pct:pp,c:B.gold,d:0},
-              {l:"Budget used",pct:sp,c:sp>100?B.red:B.blue,d:120},
-              {l:"Savings captured",pct:Math.min(Math.round((tots.saved/1750)*100),100),c:B.green,d:240},
+              {l:"Planning progress",pct:pp,c:T.gold,d:0},
+              {l:"Budget used",pct:sp,c:sp>100?T.red:T.blue,d:120},
+              {l:"Savings captured",pct:Math.min(Math.round((tots.saved/1750)*100),100),c:T.green,d:240},
             ].map(p=>(
               <div key={p.l} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-                <div style={{fontFamily:"monospace",fontSize:9,color:B.textMute,width:130,flexShrink:0}}>{p.l}</div>
+                <div style={{fontFamily:"monospace",fontSize:9,color:T.muted,width:130,flexShrink:0}}>{p.l}</div>
                 <TBAnimBar pct={p.pct} color={p.c} delay={p.d}/>
-                <div style={{fontFamily:"monospace",fontSize:9,color:B.textMute,width:30,textAlign:"right"}}>{p.pct}%</div>
+                <div style={{fontFamily:"monospace",fontSize:9,color:T.muted,width:30,textAlign:"right"}}>{p.pct}%</div>
               </div>
             ))}
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:20}}>
-            <TBCard label="Booked"       value={tbFmt(bookedTotal)}                      sub="Booked/confirmed"  accent={B.green}  glow="rgba(76,175,125,0.2)"/>
-            <TBCard label="Budget (low)" value={tbFmt(tots.low)}                         sub="Conservative est." accent={B.gold}   glow="rgba(201,168,76,0.2)"/>
-            <TBCard label="Actual paid"  value={tbFmt(tots.actual)}                      sub="Enter as you pay"  accent={B.blue}   glow="rgba(90,143,201,0.2)"/>
-            <TBCard label="Still needed" value={tbFmt(Math.max(0,tots.low-tots.actual))} sub="Remaining"         accent={B.red}    glow="rgba(201,90,90,0.2)"/>
+            <TBCard label="Booked"       value={tbFmt(bookedTotal)}                      sub="Booked/confirmed"  accent={T.green}  glow="rgba(76,175,125,0.2)"/>
+            <TBCard label="Budget (low)" value={tbFmt(tots.low)}                         sub="Conservative est." accent={T.gold}   glow="rgba(201,168,76,0.2)"/>
+            <TBCard label="Actual paid"  value={tbFmt(tots.actual)}                      sub="Enter as you pay"  accent={T.blue}   glow="rgba(90,143,201,0.2)"/>
+            <TBCard label="Still needed" value={tbFmt(Math.max(0,tots.low-tots.actual))} sub="Remaining"         accent={T.red}    glow="rgba(201,90,90,0.2)"/>
             <TBCard label="Total saved"  value={"~"+tbFmt(tots.saved)}                  sub="vs full price"     accent="#4db87a"  glow="rgba(77,184,122,0.2)"/>
           </div>
 
           <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:14}}>
-            {[[B.green,"Booked"],[B.amber,"Book now"],[B.textMute,"Estimate"],[B.blue,"Actual — edit blue fields"],[B.red,"Over estimate"]].map(([c,l])=>(
-              <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontFamily:"monospace",fontSize:9,color:B.textMute}}>
+            {[[T.green,"Booked"],[T.amber,"Book now"],[T.muted,"Estimate"],[T.blue,"Actual — edit blue fields"],[T.red,"Over estimate"]].map(([c,l])=>(
+              <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontFamily:"monospace",fontSize:9,color:T.muted}}>
                 <div style={{width:7,height:7,borderRadius:1,background:c,flexShrink:0}}/>{l}
               </div>
             ))}
-            <div style={{fontFamily:"monospace",fontSize:9,color:travelDraftStatus==="error"?B.red:B.textMute}}>{travelDraftStatusText}</div>
+            <div style={{fontFamily:"monospace",fontSize:9,color:travelDraftStatus==="error"?T.red:T.muted}}>{travelDraftStatusText}</div>
           </div>
 
-          <div style={{border:`1px solid ${B.border}`,borderRadius:10,overflow:"hidden",marginBottom:18}}>
+          <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden",marginBottom:18}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,tableLayout:"fixed"}}>
               <colgroup><col style={{width:"22%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"11%"}}/><col style={{width:"30%"}}/></colgroup>
               <thead>
                 <tr style={{background:"rgba(255,255,255,0.03)"}}>
                   {["Item","Low est.","High est.","Actual paid","+/–","Status","Notes"].map((h,i)=>(
-                    <th key={h} style={{padding:"9px 12px",textAlign:i>0&&i<5?"right":i===5?"center":"left",fontFamily:"monospace",fontSize:8,letterSpacing:"0.09em",textTransform:"uppercase",color:B.textMute,borderBottom:`1px solid ${B.border}`,fontWeight:400}}>{h}</th>
+                    <th key={h} style={{padding:"9px 12px",textAlign:i>0&&i<5?"right":i===5?"center":"left",fontFamily:"monospace",fontSize:8,letterSpacing:"0.09em",textTransform:"uppercase",color:T.muted,borderBottom:`1px solid ${T.border}`,fontWeight:400}}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -3242,7 +3241,7 @@ function TravelBuilderPanel() {
                     const cells=[];
                     if(r.cat&&r.cat!==lc){lc=r.cat;cells.push(
                       <tr key={"c"+r.cat} style={{background:"rgba(201,168,76,0.04)"}}>
-                        <td colSpan={7} style={{padding:"7px 12px",fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold}}>{r.cat}</td>
+                        <td colSpan={7} style={{padding:"7px 12px",fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold}}>{r.cat}</td>
                       </tr>
                     );}
                     const section=lc;
@@ -3252,24 +3251,24 @@ function TravelBuilderPanel() {
                     const diff=nv!==null?(Number(r.low)||0)-nv:null;
                     const s=STS[r.status];
                     cells.push(
-                      <tr key={r.id} className="tb-row" style={{borderBottom:`1px solid ${B.border}`,background:"transparent"}}>
-                        <td style={{padding:"10px 12px",color:B.text}}>
+                      <tr key={r.id} className="tb-row" style={{borderBottom:`1px solid ${T.border}`,background:"transparent"}}>
+                        <td style={{padding:"10px 12px",color:T.white}}>
                           <input value={r.label} onChange={e=>updateTripRow(r.id,"label",e.target.value)}
-                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${B.dim}`,color:B.text,fontFamily:"inherit",fontSize:12,width:"100%",outline:"none"}}/>
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.white,fontFamily:"inherit",fontSize:12,width:"100%",outline:"none"}}/>
                         </td>
                         <td style={{padding:"10px 12px",textAlign:"right"}}>
                           <input type="number" value={r.low} onChange={e=>updateTripRow(r.id,"low",e.target.value)}
-                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${B.dim}`,color:B.textMute,fontFamily:"monospace",fontSize:11,width:66,textAlign:"right",outline:"none"}}/>
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:11,width:66,textAlign:"right",outline:"none"}}/>
                         </td>
                         <td style={{padding:"10px 12px",textAlign:"right"}}>
                           <input type="number" value={r.high} onChange={e=>updateTripRow(r.id,"high",e.target.value)}
-                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${B.dim}`,color:B.textMute,fontFamily:"monospace",fontSize:11,width:66,textAlign:"right",outline:"none"}}/>
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:11,width:66,textAlign:"right",outline:"none"}}/>
                         </td>
                         <td style={{padding:"10px 12px",textAlign:"right"}}>
                           <input type="number" value={val} placeholder="enter" onChange={e=>setActual(r.id,e.target.value)}
-                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${B.blue}55`,color:B.blue,fontFamily:"monospace",fontSize:11,fontWeight:500,width:80,textAlign:"right",padding:"2px 0",outline:"none"}}/>
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.blue}55`,color:T.blue,fontFamily:"monospace",fontSize:11,fontWeight:500,width:80,textAlign:"right",padding:"2px 0",outline:"none"}}/>
                         </td>
-                        <td style={{padding:"10px 12px",textAlign:"right",fontFamily:"monospace",fontSize:11,fontWeight:500,color:diff===null?B.textMute:diff>0?B.green:diff<0?B.red:B.textMute}}>
+                        <td style={{padding:"10px 12px",textAlign:"right",fontFamily:"monospace",fontSize:11,fontWeight:500,color:diff===null?T.muted:diff>0?T.green:diff<0?T.red:T.muted}}>
                           {diff===null?"—":diff>0?tbFmt(diff):diff<0?"("+tbFmt(Math.abs(diff))+")":"$0"}
                         </td>
                         <td style={{padding:"10px 12px",textAlign:"center"}}>
@@ -3278,33 +3277,33 @@ function TravelBuilderPanel() {
                             {STATUS_OPTIONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
                           </select>
                         </td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:B.textMute,position:"relative"}}>
+                        <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:T.muted,position:"relative"}}>
                           <input value={r.note} onChange={e=>updateTripRow(r.id,"note",e.target.value)}
-                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${B.dim}`,color:B.textMute,fontFamily:"monospace",fontSize:9,width:"100%",outline:"none"}}/>
+                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:9,width:"100%",outline:"none"}}/>
                           {isFlightRow&&(
                             <button onClick={()=>setFlightOptionsForRow(flightOptionsForRow===r.id?null:r.id)}
-                              style={{display:"block",marginTop:5,background:B.amberDim,border:`1px solid ${B.amber}40`,borderRadius:4,padding:"3px 8px",fontFamily:"inherit",fontSize:9,fontWeight:700,color:B.amber,cursor:"pointer"}}>Options</button>
+                              style={{display:"block",marginTop:5,background:T.amberDim,border:`1px solid ${T.amber}40`,borderRadius:4,padding:"3px 8px",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.amber,cursor:"pointer"}}>Options</button>
                           )}
                           {isFlightRow&&flightOptionsForRow===r.id&&(
-                            <div style={{position:"absolute",right:8,top:"100%",zIndex:50,width:250,background:B.surface,border:`1px solid ${B.borderHi}`,borderRadius:8,padding:10,boxShadow:"0 12px 30px rgba(0,0,0,0.4)"}}>
-                              <div style={{fontSize:11,fontWeight:800,color:B.text,marginBottom:8}}>Flight Options</div>
+                            <div style={{position:"absolute",right:8,top:"100%",zIndex:50,width:250,background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:8,padding:10,boxShadow:"0 12px 30px rgba(0,0,0,0.4)"}}>
+                              <div style={{fontSize:11,fontWeight:800,color:T.white,marginBottom:8}}>Flight Options</div>
                               {TB_FLIGHT_OPTIONS.map(opt=>(
-                                <div key={opt.title} style={{borderTop:`1px solid ${B.dim}`,paddingTop:8,marginTop:8}}>
-                                  <div style={{fontSize:11,fontWeight:700,color:B.text}}>{opt.title}</div>
-                                  <div style={{fontSize:10,color:B.gold,marginTop:2}}>{tbFmt(opt.low)}–{tbFmt(opt.high)}</div>
-                                  <div style={{fontSize:9,color:B.textMute,marginTop:2,lineHeight:1.5}}>{opt.note}</div>
+                                <div key={opt.title} style={{borderTop:`1px solid ${T.dim}`,paddingTop:8,marginTop:8}}>
+                                  <div style={{fontSize:11,fontWeight:700,color:T.white}}>{opt.title}</div>
+                                  <div style={{fontSize:10,color:T.gold,marginTop:2}}>{tbFmt(opt.low)}–{tbFmt(opt.high)}</div>
+                                  <div style={{fontSize:9,color:T.muted,marginTop:2,lineHeight:1.5}}>{opt.note}</div>
                                   <div style={{display:"flex",gap:6,marginTop:7}}>
-                                    <button onClick={()=>useFlightOption(r.id,opt)} style={{flex:1,background:B.goldDim,border:`1px solid ${B.borderHi}`,borderRadius:4,padding:"4px 0",fontFamily:"inherit",fontSize:9,fontWeight:700,color:B.gold,cursor:"pointer"}}>Use</button>
-                                    <button onClick={()=>openFlightBooking(opt.bookingUrl)} style={{flex:1,background:B.amberDim,border:`1px solid ${B.amber}40`,borderRadius:4,padding:"4px 0",fontFamily:"inherit",fontSize:9,fontWeight:700,color:B.amber,cursor:"pointer"}}>Book Now</button>
+                                    <button onClick={()=>useFlightOption(r.id,opt)} style={{flex:1,background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:4,padding:"4px 0",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.gold,cursor:"pointer"}}>Use</button>
+                                    <button onClick={()=>openFlightBooking(opt.bookingUrl)} style={{flex:1,background:T.amberDim,border:`1px solid ${T.amber}40`,borderRadius:4,padding:"4px 0",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.amber,cursor:"pointer"}}>Book Now</button>
                                   </div>
                                 </div>
                               ))}
-                              <div style={{fontSize:8,color:B.textMute,lineHeight:1.5,marginTop:9}}>Book Now opens the provider website. You review and book manually.</div>
+                              <div style={{fontSize:8,color:T.muted,lineHeight:1.5,marginTop:9}}>Book Now opens the provider website. You review and book manually.</div>
                             </div>
                           )}
                           {r.url
-                            ? <a href={r.url} target="_blank" rel="noopener" style={{display:"block",marginTop:4,color:B.gold,textDecoration:"none",fontWeight:600,fontSize:9}}>Book →</a>
-                            : r.status==="booknow" ? <span style={{display:"block",marginTop:4,color:B.dim,fontSize:9}}>No link</span> : null
+                            ? <a href={r.url} target="_blank" rel="noopener" style={{display:"block",marginTop:4,color:T.gold,textDecoration:"none",fontWeight:600,fontSize:9}}>Book →</a>
+                            : r.status==="booknow" ? <span style={{display:"block",marginTop:4,color:T.dim,fontSize:9}}>No link</span> : null
                           }
                         </td>
                       </tr>
@@ -3312,40 +3311,40 @@ function TravelBuilderPanel() {
                     return cells;
                   });
                 })()}
-                <tr style={{background:"rgba(255,255,255,0.04)",borderTop:`1px solid ${B.borderHi}`}}>
-                  <td style={{padding:12,fontWeight:700,fontSize:13,color:B.text}}>Total</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:B.gold,fontWeight:700}}>{tbFmt(tots.low)}</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:B.gold,fontWeight:700}}>{tbFmt(tots.high)}</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:B.blue,fontWeight:700}}>{tbFmt(tots.actual)}</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:B.green,fontWeight:700}}>{tbFmt(tots.saved)}</td>
+                <tr style={{background:"rgba(255,255,255,0.04)",borderTop:`1px solid ${T.borderHi}`}}>
+                  <td style={{padding:12,fontWeight:700,fontSize:13,color:T.white}}>Total</td>
+                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.gold,fontWeight:700}}>{tbFmt(tots.low)}</td>
+                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.gold,fontWeight:700}}>{tbFmt(tots.high)}</td>
+                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.blue,fontWeight:700}}>{tbFmt(tots.actual)}</td>
+                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.green,fontWeight:700}}>{tbFmt(tots.saved)}</td>
                   <td/>
-                  <td style={{padding:12,fontFamily:"monospace",fontSize:9,color:B.textMute,fontStyle:"italic"}}>Edit blue fields as costs come in</td>
+                  <td style={{padding:12,fontFamily:"monospace",fontSize:9,color:T.muted,fontStyle:"italic"}}>Edit blue fields as costs come in</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Money saved vs full price</div>
+            <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Money saved vs full price</div>
               {[["MM4 hotel discount","~$170"],["No rental car","~$200"],["Kadence buddy pass","~$350"],["Southwest no change fees","$0 risk"]].map(([l,a])=>(
                 <div key={l} style={{display:"flex",alignItems:"center",gap:8,marginBottom:9,fontFamily:"monospace",fontSize:10,transition:"transform 0.15s"}}
                   onMouseEnter={e=>e.currentTarget.style.transform="translateX(3px)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
-                  <div style={{width:5,height:5,borderRadius:"50%",background:B.green,flexShrink:0}}/>
-                  <div style={{flex:1,color:B.textMute}}>{l}</div>
-                  <div style={{color:B.green,fontWeight:500}}>{a}</div>
+                  <div style={{width:5,height:5,borderRadius:"50%",background:T.green,flexShrink:0}}/>
+                  <div style={{flex:1,color:T.muted}}>{l}</div>
+                  <div style={{color:T.green,fontWeight:500}}>{a}</div>
                 </div>
               ))}
-              <div style={{borderTop:`1px solid ${B.border}`,marginTop:10,paddingTop:10,display:"flex",justifyContent:"space-between",fontFamily:"monospace",fontSize:11}}>
-                <span style={{color:B.textMute}}>Total saved</span>
-                <span style={{color:B.green,fontWeight:600}}>{"~"+tbFmt(tots.saved)+" +"}</span>
+              <div style={{borderTop:`1px solid ${T.border}`,marginTop:10,paddingTop:10,display:"flex",justifyContent:"space-between",fontFamily:"monospace",fontSize:11}}>
+                <span style={{color:T.muted}}>Total saved</span>
+                <span style={{color:T.green,fontWeight:600}}>{"~"+tbFmt(tots.saved)+" +"}</span>
               </div>
             </div>
-            <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Open items — action required</div>
-              {[{c:B.red,t:"Book Southwest flights TODAY — southwest.com, LGA→MDW Jun 12 + MDW→LGA Jun 15"},{c:B.amber,t:"Text Kayliah — need 4+ graduation tickets + dinner plans"},{c:B.amber,t:"Confirm niece checks CA→ORD Jun 12 loads. Have backup."},{c:B.blue,t:"Apply for Motesart Tech business credit card"},{c:B.blue,t:"Bring original Marriott Explore Form + Photo ID to check-in"}].map((item,i)=>(
-                <div key={i} style={{display:"flex",gap:8,marginBottom:9,fontFamily:"monospace",fontSize:10,color:B.textMute,lineHeight:1.6,transition:"all 0.15s"}}
-                  onMouseEnter={e=>{e.currentTarget.style.transform="translateX(2px)";e.currentTarget.style.color="#a0a8b0";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.color=B.textMute;}}>
+            <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Open items — action required</div>
+              {[{c:T.red,t:"Book Southwest flights TODAY — southwest.com, LGA→MDW Jun 12 + MDW→LGA Jun 15"},{c:T.amber,t:"Text Kayliah — need 4+ graduation tickets + dinner plans"},{c:T.amber,t:"Confirm niece checks CA→ORD Jun 12 loads. Have backup."},{c:T.blue,t:"Apply for Motesart Tech business credit card"},{c:T.blue,t:"Bring original Marriott Explore Form + Photo ID to check-in"}].map((item,i)=>(
+                <div key={i} style={{display:"flex",gap:8,marginBottom:9,fontFamily:"monospace",fontSize:10,color:T.muted,lineHeight:1.6,transition:"all 0.15s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.transform="translateX(2px)";e.currentTarget.style.color="#a0a8b0";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.color=T.muted;}}>
                   <div style={{width:5,height:5,borderRadius:"50%",background:item.c,flexShrink:0,marginTop:5}}/>
                   <span>{item.t}</span>
                 </div>
@@ -3359,45 +3358,45 @@ function TravelBuilderPanel() {
       {tab==="analytics"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:22}}>
-            <TBCard label="Coverage"     value={Math.round((tots.actual/tots.low)*100)+"%"} sub="Actual vs budget"  accent={B.green}  glow="rgba(76,175,125,0.2)"/>
-            <TBCard label="Categories"   value={catData.filter(c=>c.v>0).length+"/"+catData.length} sub="With actuals" accent={B.gold}   glow="rgba(201,168,76,0.2)"/>
-            <TBCard label="Avg/day"      value={tots.actual>0?tbFmt(Math.round(tots.actual/3)):"—"} sub="3 days total" accent={B.blue} glow="rgba(90,143,201,0.2)"/>
+            <TBCard label="Coverage"     value={Math.round((tots.actual/tots.low)*100)+"%"} sub="Actual vs budget"  accent={T.green}  glow="rgba(76,175,125,0.2)"/>
+            <TBCard label="Categories"   value={catData.filter(c=>c.v>0).length+"/"+catData.length} sub="With actuals" accent={T.gold}   glow="rgba(201,168,76,0.2)"/>
+            <TBCard label="Avg/day"      value={tots.actual>0?tbFmt(Math.round(tots.actual/3)):"—"} sub="3 days total" accent={T.blue} glow="rgba(90,143,201,0.2)"/>
             <TBCard label="Savings rate" value={Math.round((tots.saved/1750)*100)+"%"} sub="Of full price" accent="#4db87a" glow="rgba(77,184,122,0.2)"/>
-            <TBCard label="Over/under"   value={tbFmt(Math.abs(tots.low-tots.actual))} sub={tots.actual<=tots.low?"under budget":"over budget"} accent={tots.actual<=tots.low?B.green:B.red} glow={tots.actual<=tots.low?"rgba(76,175,125,0.2)":"rgba(201,90,90,0.2)"}/>
+            <TBCard label="Over/under"   value={tbFmt(Math.abs(tots.low-tots.actual))} sub={tots.actual<=tots.low?"under budget":"over budget"} accent={tots.actual<=tots.low?T.green:T.red} glow={tots.actual<=tots.low?"rgba(76,175,125,0.2)":"rgba(201,90,90,0.2)"}/>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-            <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Spend by category</div>
+            <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Spend by category</div>
               {catData.map((c,i)=>(
                 <div key={c.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,transition:"transform 0.15s"}}
                   onMouseEnter={e=>e.currentTarget.style.transform="translateX(2px)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
-                  <div style={{fontFamily:"monospace",fontSize:10,color:B.textMute,width:110,flexShrink:0}}>{c.l}</div>
+                  <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,width:110,flexShrink:0}}>{c.l}</div>
                   <TBAnimBar pct={c.max>0?Math.round((c.v/c.max)*100):0} color={c.c} delay={i*80}/>
-                  <div style={{fontFamily:"monospace",fontSize:10,color:B.textMute,width:55,textAlign:"right"}}>{c.v>0?tbFmt(c.v):"—"}</div>
+                  <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,width:55,textAlign:"right"}}>{c.v>0?tbFmt(c.v):"—"}</div>
                 </div>
               ))}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
-              <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Trip completion</div>
+              <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Trip completion</div>
                 <div style={{display:"flex",alignItems:"center",gap:18}}>
-                  <TBDonut pct={pp} color={B.gold}/>
+                  <TBDonut pct={pp} color={T.gold}/>
                   <div>
-                    {[{dot:B.green,l:"Booked",v:tbFmt(bookedTotal)},{dot:B.blue,l:"Actual paid",v:tbFmt(tots.actual)},{dot:B.textMute,l:"Remaining",v:tbFmt(Math.max(0,tots.low-tots.actual))},{dot:B.green,l:"Saved",v:"~"+tbFmt(tots.saved)}].map(r=>(
+                    {[{dot:T.green,l:"Booked",v:tbFmt(bookedTotal)},{dot:T.blue,l:"Actual paid",v:tbFmt(tots.actual)},{dot:T.muted,l:"Remaining",v:tbFmt(Math.max(0,tots.low-tots.actual))},{dot:T.green,l:"Saved",v:"~"+tbFmt(tots.saved)}].map(r=>(
                       <div key={r.l} style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
                         <div style={{width:8,height:8,borderRadius:2,background:r.dot,flexShrink:0}}/>
-                        <div style={{flex:1,fontFamily:"monospace",fontSize:10,color:B.textMute}}>{r.l}</div>
+                        <div style={{flex:1,fontFamily:"monospace",fontSize:10,color:T.muted}}>{r.l}</div>
                         <div style={{fontFamily:"monospace",fontSize:10,color:r.dot,fontWeight:500}}>{r.v}</div>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
-              <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Budget vs actual</div>
-                {[{l:"Budget (low)",v:tots.low,max:tots.low,c:B.textMute},{l:"Actual paid",v:tots.actual,max:tots.low,c:B.blue},{l:"Saved",v:tots.saved,max:tots.low,c:B.green}].map((b,i)=>(
+              <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Budget vs actual</div>
+                {[{l:"Budget (low)",v:tots.low,max:tots.low,c:T.muted},{l:"Actual paid",v:tots.actual,max:tots.low,c:T.blue},{l:"Saved",v:tots.saved,max:tots.low,c:T.green}].map((b,i)=>(
                   <div key={b.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                    <div style={{fontFamily:"monospace",fontSize:10,color:B.textMute,width:90,flexShrink:0}}>{b.l}</div>
+                    <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,width:90,flexShrink:0}}>{b.l}</div>
                     <TBAnimBar pct={Math.min(Math.round((b.v/b.max)*100),100)} color={b.c} delay={i*100}/>
                     <div style={{fontFamily:"monospace",fontSize:10,color:b.c,width:55,textAlign:"right"}}>{tbFmt(b.v)}</div>
                   </div>
@@ -3412,25 +3411,25 @@ function TravelBuilderPanel() {
       {tab==="archive"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
           {archive.length===0
-            ?<div style={{textAlign:"center",padding:"60px 20px",fontFamily:"monospace",fontSize:11,color:B.textMute,lineHeight:2}}>No archived trips yet.
+            ?<div style={{textAlign:"center",padding:"60px 20px",fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:2}}>No archived trips yet.
 Complete a trip and click Archive.
 Your permanent travel history in FM.</div>
             :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
               {archive.map((a,i)=>(
                   <div key={a.id}
-                    style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:18,position:"relative",overflow:"hidden",transition:"all 0.25s",cursor:"default"}}>
-                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${B.gold},transparent)`}}/>
-                    <div style={{fontSize:14,fontWeight:700,marginBottom:4,color:B.text}}>{a.trip}</div>
-                    <div style={{fontFamily:"monospace",fontSize:9,color:B.textMute,marginBottom:12}}>{a.dates} · Archived {a.archivedAt}</div>
+                    style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:18,position:"relative",overflow:"hidden",transition:"all 0.25s",cursor:"default"}}>
+                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${T.gold},transparent)`}}/>
+                    <div style={{fontSize:14,fontWeight:700,marginBottom:4,color:T.white}}>{a.trip}</div>
+                    <div style={{fontFamily:"monospace",fontSize:9,color:T.muted,marginBottom:12}}>{a.dates} · Archived {a.archivedAt}</div>
                     <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
-                      {[["Budget",tbFmt(a.budget),B.textMute],["Actual",tbFmt(a.actual),B.blue],["Saved","~"+tbFmt(a.saved),B.green],[a.actual<=a.budget?"Under":"Over",tbFmt(Math.abs(a.budget-a.actual)),a.actual<=a.budget?B.green:B.red]].map(([l,v,c])=>(
-                        <div key={l}><div style={{fontFamily:"monospace",fontSize:8,color:B.textMute,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{l}</div><div style={{fontFamily:"monospace",fontSize:12,color:c,fontWeight:500}}>{v}</div></div>
+                      {[["Budget",tbFmt(a.budget),T.muted],["Actual",tbFmt(a.actual),T.blue],["Saved","~"+tbFmt(a.saved),T.green],[a.actual<=a.budget?"Under":"Over",tbFmt(Math.abs(a.budget-a.actual)),a.actual<=a.budget?T.green:T.red]].map(([l,v,c])=>(
+                        <div key={l}><div style={{fontFamily:"monospace",fontSize:8,color:T.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{l}</div><div style={{fontFamily:"monospace",fontSize:12,color:c,fontWeight:500}}>{v}</div></div>
                       ))}
                     </div>
-                    {a.state?.retro?.worked&&<div style={{fontFamily:"monospace",fontSize:9,color:B.textMute,borderTop:`1px solid ${B.border}`,paddingTop:8,marginBottom:10}}><span style={{color:B.green}}>Worked: </span>{a.state.retro.worked.substring(0,80)}...</div>}
+                    {a.state?.retro?.worked&&<div style={{fontFamily:"monospace",fontSize:9,color:T.muted,borderTop:`1px solid ${T.border}`,paddingTop:8,marginBottom:10}}><span style={{color:T.green}}>Worked: </span>{a.state.retro.worked.substring(0,80)}...</div>}
                     <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>{setActuals(a.state.actuals||{});setTab("budget");showToast("Loaded");}} style={{background:"transparent",border:`1px solid ${B.dim}`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:B.textMute,cursor:"pointer"}}>Load</button>
-                      <button onClick={()=>safeTravelAction("Delete archive",()=>{const n=archive.filter((_,j)=>j!==i);setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));safeTravelNotice("Deleted","danger");})} style={{background:B.redDim,border:`1px solid ${B.red}40`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:B.red,cursor:"pointer"}}>Delete</button>
+                      <button onClick={()=>{setActuals(a.state.actuals||{});setTab("budget");showToast("Loaded");}} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:T.muted,cursor:"pointer"}}>Load</button>
+                      <button onClick={()=>safeTravelAction("Delete archive",()=>{const n=archive.filter((_,j)=>j!==i);setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));safeTravelNotice("Deleted","danger");})} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:T.red,cursor:"pointer"}}>Delete</button>
                     </div>
                   </div>
               ))}
@@ -3442,28 +3441,28 @@ Your permanent travel history in FM.</div>
       {/* RETRO TAB */}
       {tab==="retro"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
-          <div className="tb-panel" style={{background:B.goldDim,border:`1px solid ${B.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12}}>
+          <div className="tb-panel" style={{background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12}}>
             <div style={{fontSize:16}}>◆</div>
             <div>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:B.gold,marginBottom:4}}>Why this matters</div>
-              <div style={{fontFamily:"monospace",fontSize:10,color:"#c8c4bc",lineHeight:1.7}}>Fill this in after June 15. This becomes the foundation for Travel Builder Template v2. <strong style={{color:B.text}}>Every trip makes FM smarter.</strong></div>
+              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:T.gold,marginBottom:4}}>Why this matters</div>
+              <div style={{fontFamily:"monospace",fontSize:10,color:"#c8c4bc",lineHeight:1.7}}>Fill this in after June 15. This becomes the foundation for Travel Builder Template v2. <strong style={{color:T.white}}>Every trip makes FM smarter.</strong></div>
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:18}}>
-            {[{key:"worked",l:"What worked well",a:B.green,ph:"e.g. Marriott skybridge was perfect, buddy pass saved $350..."},{key:"improve",l:"What to improve",a:B.amber,ph:"e.g. Book flights earlier, food budget for Jun 14 was tight..."},{key:"next",l:"Do differently next trip",a:B.blue,ph:"e.g. Always Wanna Get Away Plus, add activity budget line..."}].map(b=>(
+            {[{key:"worked",l:"What worked well",a:T.green,ph:"e.g. Marriott skybridge was perfect, buddy pass saved $350..."},{key:"improve",l:"What to improve",a:T.amber,ph:"e.g. Book flights earlier, food budget for Jun 14 was tight..."},{key:"next",l:"Do differently next trip",a:T.blue,ph:"e.g. Always Wanna Get Away Plus, add activity budget line..."}].map(b=>(
                 <div key={b.key}
-                  style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:16,transition:"all 0.25s"}}>
+                  style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:16,transition:"all 0.25s"}}>
                   <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",color:b.a,marginBottom:10}}>{b.l}</div>
                   <textarea value={retro[b.key]||""} onChange={e=>safeTravelAction("Save retrospective",()=>{const n={...retro,[b.key]:e.target.value};setRetro(n);localStorage.setItem(TB_SK+"_r",JSON.stringify(n));})} placeholder={b.ph}
-                    style={{width:"100%",background:"transparent",border:"none",borderBottom:`1px dashed ${B.dim}`,color:"#9AACC0",fontFamily:"monospace",fontSize:10,lineHeight:1.7,outline:"none",padding:"4px 0",minHeight:80,resize:"vertical"}}/>
+                    style={{width:"100%",background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:"#9AACC0",fontFamily:"monospace",fontSize:10,lineHeight:1.7,outline:"none",padding:"4px 0",minHeight:80,resize:"vertical"}}/>
                 </div>
             ))}
           </div>
-          <div className="tb-panel" style={{background:B.card,border:`1px solid ${B.border}`,borderRadius:10,padding:"16px 18px"}}>
-            <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:B.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${B.borderHi}`}}>Final comparison — estimated vs actual</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:B.textMute,lineHeight:2.2}}>
-              {[["Estimated budget (low)",tbFmt(tots.low),B.text],["Actual spent so far",tbFmt(tots.actual),B.blue],["Difference",tots.low>=tots.actual?"Under by "+tbFmt(tots.low-tots.actual):"Over by "+tbFmt(tots.actual-tots.low),tots.low>=tots.actual?B.green:B.red],["Hotel savings (MM4)","~$170",B.green],["Total savings captured","~"+tbFmt(tots.saved)+"+",B.green]].map(([l,v,c])=>(
-                <div key={l} style={{display:"flex",justifyContent:"space-between",borderBottom:`1px solid ${B.dim}`,paddingBottom:2}}>
+          <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
+            <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Final comparison — estimated vs actual</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:2.2}}>
+              {[["Estimated budget (low)",tbFmt(tots.low),T.white],["Actual spent so far",tbFmt(tots.actual),T.blue],["Difference",tots.low>=tots.actual?"Under by "+tbFmt(tots.low-tots.actual):"Over by "+tbFmt(tots.actual-tots.low),tots.low>=tots.actual?T.green:T.red],["Hotel savings (MM4)","~$170",T.green],["Total savings captured","~"+tbFmt(tots.saved)+"+",T.green]].map(([l,v,c])=>(
+                <div key={l} style={{display:"flex",justifyContent:"space-between",borderBottom:`1px solid ${T.dim}`,paddingBottom:2}}>
                   <span>{l}</span><strong style={{color:c}}>{v}</strong>
                 </div>
               ))}
@@ -3474,35 +3473,35 @@ Your permanent travel history in FM.</div>
 
       {newTripModal&&(
         <div role="dialog" aria-modal="true" aria-label="New Trip Builder" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:B.surface,border:`1px solid ${B.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
-            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:B.text}}>New Trip Builder</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:B.textMute,lineHeight:1.8,marginBottom:14}}>Trip creation is being staged safely. Starting the draft will replace the active trip locally.</div>
+          <div style={{background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:T.white}}>New Trip Builder</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:14}}>Trip creation is being staged safely. Starting the draft will replace the active trip locally.</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
-              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:B.textMute}}>Trip Name
-                <input value={newTripName} onChange={e=>setNewTripName(e.target.value)} style={{background:"#101014",border:`1px solid ${B.dim}`,borderRadius:5,padding:"8px 10px",color:B.text,fontFamily:"inherit",fontSize:11}} />
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Trip Name
+                <input value={newTripName} onChange={e=>setNewTripName(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
               </label>
-              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:B.textMute}}>Destination
-                <input value={newTripDestination} onChange={e=>setNewTripDestination(e.target.value)} style={{background:"#101014",border:`1px solid ${B.dim}`,borderRadius:5,padding:"8px 10px",color:B.text,fontFamily:"inherit",fontSize:11}} />
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Destination
+                <input value={newTripDestination} onChange={e=>setNewTripDestination(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
               </label>
-              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:B.textMute}}>Start Date
-                <input type="date" value={newTripStartDate} onChange={e=>setNewTripStartDate(e.target.value)} style={{background:"#101014",border:`1px solid ${B.dim}`,borderRadius:5,padding:"8px 10px",color:B.text,fontFamily:"inherit",fontSize:11}} />
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Start Date
+                <input type="date" value={newTripStartDate} onChange={e=>setNewTripStartDate(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
               </label>
-              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:B.textMute}}>End Date
-                <input type="date" value={newTripEndDate} onChange={e=>setNewTripEndDate(e.target.value)} style={{background:"#101014",border:`1px solid ${B.dim}`,borderRadius:5,padding:"8px 10px",color:B.text,fontFamily:"inherit",fontSize:11}} />
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>End Date
+                <input type="date" value={newTripEndDate} onChange={e=>setNewTripEndDate(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
               </label>
-              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:B.textMute}}>Travelers
-                <input value={newTripTravelers} onChange={e=>setNewTripTravelers(e.target.value)} style={{background:"#101014",border:`1px solid ${B.dim}`,borderRadius:5,padding:"8px 10px",color:B.text,fontFamily:"inherit",fontSize:11}} />
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Travelers
+                <input value={newTripTravelers} onChange={e=>setNewTripTravelers(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
               </label>
-              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:B.textMute}}>Budget
-                <input inputMode="decimal" value={newTripBudget} onChange={e=>setNewTripBudget(e.target.value)} style={{background:"#101014",border:`1px solid ${B.dim}`,borderRadius:5,padding:"8px 10px",color:B.text,fontFamily:"inherit",fontSize:11}} />
+              <label style={{display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Budget
+                <input inputMode="decimal" value={newTripBudget} onChange={e=>setNewTripBudget(e.target.value)} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11}} />
               </label>
-              <label style={{gridColumn:"1 / -1",display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:B.textMute}}>Purpose / Notes
-                <textarea value={newTripPurpose} onChange={e=>setNewTripPurpose(e.target.value)} rows={3} style={{background:"#101014",border:`1px solid ${B.dim}`,borderRadius:5,padding:"8px 10px",color:B.text,fontFamily:"inherit",fontSize:11,resize:"vertical"}} />
+              <label style={{gridColumn:"1 / -1",display:"flex",flexDirection:"column",gap:5,fontFamily:"monospace",fontSize:10,color:T.muted}}>Purpose / Notes
+                <textarea value={newTripPurpose} onChange={e=>setNewTripPurpose(e.target.value)} rows={3} style={{background:"#101014",border:`1px solid ${T.dim}`,borderRadius:5,padding:"8px 10px",color:T.white,fontFamily:"inherit",fontSize:11,resize:"vertical"}} />
               </label>
             </div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <button onClick={()=>setNewTripModal(false)} style={{background:"transparent",border:`1px solid ${B.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:B.textMute,cursor:"pointer"}}>Close</button>
-              <button onClick={continueNewTripPreview} style={{background:B.redDim,border:`1px solid ${B.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:B.red,cursor:"pointer"}}>Start Active Draft</button>
+              <button onClick={()=>setNewTripModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Close</button>
+              <button onClick={continueNewTripPreview} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Start Active Draft</button>
             </div>
           </div>
         </div>
@@ -3510,12 +3509,12 @@ Your permanent travel history in FM.</div>
 
       {resetModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:B.surface,border:`1px solid ${B.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
-            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:B.text}}>Reset Travel Builder</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:B.textMute,lineHeight:1.8,marginBottom:22}}>Clears all actual cost entries. <strong style={{color:B.text}}>Trip details and estimates stay intact</strong> — ready as a clean template.</div>
+          <div style={{background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:T.white}}>Reset Travel Builder</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:22}}>Clears all actual cost entries. <strong style={{color:T.white}}>Trip details and estimates stay intact</strong> — ready as a clean template.</div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <button onClick={()=>setResetModal(false)} style={{background:"transparent",border:`1px solid ${B.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:B.textMute,cursor:"pointer"}}>Cancel</button>
-              <button onClick={doReset} style={{background:B.redDim,border:`1px solid ${B.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:B.red,cursor:"pointer"}}>Reset Actuals</button>
+              <button onClick={()=>setResetModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Cancel</button>
+              <button onClick={doReset} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.red,cursor:"pointer"}}>Reset Actuals</button>
             </div>
           </div>
         </div>
@@ -3523,19 +3522,19 @@ Your permanent travel history in FM.</div>
 
       {archiveModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:B.surface,border:`1px solid ${B.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
-            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:B.text}}>Archive This Trip</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:B.textMute,lineHeight:1.8,marginBottom:22}}>Saving <strong style={{color:B.text}}>{activeTripTitle}</strong> to archive with all data, actuals, and retro notes.</div>
+          <div style={{background:T.surface,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:26,maxWidth:420,width:"90%"}}>
+            <div style={{fontSize:16,fontWeight:700,marginBottom:10,color:T.white}}>Archive This Trip</div>
+            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:1.8,marginBottom:22}}>Saving <strong style={{color:T.white}}>{activeTripTitle}</strong> to archive with all data, actuals, and retro notes.</div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-              <button onClick={()=>setArchiveModal(false)} style={{background:"transparent",border:`1px solid ${B.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:B.textMute,cursor:"pointer"}}>Cancel</button>
-              <button onClick={doArchive} style={{background:B.greenDim,border:`1px solid ${B.green}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:B.green,cursor:"pointer"}}>Archive Trip</button>
+              <button onClick={()=>setArchiveModal(false)} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,color:T.muted,cursor:"pointer"}}>Cancel</button>
+              <button onClick={doArchive} style={{background:T.greenDim,border:`1px solid ${T.green}40`,borderRadius:5,padding:"7px 14px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:T.green,cursor:"pointer"}}>Archive Trip</button>
             </div>
           </div>
         </div>
       )}
 
       {toast&&(
-        <div style={{position:"fixed",bottom:28,right:28,background:B.surface,border:`1px solid ${toast.type==="success"?B.green+"60":toast.type==="danger"?B.red+"60":B.borderHi}`,borderRadius:5,padding:"10px 16px",fontFamily:"monospace",fontSize:11,color:toast.type==="success"?B.green:toast.type==="danger"?B.red:B.gold,zIndex:600,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",animation:"tbFadeIn 0.25s"}}>
+        <div style={{position:"fixed",bottom:28,right:28,background:T.surface,border:`1px solid ${toast.type==="success"?T.green+"60":toast.type==="danger"?T.red+"60":T.borderHi}`,borderRadius:5,padding:"10px 16px",fontFamily:"monospace",fontSize:11,color:toast.type==="success"?T.green:toast.type==="danger"?T.red:T.gold,zIndex:600,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",animation:"tbFadeIn 0.25s"}}>
           {toast.msg}
         </div>
       )}
