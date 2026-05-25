@@ -3173,9 +3173,9 @@ function TravelBuilderPanel() {
         @keyframes tbFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         .tb-row:hover{background:#f0ebe4!important;transform:translateX(2px)!important}
         .tb-row{transition:all 0.15s!important}
-        .tb-panel:hover{border-color:rgba(0,0,0,0.15)!important;transform:translateY(-2px)!important;box-shadow:0 8px 24px rgba(0,0,0,0.08)!important}
+        .tb-panel:hover{border-color:rgba(0,0,0,0.15)!important;transform:translateY(-2px)!important;box-shadow:0 4px 16px rgba(0,0,0,0.06)!important}
         .tb-panel{transition:all 0.22s!important}
-        @media(max-width:600px){.tb-row:hover{transform:none!important}}
+        @media(max-width:600px){.tb-row:hover{transform:none!important}.tb-metric-grid{grid-template-columns:1fr 1fr!important}.tb-bottom-grid{grid-template-columns:1fr!important}.tb-table-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}}
       `}</style>
 
       {/* Header */}
@@ -3224,56 +3224,63 @@ function TravelBuilderPanel() {
       {/* BUDGET TAB */}
       {tab==="budget"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
-          <div className="tb-panel" style={{background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12,alignItems:"flex-start"}}>
-            <div style={{width:32,height:32,background:"rgba(201,168,76,0.2)",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>★</div>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                <span style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:T.gold}}>FM Executive Briefing — for Mya</span>
-                <div style={{width:5,height:5,borderRadius:"50%",background:T.green,animation:"pulse 2s infinite"}}/>
-                {!briefLoading&&<button onClick={()=>{briefDone.current=false;setAiBrief("");setBriefLoading(true);setTimeout(()=>{briefDone.current=false;},50);}} style={{marginLeft:"auto",background:"rgba(201,168,76,0.15)",border:`1px solid ${T.borderHi}`,borderRadius:3,padding:"2px 7px",fontFamily:"monospace",fontSize:8,color:T.gold,cursor:"pointer"}}>↺ refresh</button>}
-              </div>
-              {briefLoading
-                ?<div style={{fontFamily:"monospace",fontSize:10,color:T.muted,animation:"pulse 1.5s infinite"}}>AI generating briefing for Mya...</div>
-                :<div style={{fontFamily:"monospace",fontSize:10,color:"#c8c4bc",lineHeight:1.7}}>{aiBrief||"Generating..."}</div>}
+          <div style={{background:"#faeeda",border:"1px solid #ef9f27",borderRadius:12,padding:"15px 18px",marginBottom:18}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+              <span style={{fontSize:10,color:"#633806",letterSpacing:"0.07em",textTransform:"uppercase",fontWeight:700}}>FM Executive briefing · for Mya</span>
+              <div style={{width:6,height:6,borderRadius:"50%",background:"#22c55e",flexShrink:0,animation:"pulse 2s infinite"}}/>
+              {!briefLoading&&<button onClick={()=>{briefDone.current=false;setAiBrief("");setBriefLoading(true);setTimeout(()=>{briefDone.current=false;},50);}} style={{marginLeft:"auto",background:"transparent",border:"1px solid #ef9f27",borderRadius:5,padding:"3px 10px",fontFamily:"inherit",fontSize:12,color:"#633806",cursor:"pointer",fontWeight:600}}>↺ Refresh</button>}
             </div>
+            {briefLoading
+              ?<div style={{fontSize:14,color:"#92400e",fontStyle:"italic"}}>Generating briefing for Mya...</div>
+              :<div style={{fontSize:14,color:"#1c1917",lineHeight:1.65}}>{aiBrief||"Generating..."}</div>}
           </div>
 
           <div style={{marginBottom:18}}>
             {[
-              {l:"Planning progress",pct:pp,c:T.gold,d:0},
-              {l:"Budget used",pct:sp,c:sp>100?T.red:T.blue,d:120},
-              {l:"Savings captured",pct:Math.min(Math.round((tots.saved/1750)*100),100),c:T.green,d:240},
+              {l:"Planning progress",pct:pp,      trackBg:"#faeeda",fill:"#f59e0b"},
+              {l:"Budget used",      pct:sp,      trackBg:"#dbeafe",fill:sp>100?"#ef4444":"#3b82f6"},
+              {l:"Savings captured", pct:Math.min(Math.round((tots.saved/1750)*100),100),trackBg:"#dcfce7",fill:"#22c55e"},
             ].map(p=>(
-              <div key={p.l} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-                <div style={{fontFamily:"monospace",fontSize:9,color:T.muted,width:130,flexShrink:0}}>{p.l}</div>
-                <TBAnimBar pct={p.pct} color={p.c} delay={p.d}/>
-                <div style={{fontFamily:"monospace",fontSize:9,color:T.muted,width:30,textAlign:"right"}}>{p.pct}%</div>
+              <div key={p.l} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                <div style={{fontSize:13,color:"#4a4a52",width:150,flexShrink:0}}>{p.l}</div>
+                <div style={{flex:1,height:7,background:p.trackBg,borderRadius:4,overflow:"hidden",minWidth:0}}>
+                  <div style={{width:`${p.pct}%`,height:"100%",background:p.fill,borderRadius:4,transition:"width 1s ease"}}/>
+                </div>
+                <div style={{fontSize:13,fontWeight:700,color:p.fill,width:36,textAlign:"right",flexShrink:0}}>{p.pct}%</div>
               </div>
             ))}
           </div>
 
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:20}}>
-            <TBCard label="Booked"       value={tbFmt(bookedTotal)}                      sub="Booked/confirmed"  accent={T.green}  glow="rgba(76,175,125,0.2)"/>
-            <TBCard label="Budget (low)" value={tbFmt(tots.low)}                         sub="Conservative est." accent={T.gold}   glow="rgba(201,168,76,0.2)"/>
-            <TBCard label="Actual paid"  value={tbFmt(tots.actual)}                      sub="Enter as you pay"  accent={T.blue}   glow="rgba(90,143,201,0.2)"/>
-            <TBCard label="Still needed" value={tbFmt(Math.max(0,tots.low-tots.actual))} sub="Remaining"         accent={T.red}    glow="rgba(201,90,90,0.2)"/>
-            <TBCard label="Total saved"  value={"~"+tbFmt(tots.saved)}                  sub="vs full price"     accent="#4db87a"  glow="rgba(77,184,122,0.2)"/>
-          </div>
-
-          <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:14}}>
-            {[[T.green,"Booked"],[T.amber,"Book now"],[T.muted,"Estimate"],[T.blue,"Actual — edit blue fields"],[T.red,"Over estimate"]].map(([c,l])=>(
-              <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontFamily:"monospace",fontSize:9,color:T.muted}}>
-                <div style={{width:7,height:7,borderRadius:1,background:c,flexShrink:0}}/>{l}
+          <div className="tb-metric-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:20}}>
+            {[
+              {label:"Booked",      value:tbFmt(bookedTotal),                      sub:"Hotel confirmed",  bg:"#22c55e",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
+              {label:"Budget (low)",value:tbFmt(tots.low),                         sub:"Conservative est.",bg:"#f8f7f5",tc:"#1a1a1a",sc:"#78788a"},
+              {label:"Actual paid", value:tbFmt(tots.actual),                      sub:"Enter as you pay", bg:"#3b82f6",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
+              {label:"Still needed",value:tbFmt(Math.max(0,tots.low-tots.actual)), sub:"Remaining",        bg:"#ef4444",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
+              {label:"Total saved", value:"~"+tbFmt(tots.saved),                   sub:"vs full price",    bg:"#f59e0b",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
+            ].map(card=>(
+              <div key={card.label} style={{background:card.bg,borderRadius:10,padding:"13px 15px"}}>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase",color:card.sc,marginBottom:6}}>{card.label}</div>
+                <div style={{fontSize:22,fontWeight:700,color:card.tc,lineHeight:1,marginBottom:3}}>{card.value}</div>
+                <div style={{fontSize:11,fontWeight:500,color:card.sc}}>{card.sub}</div>
               </div>
             ))}
-            <div style={{fontFamily:"monospace",fontSize:9,color:travelDraftStatus==="error"?T.red:T.muted}}>{travelDraftStatusText}</div>
+          </div>
+
+          <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:14,alignItems:"center"}}>
+            {[["#22c55e","#dcfce7","Booked"],["#f59e0b","#fef3c7","Book now"],["#78788a","#f1f5f9","Estimate"],["#3b82f6","#dbeafe","Actual — edit fields"],["#ef4444","#fee2e2","Over estimate"]].map(([c,bg,l])=>(
+              <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#4a4a52"}}>
+                <div style={{width:8,height:8,borderRadius:2,background:bg,border:`1px solid ${c}`,flexShrink:0}}/>{l}
+              </div>
+            ))}
+            <div style={{fontSize:12,color:travelDraftStatus==="error"?"#ef4444":"#78788a",marginLeft:"auto"}}>{travelDraftStatusText}</div>
           </div>
 
           <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden",marginBottom:18}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,tableLayout:"fixed"}}>
               <colgroup><col style={{width:"22%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"11%"}}/><col style={{width:"30%"}}/></colgroup>
               <thead>
-                <tr style={{background:"rgba(255,255,255,0.03)"}}>
+                <tr style={{background:"#f8f7f5"}}>
                   {["Item","Low est.","High est.","Actual paid","+/–","Status","Notes"].map((h,i)=>(
                     <th key={h} style={{padding:"9px 12px",textAlign:i>0&&i<5?"right":i===5?"center":"left",fontFamily:"monospace",fontSize:8,letterSpacing:"0.09em",textTransform:"uppercase",color:T.muted,borderBottom:`1px solid ${T.border}`,fontWeight:400}}>{h}</th>
                   ))}
@@ -3285,8 +3292,8 @@ function TravelBuilderPanel() {
                   return editableTripRows.map(r=>{
                     const cells=[];
                     if(r.cat&&r.cat!==lc){lc=r.cat;cells.push(
-                      <tr key={"c"+r.cat} style={{background:"rgba(201,168,76,0.04)"}}>
-                        <td colSpan={7} style={{padding:"7px 12px",fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold}}>{r.cat}</td>
+                      <tr key={"c"+r.cat} style={{background:"#faeeda"}}>
+                        <td colSpan={7} style={{padding:"8px 14px",fontSize:10,letterSpacing:"0.08em",textTransform:"uppercase",color:"#633806",fontWeight:700}}>{r.cat}</td>
                       </tr>
                     );}
                     const section=lc;
@@ -3356,7 +3363,7 @@ function TravelBuilderPanel() {
                     return cells;
                   });
                 })()}
-                <tr style={{background:"rgba(255,255,255,0.04)",borderTop:`1px solid ${T.borderHi}`}}>
+                <tr style={{background:"#f8f7f5",borderTop:"1.5px solid rgba(0,0,0,0.12)"}}>
                   <td style={{padding:12,fontWeight:700,fontSize:13,color:T.white}}>Total</td>
                   <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.gold,fontWeight:700}}>{tbFmt(tots.low)}</td>
                   <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.gold,fontWeight:700}}>{tbFmt(tots.high)}</td>
@@ -3371,7 +3378,7 @@ function TravelBuilderPanel() {
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Money saved vs full price</div>
+              <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:12,paddingBottom:10,borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>Money saved vs full price</div>
               {[["MM4 hotel discount","~$170"],["No rental car","~$200"],["Kadence buddy pass","~$350"],["Southwest no change fees","$0 risk"]].map(([l,a])=>(
                 <div key={l} style={{display:"flex",alignItems:"center",gap:8,marginBottom:9,fontFamily:"monospace",fontSize:10,transition:"transform 0.15s"}}
                   onMouseEnter={e=>e.currentTarget.style.transform="translateX(3px)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
@@ -3386,7 +3393,7 @@ function TravelBuilderPanel() {
               </div>
             </div>
             <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Open items — action required</div>
+              <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:12,paddingBottom:10,borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>Open items — action required</div>
               {[{c:T.red,t:"Book Southwest flights TODAY — southwest.com, LGA→MDW Jun 12 + MDW→LGA Jun 15"},{c:T.amber,t:"Text Kayliah — need 4+ graduation tickets + dinner plans"},{c:T.amber,t:"Confirm niece checks CA→ORD Jun 12 loads. Have backup."},{c:T.blue,t:"Apply for Motesart Tech business credit card"},{c:T.blue,t:"Bring original Marriott Explore Form + Photo ID to check-in"}].map((item,i)=>(
                 <div key={i} style={{display:"flex",gap:8,marginBottom:9,fontFamily:"monospace",fontSize:10,color:T.muted,lineHeight:1.6,transition:"all 0.15s"}}
                   onMouseEnter={e=>{e.currentTarget.style.transform="translateX(2px)";e.currentTarget.style.color="#a0a8b0";}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.color=T.muted;}}>
