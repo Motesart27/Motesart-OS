@@ -2975,16 +2975,16 @@ function TravelBuilderPanel() {
       if(saved) return JSON.parse(saved);
     }catch{}
     return [
-      {id:"d12",date:"Jun 12",label:"Thursday Jun 12",subtitle:"Kadence arrives NY",traveler:"kadence",events:[
+      {id:"d12",date:"Jun 12",label:"Friday Jun 12",subtitle:"Kadence arrives NY",traveler:"kadence",events:[
         {id:"e1",type:"flight",title:"Kadence · LAX → JFK",detail:"Nonstop · JetBlue / Delta / AA",status:"unbooked"},
         {id:"e2",type:"note",title:"Kadence settles in with Motes · NY",detail:"Dinner plans TBD",status:"note"}
       ]},
-      {id:"d13",date:"Jun 13",label:"Friday Jun 13",subtitle:"Motes flies to Chicago",traveler:"motes",events:[
+      {id:"d13",date:"Jun 13",label:"Saturday Jun 13",subtitle:"Motes flies to Chicago",traveler:"motes",events:[
         {id:"e3",type:"flight",title:"Motes · LGA → ORD",detail:"O’Hare — NOT Midway",status:"unbooked"},
         {id:"e4",type:"hotel",title:"Marriott Marquis Chicago · check-in",detail:"MM4 rate · $481 · skybridge to Wintrust",status:"booked"},
         {id:"e5",type:"food",title:"Graduation eve dinner",detail:"Restaurant TBD · confirm with Kayliah",status:"tbd"}
       ]},
-      {id:"d14",date:"Jun 14",label:"Saturday Jun 14",subtitle:"Kayliah graduation · Wintrust Arena",traveler:"both",anchor:true,events:[
+      {id:"d14",date:"Jun 14",label:"Sunday Jun 14",subtitle:"Kayliah graduation · Wintrust Arena",traveler:"both",anchor:true,events:[
         {id:"e6",type:"event",title:"Kayliah graduation ceremony",detail:"Morning · Wintrust Arena · Chicago",status:"anchor"},
         {id:"e7",type:"flight",title:"Motes · ORD → LGA (if Jun 14)",detail:"Return date TBD — confirm with Dad first",status:"tbd"}
       ]},
