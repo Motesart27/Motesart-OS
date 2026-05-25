@@ -2970,6 +2970,50 @@ function TravelBuilderPanel() {
   const [retro,setRetro] = useState(()=>{try{return JSON.parse(localStorage.getItem(TB_SK+"_r")||"{}")}catch{return{worked:"",improve:"",next:""}}});
   const [archive,setArchive] = useState(()=>{try{return JSON.parse(localStorage.getItem(TB_AK)||"[]")}catch{return[]}});
   const [tab,setTab] = useState("budget");
+  const ITIN_KEY = "fm_itin_v1";
+  const [itinDays,setItinDays] = useState(()=>{
+    try{
+      const saved=localStorage.getItem("fm_itin_v1");
+      if(saved) return JSON.parse(saved);
+    }catch{}
+    return [
+      {id:"d12",date:"Jun 12",label:"Thursday Jun 12",subtitle:"Kadence arrives NY",traveler:"kadence",events:[
+        {id:"e1",type:"flight",title:"Kadence · LAX → JFK",detail:"Nonstop · JetBlue / Delta / AA",status:"unbooked"},
+        {id:"e2",type:"note",title:"Kadence settles in with Motes · NY",detail:"Dinner plans TBD",status:"note"}
+      ]},
+      {id:"d13",date:"Jun 13",label:"Friday Jun 13",subtitle:"Motes flies to Chicago",traveler:"motes",events:[
+        {id:"e3",type:"flight",title:"Motes · LGA → ORD",detail:"O’Hare — NOT Midway",status:"unbooked"},
+        {id:"e4",type:"hotel",title:"Marriott Marquis Chicago · check-in",detail:"MM4 rate · $481 · skybridge to Wintrust",status:"booked"},
+        {id:"e5",type:"food",title:"Graduation eve dinner",detail:"Restaurant TBD · confirm with Kayliah",status:"tbd"}
+      ]},
+      {id:"d14",date:"Jun 14",label:"Saturday Jun 14",subtitle:"Kayliah graduation · Wintrust Arena",traveler:"both",anchor:true,events:[
+        {id:"e6",type:"event",title:"Kayliah graduation ceremony",detail:"Morning · Wintrust Arena · Chicago",status:"anchor"},
+        {id:"e7",type:"flight",title:"Motes · ORD → LGA (if Jun 14)",detail:"Return date TBD — confirm with Dad first",status:"tbd"}
+      ]},
+      {id:"d22",date:"Jun 22",label:"Monday Jun 22",subtitle:"Kadence returns CA",traveler:"kadence",events:[
+        {id:"e8",type:"flight",title:"Kadence · JFK → LAX",detail:"Return leg · nonstop",status:"unbooked"}
+      ]}
+    ];
+  });
+  function saveItin(days){setItinDays(days);try{localStorage.setItem("fm_itin_v1",JSON.stringify(days));}catch{}}
+  function addItinEvent(dayId,evType){
+    const labels={flight:"New flight",hotel:"New hotel",event:"New event",food:"New food/dining",transport:"New transport",note:"New note"};
+    const newEv={id:"ev"+Date.now(),type:evType,title:labels[evType]||"New item",detail:"Tap to edit",status:"tbd"};
+    saveItin(itinDays.map(d=>d.id===dayId?{...d,events:[...d.events,newEv]}:d));
+  }
+  function updateItinEvent(dayId,evId,field,val){
+    saveItin(itinDays.map(d=>d.id===dayId?{...d,events:d.events.map(ev=>ev.id===evId?{...ev,[field]:val}:ev)}:d));
+  }
+  function removeItinEvent(dayId,evId){
+    saveItin(itinDays.map(d=>d.id===dayId?{...d,events:d.events.filter(ev=>ev.id!==evId)}:d));
+  }
+  function addItinDay(){
+    const mnths=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const now=new Date();
+    const nd={id:"day"+Date.now(),date:mnths[now.getMonth()]+" "+now.getDate(),label:now.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"}),subtitle:"New day",traveler:"both",events:[]};
+    saveItin([...itinDays,nd]);
+  }
+  function removeItinDay(dayId){saveItin(itinDays.filter(d=>d.id!==dayId));}
   const [resetModal,setResetModal] = useState(false);
   const [archiveModal,setArchiveModal] = useState(false);
   const [newTripModal,setNewTripModal] = useState(false);
@@ -3169,10 +3213,10 @@ function TravelBuilderPanel() {
 
       {/* Inner tab nav */}
       <div style={{display:"flex",gap:2,marginBottom:18,borderBottom:`1px solid ${T.border}`}}>
-        {["budget","analytics","archive","retro"].map(t=>(
+        {["budget","itinerary","analytics","archive","retro"].map(t=>(
           <button key={t} onClick={()=>setTab(t)}
             style={{padding:"7px 14px",background:tab===t?T.goldDim:"transparent",border:"none",borderBottom:tab===t?`2px solid ${T.gold}`:"2px solid transparent",color:tab===t?T.gold:T.muted,fontSize:11,fontWeight:600,textTransform:"capitalize",cursor:"pointer",transition:"all 0.15s",fontFamily:"inherit"}}>
-            {t==="budget"?"Budget Tracker":t==="analytics"?"Analytics":t==="archive"?"Trip Archive":"Retrospective"}
+            {t==="budget"?"Budget Tracker":t==="itinerary"?"Itinerary":t==="analytics"?"Analytics":t==="archive"?"Trip Archive":"Retrospective"}
           </button>
         ))}
       </div>
@@ -3351,6 +3395,97 @@ function TravelBuilderPanel() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ITINERARY TAB */}
+      {tab==="itinerary"&&(
+        <div style={{animation:"tbFadeIn 0.3s ease"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18,flexWrap:"wrap",gap:10}}>
+            <div>
+              <div style={{fontSize:11,color:"#78788a",letterSpacing:"0.07em",textTransform:"uppercase",marginBottom:4}}>Itinerary · {activeTripTitle}</div>
+              <div style={{fontSize:18,fontWeight:700,color:"#1a1a1a"}}>Jun 12–22 · 10 days · 2 travelers</div>
+            </div>
+            <button onClick={addItinDay} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 16px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Add day</button>
+          </div>
+          <div style={{display:"flex",gap:12,marginBottom:14,flexWrap:"wrap"}}>
+            {[["#dbeafe","#1d4ed8","KA","Kadence · LAX↔JFK"],["#dcfce7","#15803d","MO","Motes · LGA↔ORD"],["#f3e8ff","#6d28d9","⚓","Anchor event"]].map(([bg,c,ic,lbl])=>(
+              <div key={lbl} style={{display:"flex",alignItems:"center",gap:7,fontSize:13,color:"#4a4a52"}}>
+                <div style={{width:28,height:28,borderRadius:7,background:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:c,flexShrink:0}}>{ic}</div>{lbl}
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
+            {[["✈","Flight","#3b82f6"],["⌂","Hotel","#f59e0b"],["★","Event","#8b5cf6"],["⚑","Food","#22c55e"],["⦿","Transport","#ef4444"],["✎","Note","#78788a"]].map(([ic,lbl,c])=>(
+              <div key={lbl} style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:7,border:"0.5px solid rgba(0,0,0,0.08)",background:"#f8f7f5",fontSize:12,color:"#4a4a52"}}>
+                <span style={{color:c,fontSize:14,fontWeight:700}}>{ic}</span>{lbl}
+              </div>
+            ))}
+          </div>
+          <div>
+            {itinDays.map((day)=>{
+              const isAnchor=!!day.anchor;
+              const hdrBg=isAnchor?"#7c3aed":day.traveler==="kadence"?"#3b82f6":day.traveler==="motes"?"#f59e0b":"#f8f7f5";
+              const hdrTxt=isAnchor||day.traveler==="kadence"||day.traveler==="motes"?"#fff":"#1a1a1a";
+              const numBg=isAnchor||day.traveler==="kadence"||day.traveler==="motes"?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.06)";
+              const statusColors={booked:{bg:"#dcfce7",c:"#15803d"},unbooked:{bg:"#fef3c7",c:"#92400e"},tbd:{bg:"#f1f5f9",c:"#64748b"},anchor:{bg:"#7c3aed",c:"#fff"},note:{bg:"#f1f5f9",c:"#64748b"}};
+              const typeIcons={flight:"✈",hotel:"⌂",event:"★",food:"⚑",transport:"⦿",note:"✎"};
+              const typeBg={flight:"#dbeafe",hotel:"#fef9c3",event:"#f3e8ff",food:"#dcfce7",transport:"#fee2e2",note:"#f1f5f9"};
+              const typeC={flight:"#1d4ed8",hotel:"#b45309",event:"#6d28d9",food:"#15803d",transport:"#dc2626",note:"#78788a"};
+              return(
+                <div key={day.id} style={{background:"#ffffff",border:isAnchor?"1.5px solid #7c3aed":"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,marginBottom:12,overflow:"hidden"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",background:hdrBg}}>
+                    <div style={{width:38,height:38,borderRadius:9,background:numBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:hdrTxt,flexShrink:0}}>{day.date.split(" ")[1]||day.date}</div>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                        <span style={{fontSize:14,fontWeight:700,color:hdrTxt}}>{day.label}</span>
+                        {isAnchor&&<span style={{background:"rgba(255,255,255,0.25)",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5}}>ANCHOR</span>}
+                      </div>
+                      <div style={{fontSize:12,color:isAnchor||day.traveler==="kadence"||day.traveler==="motes"?"rgba(255,255,255,0.8)":"#78788a"}}>{day.subtitle}</div>
+                    </div>
+                    <button onClick={()=>removeItinDay(day.id)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:hdrTxt,borderRadius:6,width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:"inherit"}}>&#x2715;</button>
+                  </div>
+                  {day.events.map((ev)=>{
+                    const sc=statusColors[ev.status]||statusColors.tbd;
+                    const ic=typeIcons[ev.type]||"✎";
+                    const ibg=typeBg[ev.type]||"#f1f5f9";
+                    const ic2=typeC[ev.type]||"#78788a";
+                    return(
+                      <div key={ev.id} style={{display:"flex",alignItems:"center",gap:10,padding:"11px 16px",borderTop:"0.5px solid rgba(0,0,0,0.08)"}}>
+                        <div style={{width:32,height:32,borderRadius:8,background:ibg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,color:ic2,flexShrink:0,fontWeight:700}}>{ic}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <input value={ev.title} onChange={e=>updateItinEvent(day.id,ev.id,"title",e.target.value)}
+                            style={{background:"transparent",border:"none",borderBottom:"1px dashed rgba(0,0,0,0.12)",color:"#1a1a1a",fontFamily:"inherit",fontSize:13,fontWeight:600,width:"100%",outline:"none",padding:"1px 0",marginBottom:2,display:"block"}}/>
+                          <input value={ev.detail} onChange={e=>updateItinEvent(day.id,ev.id,"detail",e.target.value)}
+                            style={{background:"transparent",border:"none",color:"#78788a",fontFamily:"inherit",fontSize:12,width:"100%",outline:"none",padding:0,display:"block"}}/>
+                        </div>
+                        <select value={ev.status} onChange={e=>updateItinEvent(day.id,ev.id,"status",e.target.value)}
+                          style={{background:sc.bg,color:sc.c,border:"none",borderRadius:5,padding:"3px 7px",fontSize:10,fontWeight:700,cursor:"pointer",outline:"none",flexShrink:0}}>
+                          <option value="booked">Booked</option>
+                          <option value="unbooked">Unbooked</option>
+                          <option value="tbd">TBD</option>
+                          <option value="anchor">Anchor</option>
+                          <option value="note">Note</option>
+                        </select>
+                        <button onClick={()=>removeItinEvent(day.id,ev.id)} style={{background:"transparent",border:"none",color:"#78788a",cursor:"pointer",fontSize:14,padding:"0 4px",flexShrink:0,fontFamily:"inherit"}}>&#x2715;</button>
+                      </div>
+                    );
+                  })}
+                  <div style={{display:"flex",gap:7,padding:"9px 14px",flexWrap:"wrap",borderTop:"0.5px solid rgba(0,0,0,0.08)",background:"#f8f7f5"}}>
+                    {[["✈","flight","#3b82f6"],["⌂","hotel","#f59e0b"],["★","event","#8b5cf6"],["⚑","food","#22c55e"],["⦿","transport","#ef4444"],["✎","note","#78788a"]].map(([ic,tp,c])=>(
+                      <button key={tp} onClick={()=>addItinEvent(day.id,tp)}
+                        style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:7,border:"0.5px solid rgba(0,0,0,0.08)",background:"#ffffff",cursor:"pointer",fontSize:12,fontWeight:500,color:"#4a4a52",fontFamily:"inherit"}}>
+                        <span style={{color:c,fontSize:14,fontWeight:700}}>{ic}</span>{tp.charAt(0).toUpperCase()+tp.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div onClick={addItinDay} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:13,border:"1.5px dashed rgba(0,0,0,0.12)",borderRadius:12,cursor:"pointer",color:"#78788a",fontSize:13,fontWeight:500,marginTop:4}}>
+            + Add another day
           </div>
         </div>
       )}
