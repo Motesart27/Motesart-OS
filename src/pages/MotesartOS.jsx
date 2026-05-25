@@ -3303,24 +3303,27 @@ function TravelBuilderPanel() {
                     const diff=nv!==null?(Number(r.low)||0)-nv:null;
                     const s=STS[r.status];
                     cells.push(
-                      <tr key={r.id} className="tb-row" style={{borderBottom:`1px solid ${T.border}`,background:"transparent"}}>
-                        <td style={{padding:"10px 12px",color:T.white}}>
-                          <input value={r.label} onChange={e=>updateTripRow(r.id,"label",e.target.value)}
-                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.white,fontFamily:"inherit",fontSize:12,width:"100%",outline:"none"}}/>
+                      <tr key={r.id} className="tb-row" style={{borderBottom:"0.5px solid rgba(0,0,0,0.07)",background:"#ffffff"}}>
+                        <td style={{padding:"10px 14px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <input value={r.label} onChange={e=>updateTripRow(r.id,"label",e.target.value)}
+                              style={{background:"transparent",border:"none",color:"#1a1a1a",fontFamily:"inherit",fontSize:14,fontWeight:600,width:"100%",outline:"none"}}/>
+                            <span style={{fontSize:12,color:"#d1d5db",flexShrink:0}}>&#9998;</span>
+                          </div>
                         </td>
-                        <td style={{padding:"10px 12px",textAlign:"right"}}>
+                        <td style={{padding:"10px 14px",textAlign:"right"}}>
                           <input type="number" value={r.low} onChange={e=>updateTripRow(r.id,"low",e.target.value)}
-                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:11,width:66,textAlign:"right",outline:"none"}}/>
+                            style={{background:"transparent",border:"none",color:"#4a4a52",fontFamily:"inherit",fontSize:13,width:66,textAlign:"right",outline:"none"}}/>
                         </td>
-                        <td style={{padding:"10px 12px",textAlign:"right"}}>
+                        <td style={{padding:"10px 14px",textAlign:"right"}}>
                           <input type="number" value={r.high} onChange={e=>updateTripRow(r.id,"high",e.target.value)}
-                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:11,width:66,textAlign:"right",outline:"none"}}/>
+                            style={{background:"transparent",border:"none",color:"#4a4a52",fontFamily:"inherit",fontSize:13,width:66,textAlign:"right",outline:"none"}}/>
                         </td>
-                        <td style={{padding:"10px 12px",textAlign:"right"}}>
+                        <td style={{padding:"10px 14px",textAlign:"right"}}>
                           <input type="number" value={val} placeholder="enter" onChange={e=>setActual(r.id,e.target.value)}
-                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.blue}55`,color:T.blue,fontFamily:"monospace",fontSize:11,fontWeight:500,width:80,textAlign:"right",padding:"2px 0",outline:"none"}}/>
+                            style={{background:"#dbeafe",border:"none",borderRadius:5,color:"#1d4ed8",fontFamily:"inherit",fontSize:13,fontWeight:600,width:80,textAlign:"right",padding:"3px 8px",outline:"none"}}/>
                         </td>
-                        <td style={{padding:"10px 12px",textAlign:"right",fontFamily:"monospace",fontSize:11,fontWeight:500,color:diff===null?T.muted:diff>0?T.green:diff<0?T.red:T.muted}}>
+                        <td style={{padding:"10px 14px",textAlign:"right",fontSize:13,fontWeight:600,color:diff===null?"#d1d5db":diff>0?"#15803d":diff<0?"#dc2626":"#d1d5db"}}>
                           {diff===null?"—":diff>0?tbFmt(diff):diff<0?"("+tbFmt(Math.abs(diff))+")":"$0"}
                         </td>
                         <td style={{padding:"10px 12px",textAlign:"center"}}>
@@ -3329,9 +3332,9 @@ function TravelBuilderPanel() {
                             {STATUS_OPTIONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
                           </select>
                         </td>
-                        <td style={{padding:"10px 12px",fontFamily:"monospace",fontSize:9,color:T.muted,position:"relative"}}>
+                        <td style={{padding:"10px 14px",fontSize:12,color:"#78788a",position:"relative"}}>
                           <input value={r.note} onChange={e=>updateTripRow(r.id,"note",e.target.value)}
-                            style={{background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:T.muted,fontFamily:"monospace",fontSize:9,width:"100%",outline:"none"}}/>
+                            style={{background:"transparent",border:"none",color:"#78788a",fontFamily:"inherit",fontSize:12,width:"100%",outline:"none"}}/>
                           {isFlightRow&&(
                             <button onClick={()=>setFlightOptionsForRow(flightOptionsForRow===r.id?null:r.id)}
                               style={{display:"block",marginTop:5,background:T.amberDim,border:`1px solid ${T.amber}40`,borderRadius:4,padding:"3px 8px",fontFamily:"inherit",fontSize:9,fontWeight:700,color:T.amber,cursor:"pointer"}}>Options</button>
@@ -3364,13 +3367,13 @@ function TravelBuilderPanel() {
                   });
                 })()}
                 <tr style={{background:"#f8f7f5",borderTop:"1.5px solid rgba(0,0,0,0.12)"}}>
-                  <td style={{padding:12,fontWeight:700,fontSize:13,color:T.white}}>Total</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.gold,fontWeight:700}}>{tbFmt(tots.low)}</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.gold,fontWeight:700}}>{tbFmt(tots.high)}</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.blue,fontWeight:700}}>{tbFmt(tots.actual)}</td>
-                  <td style={{padding:12,textAlign:"right",fontFamily:"monospace",fontSize:13,color:T.green,fontWeight:700}}>{tbFmt(tots.saved)}</td>
+                  <td style={{padding:"12px 14px",fontWeight:700,fontSize:14,color:"#1a1a1a"}}>Total</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontSize:14,color:"#b45309",fontWeight:700}}>{tbFmt(tots.low)}</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontSize:14,color:"#b45309",fontWeight:700}}>{tbFmt(tots.high)}</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontSize:14,color:"#1d4ed8",fontWeight:700}}>{tbFmt(tots.actual)}</td>
+                  <td style={{padding:"12px 14px",textAlign:"right",fontSize:14,color:"#15803d",fontWeight:700}}>{tbFmt(tots.saved)}</td>
                   <td/>
-                  <td style={{padding:12,fontFamily:"monospace",fontSize:9,color:T.muted,fontStyle:"italic"}}>Edit blue fields as costs come in</td>
+                  <td style={{padding:"12px 14px",fontSize:12,color:"#78788a",fontStyle:"italic"}}>Edit blue fields as costs come in</td>
                 </tr>
               </tbody>
             </table>
