@@ -3183,12 +3183,12 @@ function TravelBuilderPanel() {
         <div>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
             <div style={{width:5,height:5,borderRadius:"50%",background:T.green,animation:"pulse 2s infinite"}}/>
-            <span style={{fontFamily:"monospace",fontSize:9,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold}}>Travel Builder — Active Trip</span>
+            <span style={{fontSize:11,letterSpacing:"0.08em",textTransform:"uppercase",color:"#78788a",fontWeight:600}}>Travel Builder — Active trip</span>
           </div>
-          <div style={{fontSize:22,fontWeight:800,color:T.white}}>{activeTripTitle}</div>
-          <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,marginTop:4,display:"flex",gap:10,flexWrap:"wrap"}}>
+          <div style={{fontSize:24,fontWeight:700,color:"#1a1a1a"}}>{activeTripTitle}</div>
+          <div style={{fontSize:13,color:"#4a4a52",marginTop:6,display:"flex",gap:14,flexWrap:"wrap"}}>
             {activeTripMeta.map(s=>(
-              <span key={s}><span style={{color:T.gold,marginRight:3}}>·</span>{s}</span>
+              <span key={s} style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:"#d1d5db"}}>·</span>{s}</span>
             ))}
           </div>
         </div>
