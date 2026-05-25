@@ -3123,14 +3123,15 @@ function TravelBuilderPanel() {
   const STATUS_OPTIONS=[["est","Estimate"],["booknow","Book now"],["confirm","Confirm"],["booked","Booked"],["paid","Paid"],["archived","Archived"]];
 
   return(
-    <div style={{fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+    <div style={{fontFamily:"'DM Sans',system-ui,sans-serif",background:"#f7f5f2",minHeight:"100%",padding:"2px 0"}}>
       <style>{`
         @keyframes tbShimmer{0%,100%{opacity:0}50%{opacity:1}}
         @keyframes tbFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        .tb-row:hover{background:#17171e!important;transform:translateX(2px)!important}
+        .tb-row:hover{background:#f0ebe4!important;transform:translateX(2px)!important}
         .tb-row{transition:all 0.15s!important}
-        .tb-panel:hover{border-color:rgba(255,255,255,0.1)!important;transform:translateY(-2px)!important;box-shadow:0 8px 24px rgba(0,0,0,0.3)!important}
+        .tb-panel:hover{border-color:rgba(0,0,0,0.15)!important;transform:translateY(-2px)!important;box-shadow:0 8px 24px rgba(0,0,0,0.08)!important}
         .tb-panel{transition:all 0.22s!important}
+        @media(max-width:600px){.tb-row:hover{transform:none!important}}
       `}</style>
 
       {/* Header */}
