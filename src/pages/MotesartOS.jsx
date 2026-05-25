@@ -3501,48 +3501,59 @@ function TravelBuilderPanel() {
       {/* ANALYTICS TAB */}
       {tab==="analytics"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:10,marginBottom:22}}>
-            <TBCard label="Coverage"     value={Math.round((tots.actual/tots.low)*100)+"%"} sub="Actual vs budget"  accent={T.green}  glow="rgba(76,175,125,0.2)"/>
-            <TBCard label="Categories"   value={catData.filter(c=>c.v>0).length+"/"+catData.length} sub="With actuals" accent={T.gold}   glow="rgba(201,168,76,0.2)"/>
-            <TBCard label="Avg/day"      value={tots.actual>0?tbFmt(Math.round(tots.actual/3)):"—"} sub="3 days total" accent={T.blue} glow="rgba(90,143,201,0.2)"/>
-            <TBCard label="Savings rate" value={Math.round((tots.saved/1750)*100)+"%"} sub="Of full price" accent="#4db87a" glow="rgba(77,184,122,0.2)"/>
-            <TBCard label="Over/under"   value={tbFmt(Math.abs(tots.low-tots.actual))} sub={tots.actual<=tots.low?"under budget":"over budget"} accent={tots.actual<=tots.low?T.green:T.red} glow={tots.actual<=tots.low?"rgba(76,175,125,0.2)":"rgba(201,90,90,0.2)"}/>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:22}}>
+            {[
+              {label:"Coverage",    value:Math.round((tots.actual/tots.low)*100)+"%", sub:"Actual vs budget",  bg:"#22c55e",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
+              {label:"Categories",  value:catData.filter(c=>c.v>0).length+"/"+catData.length, sub:"With actuals", bg:"#f59e0b",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
+              {label:"Avg/day",     value:tots.actual>0?tbFmt(Math.round(tots.actual/3)):"—", sub:"3 days total", bg:"#3b82f6",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
+              {label:"Savings rate",value:Math.round((tots.saved/1750)*100)+"%", sub:"Of full price", bg:"#22c55e",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
+              {label:"Over/under",  value:tbFmt(Math.abs(tots.low-tots.actual)), sub:tots.actual<=tots.low?"under budget":"over budget", bg:tots.actual<=tots.low?"#22c55e":"#ef4444",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
+            ].map(card=>(
+              <div key={card.label} style={{background:card.bg,borderRadius:10,padding:"13px 15px"}}>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase",color:card.sc,marginBottom:6}}>{card.label}</div>
+                <div style={{fontSize:22,fontWeight:700,color:card.tc,lineHeight:1,marginBottom:3}}>{card.value}</div>
+                <div style={{fontSize:11,fontWeight:500,color:card.sc}}>{card.sub}</div>
+              </div>
+            ))}
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-            <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Spend by category</div>
+            <div style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:"16px 18px"}}>
+              <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:14,paddingBottom:10,borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>Spend by category</div>
               {catData.map((c,i)=>(
-                <div key={c.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,transition:"transform 0.15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.transform="translateX(2px)"} onMouseLeave={e=>e.currentTarget.style.transform="none"}>
-                  <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,width:110,flexShrink:0}}>{c.l}</div>
-                  <TBAnimBar pct={c.max>0?Math.round((c.v/c.max)*100):0} color={c.c} delay={i*80}/>
-                  <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,width:55,textAlign:"right"}}>{c.v>0?tbFmt(c.v):"—"}</div>
+                <div key={c.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <div style={{fontSize:12,color:"#4a4a52",width:120,flexShrink:0}}>{c.l}</div>
+                  <div style={{flex:1,height:7,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
+                    <div style={{width:`${c.max>0?Math.round((c.v/c.max)*100):0}%`,height:"100%",background:c.c,borderRadius:4,transition:"width 1s ease"}}/>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:600,color:"#4a4a52",width:55,textAlign:"right"}}>{c.v>0?tbFmt(c.v):"—"}</div>
                 </div>
               ))}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
-              <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
-                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Trip completion</div>
+              <div style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:"16px 18px"}}>
+                <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:14,paddingBottom:10,borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>Trip completion</div>
                 <div style={{display:"flex",alignItems:"center",gap:18}}>
-                  <TBDonut pct={pp} color={T.gold}/>
+                  <TBDonut pct={pp} color="#f59e0b"/>
                   <div>
-                    {[{dot:T.green,l:"Booked",v:tbFmt(bookedTotal)},{dot:T.blue,l:"Actual paid",v:tbFmt(tots.actual)},{dot:T.muted,l:"Remaining",v:tbFmt(Math.max(0,tots.low-tots.actual))},{dot:T.green,l:"Saved",v:"~"+tbFmt(tots.saved)}].map(r=>(
+                    {[{dot:"#22c55e",l:"Booked",v:tbFmt(bookedTotal)},{dot:"#3b82f6",l:"Actual paid",v:tbFmt(tots.actual)},{dot:"#d1d5db",l:"Remaining",v:tbFmt(Math.max(0,tots.low-tots.actual))},{dot:"#22c55e",l:"Saved",v:"~"+tbFmt(tots.saved)}].map(r=>(
                       <div key={r.l} style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
                         <div style={{width:8,height:8,borderRadius:2,background:r.dot,flexShrink:0}}/>
-                        <div style={{flex:1,fontFamily:"monospace",fontSize:10,color:T.muted}}>{r.l}</div>
-                        <div style={{fontFamily:"monospace",fontSize:10,color:r.dot,fontWeight:500}}>{r.v}</div>
+                        <div style={{flex:1,fontSize:12,color:"#4a4a52"}}>{r.l}</div>
+                        <div style={{fontSize:12,color:r.dot,fontWeight:600}}>{r.v}</div>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
-              <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
-                <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Budget vs actual</div>
-                {[{l:"Budget (low)",v:tots.low,max:tots.low,c:T.muted},{l:"Actual paid",v:tots.actual,max:tots.low,c:T.blue},{l:"Saved",v:tots.saved,max:tots.low,c:T.green}].map((b,i)=>(
+              <div style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:"16px 18px"}}>
+                <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:14,paddingBottom:10,borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>Budget vs actual</div>
+                {[{l:"Budget (low)",v:tots.low,max:tots.low,trackBg:"#f1f5f9",fill:"#d1d5db"},{l:"Actual paid",v:tots.actual,max:tots.low,trackBg:"#dbeafe",fill:"#3b82f6"},{l:"Saved",v:tots.saved,max:tots.low,trackBg:"#dcfce7",fill:"#22c55e"}].map((b,i)=>(
                   <div key={b.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                    <div style={{fontFamily:"monospace",fontSize:10,color:T.muted,width:90,flexShrink:0}}>{b.l}</div>
-                    <TBAnimBar pct={Math.min(Math.round((b.v/b.max)*100),100)} color={b.c} delay={i*100}/>
-                    <div style={{fontFamily:"monospace",fontSize:10,color:b.c,width:55,textAlign:"right"}}>{tbFmt(b.v)}</div>
+                    <div style={{fontSize:12,color:"#4a4a52",width:95,flexShrink:0}}>{b.l}</div>
+                    <div style={{flex:1,height:7,background:b.trackBg,borderRadius:4,overflow:"hidden"}}>
+                      <div style={{width:`${Math.min(Math.round((b.v/b.max)*100),100)}%`,height:"100%",background:b.fill,borderRadius:4,transition:"width 1s ease"}}/>
+                    </div>
+                    <div style={{fontSize:12,fontWeight:600,color:b.fill,width:55,textAlign:"right"}}>{tbFmt(b.v)}</div>
                   </div>
                 ))}
               </div>
@@ -3555,25 +3566,23 @@ function TravelBuilderPanel() {
       {tab==="archive"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
           {archive.length===0
-            ?<div style={{textAlign:"center",padding:"60px 20px",fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:2}}>No archived trips yet.
-Complete a trip and click Archive.
-Your permanent travel history in FM.</div>
+            ?<div style={{textAlign:"center",padding:"60px 20px",fontSize:13,color:"#78788a",lineHeight:2}}>No archived trips yet.<br/>Complete a trip and click Archive.<br/>Your permanent travel history in FM.</div>
             :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
               {archive.map((a,i)=>(
                   <div key={a.id}
-                    style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:18,position:"relative",overflow:"hidden",transition:"all 0.25s",cursor:"default"}}>
-                    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${T.gold},transparent)`}}/>
-                    <div style={{fontSize:14,fontWeight:700,marginBottom:4,color:T.white}}>{a.trip}</div>
-                    <div style={{fontFamily:"monospace",fontSize:9,color:T.muted,marginBottom:12}}>{a.dates} · Archived {a.archivedAt}</div>
+                    style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:18,position:"relative",overflow:"hidden",transition:"all 0.25s",cursor:"default"}}>
+                    <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,#f59e0b,#22c55e)"}}/>
+                    <div style={{fontSize:15,fontWeight:700,marginBottom:4,color:"#1a1a1a"}}>{a.trip}</div>
+                    <div style={{fontSize:11,color:"#78788a",marginBottom:12}}>{a.dates} · Archived {a.archivedAt}</div>
                     <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
-                      {[["Budget",tbFmt(a.budget),T.muted],["Actual",tbFmt(a.actual),T.blue],["Saved","~"+tbFmt(a.saved),T.green],[a.actual<=a.budget?"Under":"Over",tbFmt(Math.abs(a.budget-a.actual)),a.actual<=a.budget?T.green:T.red]].map(([l,v,c])=>(
-                        <div key={l}><div style={{fontFamily:"monospace",fontSize:8,color:T.muted,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{l}</div><div style={{fontFamily:"monospace",fontSize:12,color:c,fontWeight:500}}>{v}</div></div>
+                      {[["Budget",tbFmt(a.budget),"#4a4a52"],["Actual",tbFmt(a.actual),"#1d4ed8"],["Saved","~"+tbFmt(a.saved),"#15803d"],[a.actual<=a.budget?"Under":"Over",tbFmt(Math.abs(a.budget-a.actual)),a.actual<=a.budget?"#15803d":"#dc2626"]].map(([l,v,c])=>(
+                        <div key={l}><div style={{fontSize:10,color:"#78788a",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2,fontWeight:600}}>{l}</div><div style={{fontSize:13,color:c,fontWeight:700}}>{v}</div></div>
                       ))}
                     </div>
-                    {a.state?.retro?.worked&&<div style={{fontFamily:"monospace",fontSize:9,color:T.muted,borderTop:`1px solid ${T.border}`,paddingTop:8,marginBottom:10}}><span style={{color:T.green}}>Worked: </span>{a.state.retro.worked.substring(0,80)}...</div>}
+                    {a.state?.retro?.worked&&<div style={{fontSize:12,color:"#4a4a52",borderTop:"0.5px solid rgba(0,0,0,0.08)",paddingTop:8,marginBottom:10,lineHeight:1.5}}><span style={{color:"#15803d",fontWeight:600}}>Worked: </span>{a.state.retro.worked.substring(0,80)}...</div>}
                     <div style={{display:"flex",gap:6}}>
-                      <button onClick={()=>{setActuals(a.state.actuals||{});setTab("budget");showToast("Loaded");}} style={{background:"transparent",border:`1px solid ${T.dim}`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:T.muted,cursor:"pointer"}}>Load</button>
-                      <button onClick={()=>safeTravelAction("Delete archive",()=>{const n=archive.filter((_,j)=>j!==i);setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));safeTravelNotice("Deleted","danger");})} style={{background:T.redDim,border:`1px solid ${T.red}40`,borderRadius:4,padding:"4px 10px",fontFamily:"monospace",fontSize:9,color:T.red,cursor:"pointer"}}>Delete</button>
+                      <button onClick={()=>{setActuals(a.state.actuals||{});setTab("budget");showToast("Loaded");}} style={{background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:6,padding:"5px 12px",fontFamily:"inherit",fontSize:12,color:"#4a4a52",cursor:"pointer",fontWeight:500}}>Load</button>
+                      <button onClick={()=>safeTravelAction("Delete archive",()=>{const n=archive.filter((_,j)=>j!==i);setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));safeTravelNotice("Deleted","danger");})} style={{background:"#fee2e2",border:"0.5px solid rgba(220,38,38,0.2)",borderRadius:6,padding:"5px 12px",fontFamily:"inherit",fontSize:12,color:"#dc2626",cursor:"pointer",fontWeight:500}}>Delete</button>
                     </div>
                   </div>
               ))}
@@ -3585,28 +3594,28 @@ Your permanent travel history in FM.</div>
       {/* RETRO TAB */}
       {tab==="retro"&&(
         <div style={{animation:"tbFadeIn 0.3s ease"}}>
-          <div className="tb-panel" style={{background:T.goldDim,border:`1px solid ${T.borderHi}`,borderRadius:10,padding:"13px 17px",marginBottom:18,display:"flex",gap:12}}>
-            <div style={{fontSize:16}}>◆</div>
+          <div style={{background:"#faeeda",border:"1px solid #ef9f27",borderRadius:12,padding:"15px 18px",marginBottom:18,display:"flex",gap:12,alignItems:"flex-start"}}>
+            <div style={{fontSize:18,flexShrink:0}}>◆</div>
             <div>
-              <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.12em",textTransform:"uppercase",color:T.gold,marginBottom:4}}>Why this matters</div>
-              <div style={{fontFamily:"monospace",fontSize:10,color:"#c8c4bc",lineHeight:1.7}}>Fill this in after June 15. This becomes the foundation for Travel Builder Template v2. <strong style={{color:T.white}}>Every trip makes FM smarter.</strong></div>
+              <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#633806",fontWeight:700,marginBottom:4}}>Why this matters</div>
+              <div style={{fontSize:13,color:"#1c1917",lineHeight:1.7}}>Fill this in after the trip. This becomes the foundation for Travel Builder Template v2. <strong style={{color:"#412402"}}>Every trip makes FM smarter.</strong></div>
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:18}}>
             {[{key:"worked",l:"What worked well",a:T.green,ph:"e.g. Marriott skybridge was perfect, buddy pass saved $350..."},{key:"improve",l:"What to improve",a:T.amber,ph:"e.g. Book flights earlier, food budget for Jun 14 was tight..."},{key:"next",l:"Do differently next trip",a:T.blue,ph:"e.g. Always Wanna Get Away Plus, add activity budget line..."}].map(b=>(
                 <div key={b.key}
-                  style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:16,transition:"all 0.25s"}}>
-                  <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.1em",textTransform:"uppercase",color:b.a,marginBottom:10}}>{b.l}</div>
+                  style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:16}}>
+                  <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:b.a,fontWeight:700,marginBottom:10}}>{b.l}</div>
                   <textarea value={retro[b.key]||""} onChange={e=>safeTravelAction("Save retrospective",()=>{const n={...retro,[b.key]:e.target.value};setRetro(n);localStorage.setItem(TB_SK+"_r",JSON.stringify(n));})} placeholder={b.ph}
-                    style={{width:"100%",background:"transparent",border:"none",borderBottom:`1px dashed ${T.dim}`,color:"#9AACC0",fontFamily:"monospace",fontSize:10,lineHeight:1.7,outline:"none",padding:"4px 0",minHeight:80,resize:"vertical"}}/>
+                    style={{width:"100%",background:"transparent",border:"none",color:"#1a1a1a",fontFamily:"inherit",fontSize:13,lineHeight:1.7,outline:"none",padding:"4px 0",minHeight:80,resize:"vertical"}}/>
                 </div>
             ))}
           </div>
-          <div className="tb-panel" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"16px 18px"}}>
-            <div style={{fontFamily:"monospace",fontSize:8,letterSpacing:"0.14em",textTransform:"uppercase",color:T.gold,marginBottom:12,paddingBottom:8,borderBottom:`1px solid ${T.borderHi}`}}>Final comparison — estimated vs actual</div>
-            <div style={{fontFamily:"monospace",fontSize:11,color:T.muted,lineHeight:2.2}}>
-              {[["Estimated budget (low)",tbFmt(tots.low),T.white],["Actual spent so far",tbFmt(tots.actual),T.blue],["Difference",tots.low>=tots.actual?"Under by "+tbFmt(tots.low-tots.actual):"Over by "+tbFmt(tots.actual-tots.low),tots.low>=tots.actual?T.green:T.red],["Hotel savings (MM4)","~$170",T.green],["Total savings captured","~"+tbFmt(tots.saved)+"+",T.green]].map(([l,v,c])=>(
-                <div key={l} style={{display:"flex",justifyContent:"space-between",borderBottom:`1px solid ${T.dim}`,paddingBottom:2}}>
+          <div style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:"16px 18px"}}>
+            <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:12,paddingBottom:10,borderBottom:"0.5px solid rgba(0,0,0,0.08)"}}>Final comparison  estimated vs actual</div>
+            <div style={{fontSize:13,color:"#4a4a52",lineHeight:2.2}}>
+              {[["Estimated budget (low)",tbFmt(tots.low),"#1a1a1a"],["Actual spent so far",tbFmt(tots.actual),"#1d4ed8"],["Difference",tots.low>=tots.actual?"Under by "+tbFmt(tots.low-tots.actual):"Over by "+tbFmt(tots.actual-tots.low),tots.low>=tots.actual?"#15803d":"#dc2626"],["Hotel savings (MM4)","~$170","#15803d"],["Total savings captured","~"+tbFmt(tots.saved)+"+","#15803d"]].map(([l,v,c])=>(
+                <div key={l} style={{display:"flex",justifyContent:"space-between",borderBottom:"0.5px solid rgba(0,0,0,0.06)",paddingBottom:2}}>
                   <span>{l}</span><strong style={{color:c}}>{v}</strong>
                 </div>
               ))}
@@ -3678,7 +3687,7 @@ Your permanent travel history in FM.</div>
       )}
 
       {toast&&(
-        <div style={{position:"fixed",bottom:28,right:28,background:T.surface,border:`1px solid ${toast.type==="success"?T.green+"60":toast.type==="danger"?T.red+"60":T.borderHi}`,borderRadius:5,padding:"10px 16px",fontFamily:"monospace",fontSize:11,color:toast.type==="success"?T.green:toast.type==="danger"?T.red:T.gold,zIndex:600,boxShadow:"0 8px 24px rgba(0,0,0,0.4)",animation:"tbFadeIn 0.25s"}}>
+        <div style={{position:"fixed",bottom:28,right:28,background:"#ffffff",border:`0.5px solid ${toast.type==="success"?"#22c55e":toast.type==="danger"?"#ef4444":"#f59e0b"}`,borderRadius:10,padding:"12px 18px",fontFamily:"inherit",fontSize:13,fontWeight:600,color:toast.type==="success"?"#15803d":toast.type==="danger"?"#dc2626":"#b45309",zIndex:600,boxShadow:"0 4px 20px rgba(0,0,0,0.1)",animation:"tbFadeIn 0.25s"}}>
           {toast.msg}
         </div>
       )}
