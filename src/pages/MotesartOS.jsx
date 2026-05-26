@@ -3056,7 +3056,9 @@ function TravelBuilderPanel() {
       safeTravelNotice(`${actionName} did not complete. Try again.`, "danger");
     }
   }
-  function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:r));}
+  function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:value));}
+  function addTripRow(cat){const newRow={id:"custom_"+Date.now(),cat:cat||"Custom",label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:""};setEditableTripRows(rows=>[...rows,newRow]);safeTravelNotice("Row added — fill in the details","success");}
+  function removeTripRow(id){if(!id.startsWith("custom_"))return;setEditableTripRows(rows=>rows.filter(r=>r.id!==id));}
   function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,act:val}:r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
   function buildTravelDraft(rows=editableTripRows){
     return {activeTripDraft,editableTripRows:rows,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose,savedAt:new Date().toISOString()};
@@ -3307,6 +3309,7 @@ function TravelBuilderPanel() {
                             <input value={r.label} onChange={e=>updateTripRow(r.id,"label",e.target.value)}
                               style={{background:"transparent",border:"none",color:"#1a1a1a",fontFamily:"inherit",fontSize:14,fontWeight:600,width:"100%",outline:"none"}}/>
                             <span style={{fontSize:12,color:"#d1d5db",flexShrink:0}}>&#9998;</span>
+                            {r.id.startsWith("custom_")&&<button onClick={()=>removeTripRow(r.id)} style={{background:"transparent",border:"none",color:"#d1d5db",cursor:"pointer",fontSize:14,padding:"0 2px",flexShrink:0,fontFamily:"inherit"}} title="Remove row">&#x2715;</button>}
                           </div>
                         </td>
                         <td style={{padding:"10px 14px",textAlign:"right"}}>
@@ -3375,6 +3378,9 @@ function TravelBuilderPanel() {
                 </tr>
               </tbody>
             </table>
+            <div style={{padding:"10px 0 4px"}}>
+              <button onClick={()=>addTripRow("Custom")} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 16px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",width:"100%",justifyContent:"center"}}>+ Add row</button>
+            </div>
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -3466,14 +3472,18 @@ function TravelBuilderPanel() {
                           <input value={ev.detail} onChange={e=>updateItinEvent(day.id,ev.id,"detail",e.target.value)}
                             style={{background:"transparent",border:"none",color:"#78788a",fontFamily:"inherit",fontSize:12,width:"100%",outline:"none",padding:0,display:"block"}}/>
                         </div>
-                        <select value={ev.status} onChange={e=>updateItinEvent(day.id,ev.id,"status",e.target.value)}
-                          style={{background:sc.bg,color:sc.c,border:"none",borderRadius:5,padding:"3px 7px",fontSize:10,fontWeight:700,cursor:"pointer",outline:"none",flexShrink:0}}>
-                          <option value="booked">Booked</option>
-                          <option value="unbooked">Unbooked</option>
-                          <option value="tbd">TBD</option>
-                          <option value="anchor">Anchor</option>
-                          <option value="note">Note</option>
-                        </select>
+                        {ev.status==="booked"
+                          ?<div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                            <span style={{background:"#dcfce7",color:"#15803d",fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:5}}>Booked ✓</span>
+                            <button onClick={()=>updateItinEvent(day.id,ev.id,"status","unbooked")} style={{background:"transparent",border:"none",color:"#d1d5db",cursor:"pointer",fontSize:13,padding:"0 2px",fontFamily:"inherit"}} title="Change status">&#9998;</button>
+                          </div>
+                          :<select value={ev.status} onChange={e=>updateItinEvent(day.id,ev.id,"status",e.target.value)}
+                            style={{background:sc.bg,color:sc.c,border:"none",borderRadius:5,padding:"3px 7px",fontSize:10,fontWeight:700,cursor:"pointer",outline:"none",flexShrink:0}}>
+                            <option value="unbooked">Unbooked</option>
+                            <option value="tbd">TBD</option>
+                            <option value="anchor">Anchor</option>
+                            <option value="note">Note</option>
+                          </select>}
                         <button onClick={()=>removeItinEvent(day.id,ev.id)} style={{background:"transparent",border:"none",color:"#78788a",cursor:"pointer",fontSize:14,padding:"0 4px",flexShrink:0,fontFamily:"inherit"}}>&#x2715;</button>
                       </div>
                     );
