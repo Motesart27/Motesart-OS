@@ -3118,7 +3118,7 @@ function TravelBuilderPanel() {
         if(d&&typeof d==="object"){
           if(d.activeTripDraft){
             setActiveTripDraft(d.activeTripDraft);
-            if(Array.isArray(d.editableTripRows))setEditableTripRows(d.editableTripRows);
+            if(Array.isArray(d.editableTripRows)){const vr=d.editableTripRows.filter(r=>r&&r.label&&r.label.trim()&&r.label!=="New item");if(vr.length>=3)setEditableTripRows(d.editableTripRows);else{console.warn("Corrupt rows");setEditableTripRows(TB_ROWS.map(r=>({...r})));localStorage.removeItem(TRAVEL_DRAFT_KEY);}}
           } else if(d.newTripPreview) {
             setActiveTripDraft({
               name:d.newTripPreview.name||"Untitled Trip",
@@ -3128,7 +3128,7 @@ function TravelBuilderPanel() {
               purpose:d.newTripPreview.purpose||"Purpose pending"
             });
             setEditableTripRows(tbCloneRows(TB_BLANK_ROWS));
-          } else if(Array.isArray(d.editableTripRows))setEditableTripRows(d.editableTripRows);
+          } else if(Array.isArray(d.editableTripRows)){const vr2=d.editableTripRows.filter(r=>r&&r.label&&r.label.trim()&&r.label!=="New item");if(vr2.length>=3)setEditableTripRows(d.editableTripRows);else{console.warn("Corrupt rows2");setEditableTripRows(TB_ROWS.map(r=>({...r})));localStorage.removeItem(TRAVEL_DRAFT_KEY);}}
           setNewTripName(d.newTripName||"");
           setNewTripDestination(d.newTripDestination||"");
           setNewTripStartDate(d.newTripStartDate||"");
