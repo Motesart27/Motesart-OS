@@ -3213,7 +3213,7 @@ function TravelBuilderPanel() {
         @keyframes tbFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         .tb-row:hover{background:#f0ebe4!important;transform:translateX(2px)!important}
         .tb-row{transition:all 0.15s!important}
-        .tb-panel:hover{border-color:rgba(0,0,0,0.15)!important;transform:translateY(-2px)!important;box-shadow:0 4px 16px rgba(0,0,0,0.06)!important}
+        .tb-panel:hover{border-color:rgba(0,0,0,0.15)!important;transform:translateY(-2px)!important;box-shadow:0 8px 28px rgba(0,0,0,0.10)!important}
         .tb-panel{transition:all 0.22s!important}
         @media(max-width:600px){.tb-row:hover{transform:none!important}.tb-metric-grid{grid-template-columns:1fr 1fr!important}.tb-bottom-grid{grid-template-columns:1fr!important}.tb-table-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}}
       `}</style>
@@ -3284,7 +3284,7 @@ function TravelBuilderPanel() {
               <div key={p.l} style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
                 <div style={{fontSize:13,color:"#4a4a52",width:150,flexShrink:0}}>{p.l}</div>
                 <div style={{flex:1,height:7,background:p.trackBg,borderRadius:4,overflow:"hidden",minWidth:0}}>
-                  <div style={{width:`${p.pct}%`,height:"100%",background:p.fill,borderRadius:4,transition:"width 1s ease"}}/>
+                  <div style={{width:`${p.pct}%`,height:"100%",background:p.fill,borderRadius:4,transition:"width 1.4s cubic-bezier(0.4,0,0.2,1)",boxShadow:`0 0 8px ${p.fill}66`}}/>
                 </div>
                 <div style={{fontSize:13,fontWeight:700,color:p.fill,width:36,textAlign:"right",flexShrink:0}}>{p.pct}%</div>
               </div>
@@ -3294,12 +3294,12 @@ function TravelBuilderPanel() {
           <div className="tb-metric-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:20}}>
             {[
               {label:"Booked",      value:tbFmt(bookedTotal),                      sub:"Hotel confirmed",  bg:"#22c55e",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
-              {label:"Budget (low)",value:tbFmt(tots.low),                         sub:"Conservative est.",bg:"#f8f7f5",tc:"#1a1a1a",sc:"#78788a"},
+              {label:"Budget (low)",value:tbFmt(tots.low),                         sub:"Conservative est.",bg:"#e2e8f0",tc:"#1e293b",sc:"#475569"},
               {label:"Actual paid", value:tbFmt(tots.actual),                      sub:"Enter as you pay", bg:"#3b82f6",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
               {label:"Still needed",value:tbFmt(Math.max(0,tots.low-tots.actual)), sub:"Remaining",        bg:"#ef4444",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
               {label:"Total saved", value:"~"+tbFmt(tots.saved),                   sub:"vs full price",    bg:"#f59e0b",tc:"#fff",sc:"rgba(255,255,255,0.85)"},
             ].map(card=>(
-              <div key={card.label} style={{background:card.bg,borderRadius:10,padding:"13px 15px"}}>
+              <div key={card.label} style={{background:card.bg,borderRadius:10,padding:"13px 15px",transition:"all 0.22s cubic-bezier(0.4,0,0.2,1)",cursor:"default"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow=`0 8px 24px ${card.bg}99`;}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
                 <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.07em",textTransform:"uppercase",color:card.sc,marginBottom:6}}>{card.label}</div>
                 <div style={{fontSize:22,fontWeight:700,color:card.tc,lineHeight:1,marginBottom:3}}>{card.value}</div>
                 <div style={{fontSize:11,fontWeight:500,color:card.sc}}>{card.sub}</div>
@@ -3361,7 +3361,7 @@ function TravelBuilderPanel() {
                             <input value={r.label} onChange={e=>updateTripRow(r.id,"label",e.target.value)}
                               style={{background:"transparent",border:"none",color:"#1a1a1a",fontFamily:"inherit",fontSize:14,fontWeight:600,width:"100%",outline:"none"}}/>
                             <span style={{fontSize:12,color:"#d1d5db",flexShrink:0}}>&#9998;</span>
-                            {String(r.id||"").startsWith("custom_")&&<button onClick={()=>removeTripRow(r.id)} style={{background:"transparent",border:"none",color:"#d1d5db",cursor:"pointer",fontSize:14,padding:"0 2px",flexShrink:0,fontFamily:"inherit"}} title="Remove row">&#x2715;</button>}
+                            {String(r.id||"").startsWith("custom_")&&<button onClick={()=>removeTripRow(r.id)} style={{background:"#ef4444",border:"none",borderRadius:"50%",color:"#fff",cursor:"pointer",fontSize:11,fontWeight:700,width:20,height:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:"inherit",lineHeight:1}} title="Remove row">&#x2715;</button>}
                           </div>
                         </td>
                         <td style={{padding:"10px 14px",textAlign:"right"}}>
@@ -3585,7 +3585,7 @@ function TravelBuilderPanel() {
                 <div key={c.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                   <div style={{fontSize:12,color:"#4a4a52",width:120,flexShrink:0}}>{c.l}</div>
                   <div style={{flex:1,height:7,background:"#f1f5f9",borderRadius:4,overflow:"hidden"}}>
-                    <div style={{width:`${c.max>0?Math.round((c.v/c.max)*100):0}%`,height:"100%",background:c.c,borderRadius:4,transition:"width 1s ease"}}/>
+                    <div style={{width:`${c.max>0?Math.round((c.v/c.max)*100):0}%`,height:"100%",background:c.c,borderRadius:4,transition:"width 1.4s cubic-bezier(0.4,0,0.2,1)",boxShadow:`0 0 6px ${c.c}55`}}/>
                   </div>
                   <div style={{fontSize:12,fontWeight:600,color:"#4a4a52",width:55,textAlign:"right"}}>{c.v>0?tbFmt(c.v):"—"}</div>
                 </div>
@@ -3613,7 +3613,7 @@ function TravelBuilderPanel() {
                   <div key={b.l} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
                     <div style={{fontSize:12,color:"#4a4a52",width:95,flexShrink:0}}>{b.l}</div>
                     <div style={{flex:1,height:7,background:b.trackBg,borderRadius:4,overflow:"hidden"}}>
-                      <div style={{width:`${Math.min(Math.round((b.v/b.max)*100),100)}%`,height:"100%",background:b.fill,borderRadius:4,transition:"width 1s ease"}}/>
+                      <div style={{width:`${Math.min(Math.round((b.v/b.max)*100),100)}%`,height:"100%",background:b.fill,borderRadius:4,transition:"width 1.4s cubic-bezier(0.4,0,0.2,1)",boxShadow:`0 0 8px ${b.fill}66`}}/>
                     </div>
                     <div style={{fontSize:12,fontWeight:600,color:b.fill,width:55,textAlign:"right"}}>{tbFmt(b.v)}</div>
                   </div>
