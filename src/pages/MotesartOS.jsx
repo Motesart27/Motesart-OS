@@ -3076,6 +3076,29 @@ function TravelBuilderPanel() {
     safeTravelNotice("Row added — fill in the details","success");
   }
   function removeTripRow(id){if(!String(id||"").startsWith("custom_"))return;setEditableTripRows(rows=>rows.filter(r=>r.id!==id));}
+  const TB_DEFAULT_SECTIONS=["Accommodation","Flights","Ground Transport","Food & Dining","Graduation + Gifts","Misc + Buffer"];
+  function deleteBudgetSection(catName){
+    if(TB_DEFAULT_SECTIONS.includes(catName)){safeTravelNotice("Default sections cannot be deleted","");return;}
+    setEditableTripRows(rows=>{
+      let inCat=false;
+      return rows.filter(r=>{
+        if(r.cat===catName){inCat=true;return false;}
+        if(inCat&&r.cat===""&&String(r.id||"").startsWith("custom_"))return false;
+        if(r.cat&&r.cat!==catName)inCat=false;
+        return true;
+      });
+    });
+    safeTravelNotice("Section removed","success");
+  }
+  function addBudgetSection(){
+    const name=(prompt("New section name:")||"").trim();
+    if(!name)return;
+    if(editableTripRows.some(r=>r.cat===name)){safeTravelNotice("Section already exists","");return;}
+    const newRow={id:"custom_"+Date.now(),cat:name,label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:"",url:""};
+    setEditableTripRows(rows=>[...rows,newRow]);
+    safeTravelNotice("Section “"+name+"” added","success");
+  }
+  function updateItinDay(dayId,field,val){saveItin(itinDays.map(d=>d.id===dayId?{...d,[field]:val}:d));}
   function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,act:val}:r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
   function buildTravelDraft(rows=editableTripRows){
     return {activeTripDraft,editableTripRows:rows,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose,savedAt:new Date().toISOString()};
@@ -3313,9 +3336,14 @@ function TravelBuilderPanel() {
                         <td colSpan={7} style={{padding:"7px 14px",fontSize:10,letterSpacing:"0.08em",textTransform:"uppercase",color:"#633806",fontWeight:700}}>
                           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                             <span>{r.cat}</span>
-                            <button onClick={()=>addTripRow(_cat)} style={{display:"flex",alignItems:"center",gap:3,background:"#22c55e",border:"none",borderRadius:5,padding:"3px 9px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:"#fff",cursor:"pointer",lineHeight:1}}>
-                              <span style={{fontSize:14,lineHeight:1}}>+</span> Add
-                            </button>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              {!TB_DEFAULT_SECTIONS.includes(_cat)&&(
+                                <button onClick={()=>deleteBudgetSection(_cat)} title="Delete this section" style={{background:"#fee2e2",border:"none",borderRadius:5,padding:"3px 9px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:"#dc2626",cursor:"pointer",lineHeight:1}}>&#x2715; Delete</button>
+                              )}
+                              <button onClick={()=>addTripRow(_cat)} style={{display:"flex",alignItems:"center",gap:3,background:"#22c55e",border:"none",borderRadius:5,padding:"3px 9px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:"#fff",cursor:"pointer",lineHeight:1}}>
+                                <span style={{fontSize:14,lineHeight:1}}>+</span> Add
+                              </button>
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -3402,7 +3430,9 @@ function TravelBuilderPanel() {
                 </tr>
               </tbody>
             </table>
-
+            <div style={{padding:"10px 0 4px"}}>
+              <button onClick={addBudgetSection} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 16px",background:"#f8f7f5",border:"1.5px dashed rgba(0,0,0,0.12)",borderRadius:8,fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#4a4a52",cursor:"pointer",width:"100%",justifyContent:"center"}}>+ New section</button>
+            </div>
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -3473,10 +3503,12 @@ function TravelBuilderPanel() {
                     <div style={{width:38,height:38,borderRadius:9,background:numBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:hdrTxt,flexShrink:0}}>{day.date.split(" ")[1]||day.date}</div>
                     <div style={{flex:1}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
-                        <span style={{fontSize:14,fontWeight:700,color:hdrTxt}}>{day.label}</span>
-                        {isAnchor&&<span style={{background:"rgba(255,255,255,0.25)",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5}}>ANCHOR</span>}
+                        <input value={day.label} onChange={e=>updateItinDay(day.id,"label",e.target.value)}
+                          style={{background:"transparent",border:"none",borderBottom:"1px dashed rgba(255,255,255,0.3)",color:hdrTxt,fontFamily:"inherit",fontSize:14,fontWeight:700,outline:"none",minWidth:0,flex:1}}/>
+                        {isAnchor&&<span style={{background:"rgba(255,255,255,0.25)",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,flexShrink:0}}>ANCHOR</span>}
                       </div>
-                      <div style={{fontSize:12,color:isAnchor||day.traveler==="kadence"||day.traveler==="motes"?"rgba(255,255,255,0.8)":"#78788a"}}>{day.subtitle}</div>
+                      <input value={day.subtitle} onChange={e=>updateItinDay(day.id,"subtitle",e.target.value)}
+                        style={{background:"transparent",border:"none",color:isAnchor||day.traveler==="kadence"||day.traveler==="motes"?"rgba(255,255,255,0.75)":"#78788a",fontFamily:"inherit",fontSize:12,outline:"none",width:"100%"}}/>
                     </div>
                     <button onClick={()=>removeItinDay(day.id)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:hdrTxt,borderRadius:6,width:28,height:28,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:"inherit"}}>&#x2715;</button>
                   </div>
