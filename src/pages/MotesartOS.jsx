@@ -3056,7 +3056,7 @@ function TravelBuilderPanel() {
       safeTravelNotice(`${actionName} did not complete. Try again.`, "danger");
     }
   }
-  function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:value));}
+  function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:r));}
   function addTripRow(cat){
     const newRow={id:"custom_"+Date.now(),cat:"",label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:"",url:""};
     setEditableTripRows(rows=>{
