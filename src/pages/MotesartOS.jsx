@@ -3058,7 +3058,7 @@ function TravelBuilderPanel() {
   }
   function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:value));}
   function addTripRow(cat){
-    const newRow={id:"custom_"+Date.now(),cat:"",label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:""};
+    const newRow={id:"custom_"+Date.now(),cat:"",label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:"",url:""};
     setEditableTripRows(rows=>{
       // Find last index of a row belonging to this category group
       let lastIdx=-1;
@@ -3325,7 +3325,7 @@ function TravelBuilderPanel() {
                     const val=r.act!==undefined&&r.act!==null?String(r.act):"";
                     const nv=val!==""?parseFloat(val):null;
                     const diff=nv!==null?(Number(r.low)||0)-nv:null;
-                    const s=STS[r.status];
+                    const s=STS[r.status]||STS["est"]||{bg:"#f1f5f9",c:"#64748b",t:"Estimate"};
                     cells.push(
                       <tr key={r.id} className="tb-row" style={{borderBottom:"0.5px solid rgba(0,0,0,0.07)",background:"#ffffff"}}>
                         <td style={{padding:"10px 14px"}}>
