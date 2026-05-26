@@ -3057,7 +3057,24 @@ function TravelBuilderPanel() {
     }
   }
   function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:value));}
-  function addTripRow(cat){const newRow={id:"custom_"+Date.now(),cat:cat||"Custom",label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:""};setEditableTripRows(rows=>[...rows,newRow]);safeTravelNotice("Row added — fill in the details","success");}
+  function addTripRow(cat){
+    const newRow={id:"custom_"+Date.now(),cat:"",label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:""};
+    setEditableTripRows(rows=>{
+      // Find last index of a row belonging to this category group
+      let lastIdx=-1;
+      let inCat=false;
+      rows.forEach((r,i)=>{
+        if(r.cat===cat) inCat=true;
+        if(inCat&&(r.cat===cat||r.cat==="")) lastIdx=i;
+        if(inCat&&r.cat&&r.cat!==cat) inCat=false;
+      });
+      if(lastIdx===-1) return [...rows,newRow];
+      const next=[...rows];
+      next.splice(lastIdx+1,0,newRow);
+      return next;
+    });
+    safeTravelNotice("Row added — fill in the details","success");
+  }
   function removeTripRow(id){if(!id.startsWith("custom_"))return;setEditableTripRows(rows=>rows.filter(r=>r.id!==id));}
   function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,act:val}:r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
   function buildTravelDraft(rows=editableTripRows){
@@ -3291,9 +3308,16 @@ function TravelBuilderPanel() {
                   let lc="";
                   return editableTripRows.map(r=>{
                     const cells=[];
-                    if(r.cat&&r.cat!==lc){lc=r.cat;cells.push(
+                    if(r.cat&&r.cat!==lc){lc=r.cat;const _cat=r.cat;cells.push(
                       <tr key={"c"+r.cat} style={{background:"#faeeda"}}>
-                        <td colSpan={7} style={{padding:"8px 14px",fontSize:10,letterSpacing:"0.08em",textTransform:"uppercase",color:"#633806",fontWeight:700}}>{r.cat}</td>
+                        <td colSpan={7} style={{padding:"7px 14px",fontSize:10,letterSpacing:"0.08em",textTransform:"uppercase",color:"#633806",fontWeight:700}}>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                            <span>{r.cat}</span>
+                            <button onClick={()=>addTripRow(_cat)} style={{display:"flex",alignItems:"center",gap:3,background:"#22c55e",border:"none",borderRadius:5,padding:"3px 9px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:"#fff",cursor:"pointer",lineHeight:1}}>
+                              <span style={{fontSize:14,lineHeight:1}}>+</span> Add
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );}
                     const section=lc;
@@ -3378,9 +3402,7 @@ function TravelBuilderPanel() {
                 </tr>
               </tbody>
             </table>
-            <div style={{padding:"10px 0 4px"}}>
-              <button onClick={()=>addTripRow("Custom")} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 16px",background:"#3b82f6",color:"#fff",border:"none",borderRadius:8,fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",width:"100%",justifyContent:"center"}}>+ Add row</button>
-            </div>
+
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
