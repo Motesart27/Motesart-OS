@@ -3075,7 +3075,7 @@ function TravelBuilderPanel() {
     });
     safeTravelNotice("Row added — fill in the details","success");
   }
-  function removeTripRow(id){if(!id.startsWith("custom_"))return;setEditableTripRows(rows=>rows.filter(r=>r.id!==id));}
+  function removeTripRow(id){if(!String(id||"").startsWith("custom_"))return;setEditableTripRows(rows=>rows.filter(r=>r.id!==id));}
   function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,act:val}:r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
   function buildTravelDraft(rows=editableTripRows){
     return {activeTripDraft,editableTripRows:rows,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose,savedAt:new Date().toISOString()};
@@ -3168,9 +3168,9 @@ function TravelBuilderPanel() {
     {l:"Accommodation",v:editableTripRows.filter(r=>r.cat==="Accommodation").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:600,c:T.gold},
     {l:"Flights",v:editableTripRows.filter(r=>["f1","f2","f3"].includes(r.id)).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.blue},
     {l:"Transport",v:editableTripRows.filter(r=>r.cat==="Ground Transport").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:110,c:"#4db87a"},
-    {l:"Food",v:editableTripRows.filter(r=>r.cat==="Food & Dining"||r.id.startsWith("d")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.amber},
-    {l:"Gifts",v:editableTripRows.filter(r=>r.cat==="Graduation + Gifts"||r.id.startsWith("g")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:150,c:"#c95a84"},
-    {l:"Misc",v:editableTripRows.filter(r=>r.cat==="Misc + Buffer"||r.id.startsWith("m")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:210,c:T.red},
+    {l:"Food",v:editableTripRows.filter(r=>r.cat==="Food & Dining"||String(r.id||"").startsWith("d")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.amber},
+    {l:"Gifts",v:editableTripRows.filter(r=>r.cat==="Graduation + Gifts"||String(r.id||"").startsWith("g")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:150,c:"#c95a84"},
+    {l:"Misc",v:editableTripRows.filter(r=>r.cat==="Misc + Buffer"||String(r.id||"").startsWith("m")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:210,c:T.red},
   ];
 
   const STS={
@@ -3333,7 +3333,7 @@ function TravelBuilderPanel() {
                             <input value={r.label} onChange={e=>updateTripRow(r.id,"label",e.target.value)}
                               style={{background:"transparent",border:"none",color:"#1a1a1a",fontFamily:"inherit",fontSize:14,fontWeight:600,width:"100%",outline:"none"}}/>
                             <span style={{fontSize:12,color:"#d1d5db",flexShrink:0}}>&#9998;</span>
-                            {r.id.startsWith("custom_")&&<button onClick={()=>removeTripRow(r.id)} style={{background:"transparent",border:"none",color:"#d1d5db",cursor:"pointer",fontSize:14,padding:"0 2px",flexShrink:0,fontFamily:"inherit"}} title="Remove row">&#x2715;</button>}
+                            {String(r.id||"").startsWith("custom_")&&<button onClick={()=>removeTripRow(r.id)} style={{background:"transparent",border:"none",color:"#d1d5db",cursor:"pointer",fontSize:14,padding:"0 2px",flexShrink:0,fontFamily:"inherit"}} title="Remove row">&#x2715;</button>}
                           </div>
                         </td>
                         <td style={{padding:"10px 14px",textAlign:"right"}}>
