@@ -505,9 +505,14 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         form.append('conversation_history', JSON.stringify(conversationHistory));
         form.append('pending_action_id', pendingAction || '');
         const base = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
+        const _voiceToken = localStorage.getItem('som_token');
         let willSpeak = false;
         try {
-          const res = await fetch(`${base}/api/mya/voice`, { method: 'POST', body: form });
+          const res = await fetch(`${base}/api/mya/voice`, {
+            method: 'POST',
+            body: form,
+            headers: _voiceToken ? { Authorization: `Bearer ${_voiceToken}` } : {},
+          });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.detail?.error || 'voice error');
           if (data.transcript) setMsg(data.transcript);
