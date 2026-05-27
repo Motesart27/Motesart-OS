@@ -3535,7 +3535,7 @@ function TravelBuilderPanel() {
                             style={{background:sc.bg,color:sc.c,border:"none",borderRadius:5,padding:"3px 7px",fontSize:10,fontWeight:700,cursor:"pointer",outline:"none",flexShrink:0}}>
                             <option value="unbooked">Unbooked</option>
                             <option value="tbd">TBD</option>
-                            <option value="anchor">Anchor</option>
+                            <option value="booked">Booked</option>
                             <option value="note">Note</option>
                           </select>}
                         <button onClick={()=>removeItinEvent(day.id,ev.id)} style={{background:"transparent",border:"none",color:"#78788a",cursor:"pointer",fontSize:14,padding:"0 4px",flexShrink:0,fontFamily:"inherit"}}>&#x2715;</button>
