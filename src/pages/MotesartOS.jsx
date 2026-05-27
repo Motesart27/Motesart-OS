@@ -25,7 +25,7 @@
  * DO NOT modify agent system prompts without version bump.
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import MyaDispatchPanel from "../components/MyaDispatchPanel";
 import ExecutiveTile from "../components/ExecutiveTile";
 import { useToast } from "../components/Toast";
@@ -2968,6 +2968,7 @@ function TravelBuilderPanel() {
   const [retro,setRetro] = useState(()=>{try{return JSON.parse(localStorage.getItem(TB_SK+"_r")||"{}")}catch{return{worked:"",improve:"",next:""}}});
   const [archive,setArchive] = useState(()=>{try{return JSON.parse(localStorage.getItem(TB_AK)||"[]")}catch{return[]}});
   const [tab,setTab] = useState("budget");
+  const [travelerFilter,setTravelerFilter] = useState("all");
   const ITIN_KEY = "fm_itin_v1";
   const [itinDays,setItinDays] = useState(()=>{
     try{
@@ -3012,6 +3013,13 @@ function TravelBuilderPanel() {
     saveItin([...itinDays,nd]);
   }
   function removeItinDay(dayId){saveItin(itinDays.filter(d=>d.id!==dayId));}
+  function TripSectionHeader({label}){
+    const isMotes=label.includes("MOTES");
+    return <div style={{background:isMotes?"#475569":"#faeeda",color:isMotes?"#fff":"#633806",border:isMotes?"none":"1px solid #ef9f27",borderRadius:10,padding:"10px 14px",margin:"14px 0 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:10,fontWeight:800,letterSpacing:"0.08em",textTransform:"uppercase"}}>{label}</span>
+      <span style={{fontSize:11,fontWeight:600,opacity:isMotes?0.86:0.8}}>{isMotes?"Motes · nested within Kadence NY Trip":"Kadence · New York trip timeline"}</span>
+    </div>;
+  }
   const [resetModal,setResetModal] = useState(false);
   const [archiveModal,setArchiveModal] = useState(false);
   const [newTripModal,setNewTripModal] = useState(false);
@@ -3487,8 +3495,21 @@ function TravelBuilderPanel() {
               </div>
             ))}
           </div>
+          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+            {[["all","All Travelers"],["kadence","Kadence"],["motes","Motes"]].map(([key,label])=>{
+              const active=travelerFilter===key;
+              const activeBg=key==="motes"?"#475569":key==="kadence"?"#f59e0b":"#3b82f6";
+              return <button key={key} onClick={()=>setTravelerFilter(key)} style={{padding:"7px 13px",borderRadius:999,border:active?"none":"0.5px solid rgba(0,0,0,0.14)",background:active?activeBg:"#ffffff",color:active?"#fff":"#4a4a52",fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer"}}>{label}</button>;
+            })}
+          </div>
           <div>
-            {itinDays.map((day)=>{
+            {(()=>{let currentSection="";return itinDays.filter(day=>{const t=day.traveler||"both";return travelerFilter==="all"||(travelerFilter==="kadence"&&(t==="kadence"||t==="both"))||(travelerFilter==="motes"&&(t==="motes"||t==="both"));}).map((day)=>{
+              const traveler=day.traveler||"both";
+              let section=currentSection;
+              if(traveler==="kadence") section="KADENCE NEW YORK TRIP";
+              if(traveler==="motes") section="MOTES CHICAGO TRIP";
+              const showHeader=!!section&&section!==currentSection;
+              if(section) currentSection=section;
               const isAnchor=!!day.anchor;
               const hdrBg=isAnchor?"#7c3aed":day.traveler==="kadence"?"#3b82f6":day.traveler==="motes"?"#f59e0b":"#f8f7f5";
               const hdrTxt=isAnchor||day.traveler==="kadence"||day.traveler==="motes"?"#fff":"#1a1a1a";
@@ -3498,14 +3519,17 @@ function TravelBuilderPanel() {
               const typeBg={flight:"#dbeafe",hotel:"#fef9c3",event:"#f3e8ff",food:"#dcfce7",transport:"#fee2e2",note:"#f1f5f9"};
               const typeC={flight:"#1d4ed8",hotel:"#b45309",event:"#6d28d9",food:"#15803d",transport:"#dc2626",note:"#78788a"};
               return(
-                <div key={day.id} style={{background:"#ffffff",border:isAnchor?"1.5px solid #7c3aed":"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,marginBottom:12,overflow:"hidden"}}>
+                <React.Fragment key={day.id}>
+                  {showHeader&&<TripSectionHeader label={section}/>} 
+                  <div style={{background:"#ffffff",border:isAnchor?"1.5px solid #7c3aed":"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,marginBottom:12,overflow:"hidden"}}>
                   <div style={{display:"flex",alignItems:"center",gap:12,padding:"13px 16px",background:hdrBg}}>
                     <div style={{width:38,height:38,borderRadius:9,background:numBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:hdrTxt,flexShrink:0}}>{day.date.split(" ")[1]||day.date}</div>
                     <div style={{flex:1}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
                         <input value={day.label} onChange={e=>updateItinDay(day.id,"label",e.target.value)}
                           style={{background:"transparent",border:"none",borderBottom:"1px dashed rgba(255,255,255,0.3)",color:hdrTxt,fontFamily:"inherit",fontSize:14,fontWeight:700,outline:"none",minWidth:0,flex:1}}/>
-                        {isAnchor&&<span style={{background:"rgba(255,255,255,0.25)",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,flexShrink:0}}>ANCHOR</span>}
+                        {isAnchor&&<span title="Fixed milestone · Schedule built around this date" style={{background:"rgba(255,255,255,0.25)",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,flexShrink:0}}>ANCHOR</span>}
+                        {isAnchor&&<span style={{fontSize:11,color:"rgba(255,255,255,0.78)",fontStyle:"italic",flexShrink:0}}>Fixed milestone · Schedule built around this date</span>}
                       </div>
                       <input value={day.subtitle} onChange={e=>updateItinDay(day.id,"subtitle",e.target.value)}
                         style={{background:"transparent",border:"none",color:isAnchor||day.traveler==="kadence"||day.traveler==="motes"?"rgba(255,255,255,0.75)":"#78788a",fontFamily:"inherit",fontSize:12,outline:"none",width:"100%"}}/>
@@ -3550,9 +3574,10 @@ function TravelBuilderPanel() {
                       </button>
                     ))}
                   </div>
-                </div>
+                  </div>
+                </React.Fragment>
               );
-            })}
+            })})()}
           </div>
           <div onClick={addItinDay} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:13,border:"1.5px dashed rgba(0,0,0,0.12)",borderRadius:12,cursor:"pointer",color:"#78788a",fontSize:13,fontWeight:500,marginTop:4}}>
             + Add another day
