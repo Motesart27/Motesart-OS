@@ -131,6 +131,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const activeAudioRef = useRef(null);
   const audioUnlockedRef = useRef(false);
   const audioContextRef = useRef(null);
+  const playbackAudioRef = useRef(null);
   const replayTimerRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const vadFrameRef = useRef(null);
@@ -158,6 +159,24 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       idleRecoveryTimerRef.current = null;
     }, VOICE_IDLE_RECOVERY_MS);
   }, [clearIdleRecoveryTimer]);
+
+  const getPlaybackAudioElement = useCallback(() => {
+    if (playbackAudioRef.current) return playbackAudioRef.current;
+    const aud = document.createElement('audio');
+    aud.preload = 'auto';
+    aud.setAttribute('playsinline', 'true');
+    aud.playsInline = true;
+    aud.style.position = 'fixed';
+    aud.style.width = '1px';
+    aud.style.height = '1px';
+    aud.style.opacity = '0';
+    aud.style.pointerEvents = 'none';
+    aud.style.left = '-9999px';
+    aud.style.top = '-9999px';
+    document.body.appendChild(aud);
+    playbackAudioRef.current = aud;
+    return aud;
+  }, []);
 
   const cleanupVoiceCapture = useCallback(async ({ stopRecorder = false } = {}) => {
     const rec = recorderRef.current;
@@ -189,25 +208,41 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   }, []);
 
   const unlockAudioContext = useCallback(async () => {
+    const aud = getPlaybackAudioElement();
+    aud.muted = true;
+    aud.volume = 0;
+    aud.src = 'data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQ4AAAAAAAAAAAAAAAAAAA==';
+    try { aud.load(); } catch {}
+    let unlockPlay = null;
+    try { unlockPlay = aud.play(); } catch (err) { unlockPlay = Promise.reject(err); }
+
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let contextResume = null;
     if (AudioCtx) {
       try {
         if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
           audioContextRef.current = new AudioCtx();
         }
         if (audioContextRef.current.state === 'suspended') {
-          await audioContextRef.current.resume();
+          contextResume = audioContextRef.current.resume();
         }
       } catch {
         if (isMobileSafari()) throw new Error('Audio playback needs a tap before Mya can speak.');
       }
     }
-    const silent = new Audio('data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQ4AAAAAAAAAAAAAAAAAAA==');
-    silent.volume = 0;
-    try { await silent.play(); } catch {}
+    try {
+      await unlockPlay;
+      if (contextResume) await contextResume;
+      aud.pause();
+      try { aud.currentTime = 0; } catch {}
+    } catch (err) {
+      if (isMobileSafari()) throw new Error('Audio playback needs a tap before Mya can speak.');
+    }
+    aud.muted = false;
+    aud.volume = 1;
     audioUnlockedRef.current = true;
     setShowAudioUnlock(false);
-  }, []);
+  }, [getPlaybackAudioElement]);
 
   const replaceLastAudioUrl = useCallback((url) => {
     if (lastAudioUrlRef.current && lastAudioUrlRef.current !== url) {
@@ -220,11 +255,17 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const playAudioUrl = useCallback((url, { onEndState = 'replay', blockedMessage = 'Tap replay to hear Mya' } = {}) => {
     if (!url) return;
     clearReplayTimer();
-    if (activeAudioRef.current) {
+    if (activeAudioRef.current && activeAudioRef.current !== playbackAudioRef.current) {
       activeAudioRef.current.pause();
       activeAudioRef.current = null;
     }
-    const aud = new Audio(url);
+    const aud = getPlaybackAudioElement();
+    aud.pause();
+    aud.src = url;
+    aud.muted = false;
+    aud.volume = 1;
+    aud.setAttribute('playsinline', 'true');
+    aud.playsInline = true;
     activeAudioRef.current = aud;
     aud.onended = () => {
       if (activeAudioRef.current === aud) activeAudioRef.current = null;
@@ -238,12 +279,14 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       setMsg(blockedMessage);
     };
     setVoiceState('speaking');
+    try { aud.load(); } catch {}
     const playPromise = aud.play();
     if (playPromise && typeof playPromise.then === 'function') {
       playPromise
         .then(() => setAudioStatus('playing'))
         .catch(() => {
           if (activeAudioRef.current === aud) activeAudioRef.current = null;
+          aud.pause();
           setVoiceState(onEndState);
           setAudioStatus('blocked');
           setMsg(blockedMessage);
@@ -251,7 +294,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     } else {
       setAudioStatus('playing');
     }
-  }, [clearReplayTimer]);
+  }, [clearReplayTimer, getPlaybackAudioElement]);
 
   const playGreetingAudio = useCallback(async (text) => {
     if (!text) return;
@@ -302,6 +345,10 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         activeAudioRef.current.pause();
         activeAudioRef.current = null;
       }
+      if (playbackAudioRef.current) {
+        playbackAudioRef.current.pause();
+        playbackAudioRef.current.removeAttribute('src');
+      }
       if (lastAudioUrlRef.current) {
         URL.revokeObjectURL(lastAudioUrlRef.current);
         lastAudioUrlRef.current = null;
@@ -340,6 +387,11 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       if (activeAudioRef.current) {
         activeAudioRef.current.pause();
         activeAudioRef.current = null;
+      }
+      if (playbackAudioRef.current) {
+        playbackAudioRef.current.pause();
+        playbackAudioRef.current.remove();
+        playbackAudioRef.current = null;
       }
       if (lastAudioUrlRef.current) {
         URL.revokeObjectURL(lastAudioUrlRef.current);
