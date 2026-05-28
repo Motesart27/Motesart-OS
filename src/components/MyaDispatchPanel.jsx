@@ -60,6 +60,30 @@ const T = {
 const VAD_RMS_THRESHOLD = 30;
 const VAD_SILENCE_MS = 750;
 const VAD_MAX_MS = 45000;
+const VOICE_IDLE_RECOVERY_MS = 2000;
+
+function isIOSDevice() {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isMobileSafari() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return isIOSDevice() && /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua);
+}
+
+function getSupportedAudioMimeType() {
+  if (typeof MediaRecorder === 'undefined') return '';
+  const options = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/mpeg',
+  ];
+  return options.find(type => MediaRecorder.isTypeSupported?.(type)) || '';
+}
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -82,7 +106,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [previews, setPreviews] = useState([]);
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState({ text: '', color: T.t3 });
-  const [voiceState, setVoiceState] = useState('idle'); // 'idle' | 'recording' | 'processing' | 'speaking' | 'replay'
+  const [voiceState, setVoiceState] = useState('idle'); // 'idle' | 'requesting_permission' | 'listening' | 'processing' | 'speaking' | 'replay'
   const [voiceResult, setVoiceResult] = useState(null);
   const [lastAudioUrl, setLastAudioUrl] = useState(null);
   const [audioStatus, setAudioStatus] = useState('idle'); // 'idle' | 'playing' | 'blocked' | 'error'
@@ -106,13 +130,83 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const lastAudioUrlRef = useRef(null);
   const activeAudioRef = useRef(null);
   const audioUnlockedRef = useRef(false);
+  const audioContextRef = useRef(null);
   const replayTimerRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const vadFrameRef = useRef(null);
+  const voiceRequestIdRef = useRef(0);
+  const idleRecoveryTimerRef = useRef(null);
 
   const clearReplayTimer = useCallback(() => {
     if (replayTimerRef.current) {
       clearTimeout(replayTimerRef.current);
       replayTimerRef.current = null;
     }
+  }, []);
+
+  const clearIdleRecoveryTimer = useCallback(() => {
+    if (idleRecoveryTimerRef.current) {
+      clearTimeout(idleRecoveryTimerRef.current);
+      idleRecoveryTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleIdleRecovery = useCallback(() => {
+    clearIdleRecoveryTimer();
+    idleRecoveryTimerRef.current = setTimeout(() => {
+      setVoiceState(prev => (prev === 'processing' || prev === 'requesting_permission' ? 'idle' : prev));
+      idleRecoveryTimerRef.current = null;
+    }, VOICE_IDLE_RECOVERY_MS);
+  }, [clearIdleRecoveryTimer]);
+
+  const cleanupVoiceCapture = useCallback(async ({ stopRecorder = false } = {}) => {
+    const rec = recorderRef.current;
+    if (rec) {
+      try { if (rec._vadStop) rec._vadStop(); } catch {}
+      if (rec._maxTimer) {
+        clearTimeout(rec._maxTimer);
+        rec._maxTimer = null;
+      }
+      if (stopRecorder) voiceRequestIdRef.current += 1;
+      if (stopRecorder && rec.state && rec.state !== 'inactive') {
+        try { rec.stop(); } catch {}
+      }
+      if (rec._vadCtx) {
+        try { await rec._vadCtx.close(); } catch {}
+        rec._vadCtx = null;
+      }
+    }
+    if (vadFrameRef.current) {
+      cancelAnimationFrame(vadFrameRef.current);
+      vadFrameRef.current = null;
+    }
+    const stream = mediaStreamRef.current || rec?.stream;
+    if (stream) {
+      try { stream.getTracks().forEach(track => track.stop()); } catch {}
+    }
+    mediaStreamRef.current = null;
+    recorderRef.current = null;
+  }, []);
+
+  const unlockAudioContext = useCallback(async () => {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      try {
+        if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+          audioContextRef.current = new AudioCtx();
+        }
+        if (audioContextRef.current.state === 'suspended') {
+          await audioContextRef.current.resume();
+        }
+      } catch {
+        if (isMobileSafari()) throw new Error('Audio playback needs a tap before Mya can speak.');
+      }
+    }
+    const silent = new Audio('data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQ4AAAAAAAAAAAAAAAAAAA==');
+    silent.volume = 0;
+    try { await silent.play(); } catch {}
+    audioUnlockedRef.current = true;
+    setShowAudioUnlock(false);
   }, []);
 
   const replaceLastAudioUrl = useCallback((url) => {
@@ -189,15 +283,14 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       if (greeting) await playGreetingAudio(greeting);
       return;
     }
-    const silent = new Audio('data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQ4AAAAAAAAAAAAAAAAAAA==');
-    silent.volume = 0;
     try {
-      await silent.play();
-    } catch {}
-    audioUnlockedRef.current = true;
-    setShowAudioUnlock(false);
-    if (greeting) await playGreetingAudio(greeting);
-  }, [greeting, playGreetingAudio]);
+      await unlockAudioContext();
+      if (greeting) await playGreetingAudio(greeting);
+    } catch (err) {
+      setAudioStatus('blocked');
+      setMsg(err.message || 'Tap again to enable Mya voice playback.');
+    }
+  }, [greeting, playGreetingAudio, unlockAudioContext]);
 
   // Load data on open — backend is source of truth, localStorage is fallback
   useEffect(() => {
@@ -234,15 +327,12 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     setConversationHistory([]);
     setPendingAction(null);
     setVoiceState('idle');
-    if (recorderRef.current) {
-      try { recorderRef.current.stop(); recorderRef.current.stream.getTracks().forEach(t => t.stop()); } catch {}
-      recorderRef.current = null;
-    }
+    cleanupVoiceCapture({ stopRecorder: true });
     setQueue(loadQueue());
     loadDispatchesFromBackend()
       .then(list => setDispatches(list))
       .catch(() => setDispatches(loadDispatches()));
-  }, [open, playGreetingAudio, clearReplayTimer]);
+  }, [open, playGreetingAudio, clearReplayTimer, cleanupVoiceCapture]);
 
   useEffect(() => {
     return () => {
@@ -255,8 +345,10 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         URL.revokeObjectURL(lastAudioUrlRef.current);
         lastAudioUrlRef.current = null;
       }
+      cleanupVoiceCapture({ stopRecorder: true });
+      clearIdleRecoveryTimer();
     };
-  }, [clearReplayTimer]);
+  }, [clearReplayTimer, cleanupVoiceCapture, clearIdleRecoveryTimer]);
 
   useEffect(() => {
     clearReplayTimer();
@@ -414,39 +506,53 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 
   const handleVoice = async () => {
     clearReplayTimer();
-    // Manual stop: user tapped mic while recording
-    if (voiceState === 'recording') {
+    // Manual stop: user tapped mic while listening
+    if (voiceState === 'listening') {
       const rec = recorderRef.current;
       if (!rec) return;
       if (rec._vadStop) rec._vadStop();
       if (rec.state !== 'inactive') {
         rec.stop();
-        rec.stream.getTracks().forEach(t => t.stop());
       }
       setVoiceState('processing');
       setMsg('Processing...');
       return; // onstop handler takes it from here
     }
     if (voiceState !== 'idle' && voiceState !== 'replay') return;
+    if (recorderRef.current) return;
     try {
+      clearIdleRecoveryTimer();
       setAudioStatus('idle');
+      setStatus({ text: '', color: T.t3 });
+      setVoiceState('requesting_permission');
+      setMsg(isMobileSafari() ? 'Unlocking mic and audio...' : 'Requesting microphone...');
+      await unlockAudioContext();
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Microphone recording is not supported in this browser.');
+      }
+      if (typeof MediaRecorder === 'undefined') {
+        throw new Error('Voice recording is not supported in this browser.');
+      }
+      const mimeType = getSupportedAudioMimeType();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
       chunksRef.current = [];
-      const rec = new MediaRecorder(stream);
+      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const requestId = voiceRequestIdRef.current + 1;
+      voiceRequestIdRef.current = requestId;
       rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
 
       // PATCH 3: store AudioContext on rec so onstop can tear it down
-      const _vadCtx = new (window.AudioContext || window.webkitAudioContext)();
-      rec._vadCtx = _vadCtx;
-      const _src = _vadCtx.createMediaStreamSource(stream);
-      const _analyser = _vadCtx.createAnalyser();
-      _analyser.fftSize = 512;
-      _src.connect(_analyser);
-      const _vadBuf = new Uint8Array(_analyser.frequencyBinCount);
       let _sTimer = null;
       let _vadOn = true;
-      // _vadStop no longer closes ctx — onstop handles AudioContext teardown
-      rec._vadStop = () => { _vadOn = false; if (_sTimer) { clearTimeout(_sTimer); _sTimer = null; } };
+      rec._vadStop = () => {
+        _vadOn = false;
+        if (_sTimer) { clearTimeout(_sTimer); _sTimer = null; }
+        if (vadFrameRef.current) {
+          cancelAnimationFrame(vadFrameRef.current);
+          vadFrameRef.current = null;
+        }
+      };
       rec._maxTimer = setTimeout(() => {
         const r = recorderRef.current;
         if (r !== rec || rec.state !== 'recording') return;
@@ -454,45 +560,65 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         setVoiceState('processing');
         setMsg('Processing...');
         rec.stop();
-        rec.stream.getTracks().forEach(t => t.stop());
       }, VAD_MAX_MS);
-      const _vad = () => {
-        if (!_vadOn) return;
-        _analyser.getByteFrequencyData(_vadBuf);
-        const rms = Math.sqrt(_vadBuf.reduce((s, v) => s + v * v, 0) / _vadBuf.length);
-        if (rms < VAD_RMS_THRESHOLD) {
-          if (!_sTimer) _sTimer = setTimeout(() => {
-            const r = recorderRef.current;
-            if (r && r.state === 'recording') {
-              rec._vadStop();
-              setVoiceState('processing');
-              setMsg('Processing...');
-              r.stop();
-              r.stream.getTracks().forEach(t => t.stop());
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        try {
+          const _vadCtx = new AudioCtx();
+          rec._vadCtx = _vadCtx;
+          const _src = _vadCtx.createMediaStreamSource(stream);
+          const _analyser = _vadCtx.createAnalyser();
+          _analyser.fftSize = 512;
+          _src.connect(_analyser);
+          const _vadBuf = new Uint8Array(_analyser.frequencyBinCount);
+          const _vad = () => {
+            if (!_vadOn) return;
+            _analyser.getByteFrequencyData(_vadBuf);
+            const rms = Math.sqrt(_vadBuf.reduce((s, v) => s + v * v, 0) / _vadBuf.length);
+            if (rms < VAD_RMS_THRESHOLD) {
+              if (!_sTimer) _sTimer = setTimeout(() => {
+                const r = recorderRef.current;
+                if (r && r.state === 'recording') {
+                  rec._vadStop();
+                  setVoiceState('processing');
+                  setMsg('Processing...');
+                  r.stop();
+                }
+              }, VAD_SILENCE_MS);
+            } else if (_sTimer) {
+              clearTimeout(_sTimer);
+              _sTimer = null;
             }
-          }, VAD_SILENCE_MS);
-        } else {
-          if (_sTimer) { clearTimeout(_sTimer); _sTimer = null; }
+            vadFrameRef.current = requestAnimationFrame(_vad);
+          };
+          vadFrameRef.current = requestAnimationFrame(_vad);
+        } catch {
+          setStatus({ text: 'Voice detection limited on this browser. Tap to stop manually.', color: T.amber });
         }
-        requestAnimationFrame(_vad);
-      };
-      requestAnimationFrame(_vad);
+      }
 
       // PATCH 2: fetch + playback moved from recording branch into onstop
       rec.onstop = async () => {
+        if (voiceRequestIdRef.current !== requestId) return;
         if (rec._maxTimer) {
           clearTimeout(rec._maxTimer);
           rec._maxTimer = null;
         }
+        rec._vadStop?.();
 
         // PATCH 3: tear down VAD AudioContext before TTS playback
         if (rec._vadCtx) {
           try { await rec._vadCtx.close(); } catch (e) {}
           rec._vadCtx = null;
         }
+        if (mediaStreamRef.current) {
+          try { mediaStreamRef.current.getTracks().forEach(t => t.stop()); } catch {}
+          mediaStreamRef.current = null;
+        }
+        recorderRef.current = null;
 
         // PATCH 1: empty recording guard — reject sub-200ms noise/echo captures
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const blob = new Blob(chunksRef.current, { type: mimeType || 'audio/webm' });
         if (blob.size < 2000) {
           setVoiceState('idle');
           setMsg("Didn't catch that — tap the mic to try again");
@@ -507,14 +633,17 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         const base = (import.meta.env.VITE_API_URL || 'https://deployable-python-codebase-som-production.up.railway.app').replace(/\/$/, '');
         const _voiceToken = localStorage.getItem('som_token');
         let willSpeak = false;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
         try {
           const res = await fetch(`${base}/api/mya/voice`, {
             method: 'POST',
             body: form,
             headers: _voiceToken ? { Authorization: `Bearer ${_voiceToken}` } : {},
+            signal: controller.signal,
           });
           const data = await res.json();
-          if (!res.ok) throw new Error(data?.detail?.error || 'voice error');
+          if (!res.ok) throw new Error(data?.detail?.error || data?.detail || 'Voice request failed.');
           if (data.transcript) setMsg(data.transcript);
           else setMsg('');
           if (data.conversation_history) setConversationHistory(data.conversation_history);
@@ -534,17 +663,33 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
         } catch (err) {
           setPendingAction(null);
           setAudioStatus('error');
-          setStatus({ text: `⚠ Voice: ${err.message.slice(0, 40)}`, color: T.red });
+          const message = err.name === 'AbortError'
+            ? 'Voice request timed out. Try again.'
+            : err.message || 'Voice failed. Try again.';
+          setStatus({ text: `⚠ Voice: ${message.slice(0, 80)}`, color: T.red });
+        } finally {
+          clearTimeout(timeout);
+          chunksRef.current = [];
         }
-        if (!willSpeak) setVoiceState('idle');
+        if (!willSpeak) {
+          setVoiceState('idle');
+          scheduleIdleRecovery();
+        }
       };
 
       rec.start();
       recorderRef.current = rec;
-      setVoiceState('recording');
+      setVoiceState('listening');
       setMsg('Listening...');
-    } catch {
-      setStatus({ text: '⚠ Mic access denied', color: T.red });
+    } catch (err) {
+      await cleanupVoiceCapture({ stopRecorder: true });
+      chunksRef.current = [];
+      setVoiceState('idle');
+      const message = err?.name === 'NotAllowedError'
+        ? 'Microphone permission was denied.'
+        : err?.message || 'Microphone failed to start.';
+      setStatus({ text: `⚠ ${message}`, color: T.red });
+      setMsg(message);
     }
   };
 
@@ -901,7 +1046,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 
           {/* CENTER: label */}
           <div style={{ flex:1, display:'flex', alignItems:'center', gap:6 }}>
-            {voiceState === 'recording' && (
+            {voiceState === 'listening' && (
               <span style={{
                 width:6, height:6, borderRadius:'50%', background:'#ef5350',
                 animation:'dot-blink 1s ease-in-out infinite', display:'inline-block', flexShrink:0
@@ -921,14 +1066,15 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
             )}
             <span style={{
               fontSize:12, fontWeight:700,
-              color: voiceState === 'recording' ? '#ef5350'
+              color: voiceState === 'listening' ? '#ef5350'
                    : voiceState === 'speaking'  ? 'rgba(20,184,166,0.9)'
                    : voiceState === 'replay'    ? 'rgba(239,159,39,0.9)'
-                   : voiceState === 'processing'? T.teal
+                   : voiceState === 'processing' || voiceState === 'requesting_permission' ? T.teal
                    : audioStatus === 'error'    ? T.amber
                    : T.t2
             }}>
-              {voiceState === 'recording'  ? 'Recording — tap to stop'
+              {voiceState === 'listening'  ? 'Listening — tap to stop'
+             : voiceState === 'requesting_permission' ? 'Requesting microphone…'
              : voiceState === 'processing' ? 'Sending to Mya…'
              : voiceState === 'speaking'   ? 'Mya is speaking'
              : audioStatus === 'error'     ? "Voice unavailable — read Mya's response above"
@@ -940,13 +1086,13 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 
           {/* RIGHT: main mic circle — all 5 states */}
           <div style={{ position:'relative', width:44, height:44, flexShrink:0, borderRadius:'50%',
-            background: voiceState === 'processing' ? 'rgba(217,119,6,0.18)' : 'transparent',
-            animation: voiceState === 'recording' ? 'none'
-                     : voiceState === 'processing' ? 'myaPulse 1.2s ease-in-out infinite'
+            background: voiceState === 'processing' || voiceState === 'requesting_permission' ? 'rgba(217,119,6,0.18)' : 'transparent',
+            animation: voiceState === 'listening' ? 'none'
+                     : voiceState === 'processing' || voiceState === 'requesting_permission' ? 'myaPulse 1.2s ease-in-out infinite'
                      : voiceState === 'speaking' ? 'myaBreathe 1.4s ease-in-out infinite'
                      : 'myaFloat 3s ease-in-out infinite' }}>
-            {/* Pulse rings — recording */}
-            {voiceState === 'recording' && <>
+            {/* Pulse rings — listening */}
+            {voiceState === 'listening' && <>
               <div style={{
                 position:'absolute', inset:0, borderRadius:'50%',
                 border:'1.5px solid rgba(239,68,68,0.5)',
@@ -960,19 +1106,19 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
             </>}
             <button
               onClick={handleVoice}
-              disabled={voiceState === 'processing' || voiceState === 'speaking'}
+              disabled={voiceState === 'requesting_permission' || voiceState === 'processing' || voiceState === 'speaking'}
               style={{
                 position:'relative', zIndex:1,
                 width:44, height:44, borderRadius:'50%',
                 display:'flex', alignItems:'center', justifyContent:'center',
-                border: voiceState === 'recording' ? '1.5px solid rgba(239,68,68,0.7)'
+                border: voiceState === 'listening' ? '1.5px solid rgba(239,68,68,0.7)'
                       : voiceState === 'replay'    ? '1px solid rgba(20,184,166,0.3)'
                       : '1.5px solid rgba(20,184,166,0.4)',
-                background: voiceState === 'recording'  ? 'rgba(239,68,68,0.15)'
-                          : voiceState === 'processing'  ? 'rgba(217,119,6,0.12)'
+                background: voiceState === 'listening'  ? 'rgba(239,68,68,0.15)'
+                          : voiceState === 'processing' || voiceState === 'requesting_permission' ? 'rgba(217,119,6,0.12)'
                           : voiceState === 'replay'      ? 'rgba(20,184,166,0.06)'
                           : 'rgba(20,184,166,0.12)',
-                cursor: voiceState === 'processing' || voiceState === 'speaking'
+                cursor: voiceState === 'requesting_permission' || voiceState === 'processing' || voiceState === 'speaking'
                       ? 'default' : 'pointer',
                 flexShrink:0,
               }}
@@ -1006,7 +1152,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                 </svg>
               )}
               {/* Recording: red waveform bars */}
-              {voiceState === 'recording' && (
+              {voiceState === 'listening' && (
                 <div style={{ display:'flex', alignItems:'center', gap:2, height:20 }}>
                   {[0, 0.1, 0.2, 0.1, 0].map((d, i) => (
                     <div key={i} style={{
@@ -1029,7 +1175,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                 </div>
               )}
               {/* Processing: spinner */}
-              {voiceState === 'processing' && (
+              {(voiceState === 'processing' || voiceState === 'requesting_permission') && (
                 <span style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
                   {[0,1,2].map(i => (
                     <span key={i} style={{
