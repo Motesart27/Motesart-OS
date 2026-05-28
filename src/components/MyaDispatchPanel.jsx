@@ -110,6 +110,8 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   const [voiceResult, setVoiceResult] = useState(null);
   const [lastAudioUrl, setLastAudioUrl] = useState(null);
   const [audioStatus, setAudioStatus] = useState('idle'); // 'idle' | 'playing' | 'blocked' | 'error'
+  const [audioUnlocked, setAudioUnlocked] = useState(() => !isMobileSafari());
+  const [audioUnlockError, setAudioUnlockError] = useState('');
   const [showAudioUnlock, setShowAudioUnlock] = useState(false);
   const [receipt, setReceipt] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -241,6 +243,8 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     aud.muted = false;
     aud.volume = 1;
     audioUnlockedRef.current = true;
+    setAudioUnlocked(true);
+    setAudioUnlockError('');
     setShowAudioUnlock(false);
   }, [getPlaybackAudioElement]);
 
@@ -322,6 +326,8 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 
   const unlockAudio = useCallback(async () => {
     if (audioUnlockedRef.current) {
+      setAudioUnlocked(true);
+      setAudioUnlockError('');
       setShowAudioUnlock(false);
       if (greeting) await playGreetingAudio(greeting);
       return;
@@ -330,8 +336,11 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
       await unlockAudioContext();
       if (greeting) await playGreetingAudio(greeting);
     } catch (err) {
+      audioUnlockedRef.current = false;
+      setAudioUnlocked(false);
+      setAudioUnlockError('Voice playback is blocked. Tap again to enable Mya voice.');
       setAudioStatus('blocked');
-      setMsg(err.message || 'Tap again to enable Mya voice playback.');
+      setMsg(err.message || 'Voice playback is blocked. Tap again to enable Mya voice.');
     }
   }, [greeting, playGreetingAudio, unlockAudioContext]);
 
@@ -361,7 +370,13 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
     const _greetText = getGreeting();
     setGreeting(_greetText);
     if (audioUnlockedRef.current) {
+      setAudioUnlocked(true);
+      setAudioUnlockError('');
       playGreetingAudio(_greetText);
+    } else if (isMobileSafari()) {
+      setAudioUnlocked(false);
+      setAudioUnlockError('');
+      setShowAudioUnlock(false);
     } else {
       setShowAudioUnlock(true);
     }
@@ -558,6 +573,12 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 
   const handleVoice = async () => {
     clearReplayTimer();
+    if (isMobileSafari() && !audioUnlockedRef.current) {
+      setAudioUnlockError('iPhone requires one tap to enable voice playback.');
+      setAudioStatus('blocked');
+      setVoiceState('idle');
+      return;
+    }
     // Manual stop: user tapped mic while listening
     if (voiceState === 'listening') {
       const rec = recorderRef.current;
@@ -749,6 +770,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
   if (!open) return null;
 
   const filteredDispatches = filter === 'all' ? dispatches : dispatches.filter(d => d.route === filter);
+  const needsVoiceUnlock = isMobileSafari() && !audioUnlocked;
 
   return (
     <div style={S.overlay}>
@@ -1098,6 +1120,16 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
 
           {/* CENTER: label */}
           <div style={{ flex:1, display:'flex', alignItems:'center', gap:6 }}>
+            {needsVoiceUnlock ? (
+              <div style={{ display:'flex', flexDirection:'column', gap:5, minWidth:0 }}>
+                <span style={{ fontSize:12, fontWeight:700, color:T.amber }}>
+                  iPhone requires one tap to enable voice playback.
+                </span>
+                {audioUnlockError && (
+                  <span style={{ fontSize:11, color:T.red, lineHeight:1.3 }}>{audioUnlockError}</span>
+                )}
+              </div>
+            ) : (<>
             {voiceState === 'listening' && (
               <span style={{
                 width:6, height:6, borderRadius:'50%', background:'#ef5350',
@@ -1134,7 +1166,30 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
              : voiceState === 'idle'       ? 'Speak to Mya'
              :                               'Tap to replay · or speak'}
             </span>
+            </>)}
           </div>
+
+          {needsVoiceUnlock && (
+            <button
+              type="button"
+              onClick={unlockAudio}
+              style={{
+                border:'1px solid rgba(239,159,39,0.45)',
+                background:'rgba(239,159,39,0.12)',
+                color:'rgba(239,159,39,0.95)',
+                borderRadius:10,
+                padding:'8px 10px',
+                fontSize:11,
+                fontWeight:800,
+                fontFamily:T.sans,
+                cursor:'pointer',
+                flexShrink:0,
+                whiteSpace:'nowrap',
+              }}
+            >
+              Enable Mya Voice
+            </button>
+          )}
 
           {/* RIGHT: main mic circle — all 5 states */}
           <div style={{ position:'relative', width:44, height:44, flexShrink:0, borderRadius:'50%',
@@ -1158,7 +1213,7 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
             </>}
             <button
               onClick={handleVoice}
-              disabled={voiceState === 'requesting_permission' || voiceState === 'processing' || voiceState === 'speaking'}
+              disabled={needsVoiceUnlock || voiceState === 'requesting_permission' || voiceState === 'processing' || voiceState === 'speaking'}
               style={{
                 position:'relative', zIndex:1,
                 width:44, height:44, borderRadius:'50%',
@@ -1170,7 +1225,8 @@ export default function MyaDispatchPanel({ open, onClose, actionBarSlot = null }
                           : voiceState === 'processing' || voiceState === 'requesting_permission' ? 'rgba(217,119,6,0.12)'
                           : voiceState === 'replay'      ? 'rgba(20,184,166,0.06)'
                           : 'rgba(20,184,166,0.12)',
-                cursor: voiceState === 'requesting_permission' || voiceState === 'processing' || voiceState === 'speaking'
+                opacity: needsVoiceUnlock ? 0.45 : 1,
+                cursor: needsVoiceUnlock || voiceState === 'requesting_permission' || voiceState === 'processing' || voiceState === 'speaking'
                       ? 'default' : 'pointer',
                 flexShrink:0,
               }}
