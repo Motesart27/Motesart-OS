@@ -2875,6 +2875,7 @@ function BookManagerPanel() {
 const TB_SK = "fm_tb_v2", TB_AK = "fm_arc_v2";
 const TRAVEL_DRAFT_KEY = "fm_travel_builder_active_draft_v1";
 const tbFmt = (n) => "$" + Math.round(n).toLocaleString();
+const tbFmtMoney = (n) => "$" + (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const TB_ROWS = [
   {id:"hotel",cat:"Accommodation",     label:"Marriott Marquis — 3 nights",    low:481,high:481, fixed:true, act:481,  status:"booked",  note:"MM4 rate. Skybridge to Wintrust Arena."},
   {id:"f1",   cat:"Flights",           label:"Kadence — LAX → JFK — Jun 12",   low:200,high:225, fixed:false,act:"",   status:"booknow", url:"https://www.google.com/travel/flights", note:"Nonstop. JetBlue / Delta / AA."},
@@ -2901,6 +2902,177 @@ const TB_BLANK_ROWS = [
 
 function tbCloneRows(rows) {
   return rows.map(r=>({...r}));
+}
+
+const TB_PEOPLE = [
+  {key:"denarius",label:"Denarius",shareField:"denariusShare"},
+  {key:"kadence",label:"Kadence",shareField:"kadenceShare"},
+  {key:"kayliah",label:"Kayliah",shareField:"kayliahShare"},
+];
+const TB_PERSON_KEYS = TB_PEOPLE.map(p=>p.key);
+const TB_DEFAULT_TRIP_PEOPLE = ["denarius","kayliah"];
+const TB_SPLIT_TYPES = [
+  ["unsplit","Unsplit"],
+  ["shared","Shared evenly"],
+  ["selected","Selected people"],
+  ["denarius","Denarius only"],
+  ["kadence","Kadence only"],
+  ["kayliah","Kayliah only"],
+  ["custom","Custom"],
+];
+
+function tbToCents(value) {
+  if(value===0||value==="0") return 0;
+  if(value===undefined||value===null||value==="") return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n*100) : 0;
+}
+
+function tbFromCents(cents) {
+  return Math.round(Number(cents)||0)/100;
+}
+
+function sanitizeTripPeople(people) {
+  const raw = Array.isArray(people) ? people : [];
+  const next = raw.map(p=>String(p||"").toLowerCase()).filter(p=>TB_PERSON_KEYS.includes(p));
+  return [...new Set(next)];
+}
+
+function parseTripPeople(text) {
+  const s = String(text||"").toLowerCase();
+  const found = TB_PEOPLE.filter(p=>s.includes(p.key)).map(p=>p.key);
+  return sanitizeTripPeople(found);
+}
+
+function getShareField(person) {
+  return TB_PEOPLE.find(p=>p.key===person)?.shareField;
+}
+
+function normalizeTravelRow(row) {
+  const r = row&&typeof row==="object" ? row : {};
+  const splitType = TB_SPLIT_TYPES.some(([v])=>v===r.splitType) ? r.splitType : "unsplit";
+  const paidBy = TB_PERSON_KEYS.includes(r.paidBy) ? r.paidBy : "";
+  return {
+    ...r,
+    paidBy,
+    splitType,
+    peopleIncluded:sanitizeTripPeople(r.peopleIncluded),
+    denariusShare:tbFromCents(tbToCents(r.denariusShare)),
+    kadenceShare:tbFromCents(tbToCents(r.kadenceShare)),
+    kayliahShare:tbFromCents(tbToCents(r.kayliahShare)),
+    reimbursable:!!r.reimbursable,
+    reimbursementStatus:r.reimbursementStatus||"not_reimbursable",
+    balanceStatus:["Unsplit","Balanced","Mismatch"].includes(r.balanceStatus) ? r.balanceStatus : "Unsplit",
+    balanceDifference:tbFromCents(tbToCents(r.balanceDifference)),
+  };
+}
+
+function getReconcilingAmount(row) {
+  const r = normalizeTravelRow(row);
+  const status = String(r.status||"est").toLowerCase();
+  if(status==="paid"||status==="actual") return tbFromCents(tbToCents(r.act));
+  if(status==="booked") {
+    if(r.booked!==undefined&&r.booked!=="") return tbFromCents(tbToCents(r.booked));
+    if(r.act!==undefined&&r.act!=="") return tbFromCents(tbToCents(r.act));
+    return tbFromCents(tbToCents(r.low));
+  }
+  if(r.estimate!==undefined&&r.estimate!=="") return tbFromCents(tbToCents(r.estimate));
+  if(r.estimate_low!==undefined&&r.estimate_low!=="") return tbFromCents(tbToCents(r.estimate_low));
+  return tbFromCents(tbToCents(r.low));
+}
+
+function getIncludedPeople(row, tripPeople) {
+  const r = normalizeTravelRow(row);
+  const active = sanitizeTripPeople(tripPeople);
+  if(r.splitType==="unsplit") return [];
+  if(r.splitType==="shared") return active;
+  if(r.splitType==="selected"||r.splitType==="custom") return sanitizeTripPeople(r.peopleIncluded).filter(p=>active.includes(p));
+  if(TB_PERSON_KEYS.includes(r.splitType)&&active.includes(r.splitType)) return [r.splitType];
+  return [];
+}
+
+function zeroShares() {
+  return {denariusShare:0,kadenceShare:0,kayliahShare:0};
+}
+
+function computePersonShares(row, tripPeople) {
+  const r = normalizeTravelRow(row);
+  const included = getIncludedPeople(r, tripPeople);
+  const shares = zeroShares();
+  if(r.splitType==="custom") {
+    TB_PEOPLE.forEach(p=>{shares[p.shareField]=included.includes(p.key)?tbFromCents(tbToCents(r[p.shareField])):0;});
+    return shares;
+  }
+  const amountCents = tbToCents(getReconcilingAmount(r));
+  if(!included.length || amountCents===0) return shares;
+  if(included.length===1) {
+    shares[getShareField(included[0])] = tbFromCents(amountCents);
+    return shares;
+  }
+  const base = Math.trunc(amountCents/included.length);
+  const remainder = amountCents - (base*included.length);
+  const remainderPerson = included.includes(r.paidBy) ? r.paidBy : included[0];
+  included.forEach(person=>{
+    const field = getShareField(person);
+    shares[field] = tbFromCents(base + (person===remainderPerson ? remainder : 0));
+  });
+  return shares;
+}
+
+function validateSplitBalance(row) {
+  const r = normalizeTravelRow(row);
+  if(r.splitType==="unsplit") return {status:"Unsplit",difference:0};
+  const shareCents = TB_PEOPLE.reduce((sum,p)=>sum+tbToCents(r[p.shareField]),0);
+  const diff = shareCents - tbToCents(getReconcilingAmount(r));
+  return {status:diff===0?"Balanced":"Mismatch",difference:tbFromCents(diff)};
+}
+
+function getRowSplitStatus(row) {
+  return validateSplitBalance(row).status;
+}
+
+function finalizeTravelRowSplit(row, tripPeople) {
+  const r = normalizeTravelRow(row);
+  const shares = computePersonShares(r, tripPeople);
+  const next = {...r,...shares};
+  const validation = validateSplitBalance(next);
+  return {...next,balanceStatus:validation.status,balanceDifference:validation.difference};
+}
+
+function getTripPersonTotals(rows) {
+  return (Array.isArray(rows)?rows:[]).reduce((totals,row)=>{
+    const r = normalizeTravelRow(row);
+    if(r.splitType==="unsplit") return totals;
+    TB_PEOPLE.forEach(p=>{totals[p.key]=tbFromCents(tbToCents(totals[p.key])+tbToCents(r[p.shareField]));});
+    return totals;
+  },{denarius:0,kadence:0,kayliah:0});
+}
+
+function getPaidByTotals(rows) {
+  return (Array.isArray(rows)?rows:[]).reduce((totals,row)=>{
+    const r = normalizeTravelRow(row);
+    if(r.splitType==="unsplit"||!TB_PERSON_KEYS.includes(r.paidBy)) return totals;
+    totals[r.paidBy]=tbFromCents(tbToCents(totals[r.paidBy])+tbToCents(getReconcilingAmount(r)));
+    return totals;
+  },{denarius:0,kadence:0,kayliah:0});
+}
+
+function getMismatchRows(rows) {
+  return (Array.isArray(rows)?rows:[]).map(normalizeTravelRow).filter(r=>r.splitType!=="unsplit"&&validateSplitBalance(r).status==="Mismatch");
+}
+
+function getTripReconciliation(rows) {
+  const list = Array.isArray(rows)?rows.map(normalizeTravelRow):[];
+  const tripCents = list.reduce((sum,r)=>sum+tbToCents(getReconcilingAmount(r)),0);
+  const unattributedCents = list.filter(r=>r.splitType==="unsplit").reduce((sum,r)=>sum+tbToCents(getReconcilingAmount(r)),0);
+  const totals = getTripPersonTotals(list);
+  const attributedCents = TB_PERSON_KEYS.reduce((sum,p)=>sum+tbToCents(totals[p]),0);
+  return {
+    tripTotal:tbFromCents(tripCents),
+    attributedTotal:tbFromCents(attributedCents),
+    unattributedTotal:tbFromCents(unattributedCents),
+    isBalanced:attributedCents+unattributedCents===tripCents,
+  };
 }
 
 const TB_FLIGHT_OPTIONS = [
@@ -3032,7 +3204,8 @@ function TravelBuilderPanel() {
   const [newTripPurpose,setNewTripPurpose] = useState("");
   const [newTripPreview,setNewTripPreview] = useState(null);
   const [activeTripDraft,setActiveTripDraft] = useState(null);
-  const [editableTripRows,setEditableTripRows] = useState(()=>TB_ROWS.map(r=>({...r,act:r.fixed?r.act:(actuals[r.id]??r.act)})));
+  const [tripPeople,setTripPeople] = useState(()=>TB_DEFAULT_TRIP_PEOPLE);
+  const [editableTripRows,setEditableTripRows] = useState(()=>TB_ROWS.map(r=>normalizeTravelRow({...r,act:r.fixed?r.act:(actuals[r.id]??r.act)})));
   const [flightOptionsForRow,setFlightOptionsForRow] = useState(null);
   const [travelDraftStatus,setTravelDraftStatus] = useState("idle");
   const [toast,setToast] = useState(null);
@@ -3043,7 +3216,8 @@ function TravelBuilderPanel() {
   const travelDraftHydratedRef = useRef(false);
   const travelDraftSkipNextSaveRef = useRef(true);
 
-  const tots = tbCalc(editableTripRows);
+  const displayTripRows = editableTripRows.map(r=>finalizeTravelRowSplit(r,tripPeople));
+  const tots = tbCalc(displayTripRows);
   const pp = Math.round((tots.filled/tots.total)*100);
   const sp = Math.min(Math.round((tots.actual/tots.low)*100),150);
   const activeTripTitle = activeTripDraft?.name || "Chicago Graduation Trip";
@@ -3051,9 +3225,13 @@ function TravelBuilderPanel() {
     ? [activeTripDraft.dateRange||"Dates pending", activeTripDraft.destination||"Destination pending", activeTripDraft.travelers||"Travelers pending", activeTripDraft.purpose||"Purpose pending"]
     : ["June 12–15 2026","Marriott Marquis Chicago","Denarius + Kadence","Kayliah Graduation"];
   const currentTripName = activeTripTitle;
-  const bookedTotal = editableTripRows
+  const bookedTotal = displayTripRows
     .filter(r=>["booked","confirm"].includes(r.status))
     .reduce((sum,r)=>sum+(parseFloat(r.act)||0),0);
+  const personTotals = getTripPersonTotals(displayTripRows);
+  const paidByTotals = getPaidByTotals(displayTripRows);
+  const mismatchRows = getMismatchRows(displayTripRows);
+  const tripReconciliation = getTripReconciliation(displayTripRows);
   const travelDraftStatusText = travelDraftStatus==="restored" ? "Draft restored from this browser." : travelDraftStatus==="saved" ? "Draft saved locally." : travelDraftStatus==="error" ? "Draft save issue — copy your details before leaving." : "Editable draft — not saved to Airtable yet.";
 
   function safeTravelNotice(message,type=""){setToast({msg:message,type});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2800);}
@@ -3064,9 +3242,30 @@ function TravelBuilderPanel() {
       safeTravelNotice(`${actionName} did not complete. Try again.`, "danger");
     }
   }
-  function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,[field]:field==="low"||field==="high"?Number(value)||0:value}:r));}
+  function normalizeRowsForTrip(rows,people=tripPeople){return (Array.isArray(rows)?rows:[]).map(r=>finalizeTravelRowSplit(r,people));}
+  function patchTravelRow(row,field,value,people=tripPeople){
+    const amountFields=["low","high","denariusShare","kadenceShare","kayliahShare","balanceDifference"];
+    const next = {...normalizeTravelRow(row),[field]:amountFields.includes(field)?Number(value)||0:value};
+    return finalizeTravelRowSplit(next,people);
+  }
+  function updateTripRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?patchTravelRow(r,field,value):r));}
+  function updateSplitRow(id,field,value){setEditableTripRows(rows=>rows.map(r=>r.id===id?patchTravelRow(r,field,value):r));}
+  function toggleRowPerson(id,person){
+    setEditableTripRows(rows=>rows.map(r=>{
+      if(r.id!==id)return r;
+      const cur=sanitizeTripPeople(r.peopleIncluded);
+      const people=cur.includes(person)?cur.filter(p=>p!==person):[...cur,person];
+      return finalizeTravelRowSplit({...normalizeTravelRow(r),peopleIncluded:people},tripPeople);
+    }));
+  }
+  function updateTripPeopleRoster(person,checked){
+    const next=sanitizeTripPeople(checked?[...tripPeople,person]:tripPeople.filter(p=>p!==person));
+    setTripPeople(next);
+    setActiveTripDraft(d=>d?{...d,people:next}:d);
+    setEditableTripRows(rows=>normalizeRowsForTrip(rows,next));
+  }
   function addTripRow(cat){
-    const newRow={id:"custom_"+Date.now(),cat:"",label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:"",url:""};
+    const newRow=normalizeTravelRow({id:"custom_"+Date.now(),cat:"",label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:"",url:""});
     setEditableTripRows(rows=>{
       // Find last index of a row belonging to this category group
       let lastIdx=-1;
@@ -3102,41 +3301,45 @@ function TravelBuilderPanel() {
     const name=(prompt("New section name:")||"").trim();
     if(!name)return;
     if(editableTripRows.some(r=>r.cat===name)){safeTravelNotice("Section already exists","");return;}
-    const newRow={id:"custom_"+Date.now(),cat:name,label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:"",url:""};
+    const newRow=normalizeTravelRow({id:"custom_"+Date.now(),cat:name,label:"New item",low:0,high:0,fixed:false,act:"",status:"est",note:"",url:""});
     setEditableTripRows(rows=>[...rows,newRow]);
     safeTravelNotice("Section “"+name+"” added","success");
   }
   function updateItinDay(dayId,field,val){saveItin(itinDays.map(d=>d.id===dayId?{...d,[field]:val}:d));}
-  function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?{...r,act:val}:r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
+  function setActual(id,val){safeTravelAction("Save local value",()=>{const n={...actuals,[id]:val};setActuals(n);setEditableTripRows(rows=>rows.map(r=>r.id===id?patchTravelRow(r,"act",val):r));localStorage.setItem(TB_SK+"_a",JSON.stringify(n));});}
   function buildTravelDraft(rows=editableTripRows){
-    return {activeTripDraft,editableTripRows:rows,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose,savedAt:new Date().toISOString()};
+    return {activeTripDraft:activeTripDraft?{...activeTripDraft,people:tripPeople}:activeTripDraft,people:tripPeople,editableTripRows:normalizeRowsForTrip(rows),newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose,savedAt:new Date().toISOString()};
   }
   function saveTravelDraft(status="saved"){
     try {localStorage.setItem(TRAVEL_DRAFT_KEY,JSON.stringify(buildTravelDraft()));setTravelDraftStatus(status);}
     catch(err){console.warn("Travel draft save failed",err);setTravelDraftStatus("error");}
   }
-  function useFlightOption(rowId,opt){setEditableTripRows(rows=>rows.map(r=>r.id===rowId?{...r,label:opt.title,low:opt.low,high:opt.high,note:opt.note,status:"booknow",url:opt.bookingUrl}:r));setFlightOptionsForRow(null);}
+  function useFlightOption(rowId,opt){setEditableTripRows(rows=>rows.map(r=>r.id===rowId?finalizeTravelRowSplit({...normalizeTravelRow(r),label:opt.title,low:opt.low,high:opt.high,note:opt.note,status:"booknow",url:opt.bookingUrl},tripPeople):r));setFlightOptionsForRow(null);}
   function openFlightBooking(url){window.open(url,"_blank","noopener,noreferrer");}
   function showToast(msg,type=""){safeTravelNotice(msg,type);}
   function continueNewTripPreview(){
     const dates = newTripStartDate && newTripEndDate ? `${newTripStartDate} to ${newTripEndDate}` : "Dates pending";
+    const people = parseTripPeople(newTripTravelers);
+    const nextPeople = people.length ? people : TB_DEFAULT_TRIP_PEOPLE;
+    setTripPeople(nextPeople);
     setActiveTripDraft({
       name:newTripName.trim()||"Untitled Trip",
       destination:newTripDestination.trim()||"Destination pending",
       dateRange:dates,
       travelers:newTripTravelers.trim()||"Travelers pending",
-      purpose:newTripPurpose.trim()||"Purpose pending"
+      purpose:newTripPurpose.trim()||"Purpose pending",
+      people:nextPeople
     });
     setActuals({});
-    setEditableTripRows(tbCloneRows(TB_BLANK_ROWS));
+    setEditableTripRows(normalizeRowsForTrip(tbCloneRows(TB_BLANK_ROWS),nextPeople));
     setNewTripPreview(null);
     setNewTripModal(false);
     safeTravelNotice("Active draft started","success");
   }
-  function doReset(){safeTravelAction("Reset",()=>{setActuals({});setEditableTripRows(activeTripDraft?tbCloneRows(TB_BLANK_ROWS):tbCloneRows(TB_ROWS));localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);safeTravelNotice("Actuals cleared — template ready","success");});}
+  function doReset(){safeTravelAction("Reset",()=>{setActuals({});setEditableTripRows(normalizeRowsForTrip(activeTripDraft?tbCloneRows(TB_BLANK_ROWS):tbCloneRows(TB_ROWS)));localStorage.setItem(TB_SK+"_a","{}");setResetModal(false);safeTravelNotice("Actuals cleared — template ready","success");});}
   function doArchive(){
     safeTravelAction("Archive",()=>{
-      const e={id:Date.now(),trip:activeTripTitle,dates:activeTripMeta[0],budget:tots.low,actual:tots.actual,saved:tots.saved,state:{actuals,retro},archivedAt:new Date().toLocaleDateString()};
+      const e={id:Date.now(),trip:activeTripTitle,dates:activeTripMeta[0],budget:tots.low,actual:tots.actual,saved:tots.saved,state:{actuals,retro,people:tripPeople,editableTripRows:displayTripRows},archivedAt:new Date().toLocaleDateString()};
       const n=[e,...archive];setArchive(n);localStorage.setItem(TB_AK,JSON.stringify(n));setArchiveModal(false);safeTravelNotice("Trip archived locally","success");setTab("archive");
     });
   }
@@ -3147,19 +3350,23 @@ function TravelBuilderPanel() {
       if(raw){
         const d=JSON.parse(raw);
         if(d&&typeof d==="object"){
+          const restoredPeople = sanitizeTripPeople(d.people||d.activeTripDraft?.people||parseTripPeople(d.newTripTravelers||d.activeTripDraft?.travelers));
+          const nextPeople = restoredPeople.length ? restoredPeople : TB_DEFAULT_TRIP_PEOPLE;
+          setTripPeople(nextPeople);
           if(d.activeTripDraft){
-            setActiveTripDraft(d.activeTripDraft);
-            if(Array.isArray(d.editableTripRows)){const vr=d.editableTripRows.filter(r=>r&&r.label&&r.label.trim()&&r.label!=="New item");if(vr.length>=3)setEditableTripRows(d.editableTripRows);else{console.warn("Corrupt rows");setEditableTripRows(TB_ROWS.map(r=>({...r})));localStorage.removeItem(TRAVEL_DRAFT_KEY);}}
+            setActiveTripDraft({...d.activeTripDraft,people:nextPeople});
+            if(Array.isArray(d.editableTripRows)){const vr=d.editableTripRows.filter(r=>r&&r.label&&r.label.trim()&&r.label!=="New item");if(vr.length>=3)setEditableTripRows(normalizeRowsForTrip(d.editableTripRows,nextPeople));else{console.warn("Corrupt rows");setEditableTripRows(normalizeRowsForTrip(TB_ROWS,nextPeople));localStorage.removeItem(TRAVEL_DRAFT_KEY);}}
           } else if(d.newTripPreview) {
             setActiveTripDraft({
               name:d.newTripPreview.name||"Untitled Trip",
               destination:d.newTripPreview.destination||"Destination pending",
               dateRange:d.newTripPreview.dates||"Dates pending",
               travelers:d.newTripPreview.travelers||"Travelers pending",
-              purpose:d.newTripPreview.purpose||"Purpose pending"
+              purpose:d.newTripPreview.purpose||"Purpose pending",
+              people:nextPeople
             });
-            setEditableTripRows(tbCloneRows(TB_BLANK_ROWS));
-          } else if(Array.isArray(d.editableTripRows)){const vr2=d.editableTripRows.filter(r=>r&&r.label&&r.label.trim()&&r.label!=="New item");if(vr2.length>=3)setEditableTripRows(d.editableTripRows);else{console.warn("Corrupt rows2");setEditableTripRows(TB_ROWS.map(r=>({...r})));localStorage.removeItem(TRAVEL_DRAFT_KEY);}}
+            setEditableTripRows(normalizeRowsForTrip(TB_BLANK_ROWS,nextPeople));
+          } else if(Array.isArray(d.editableTripRows)){const vr2=d.editableTripRows.filter(r=>r&&r.label&&r.label.trim()&&r.label!=="New item");if(vr2.length>=3)setEditableTripRows(normalizeRowsForTrip(d.editableTripRows,nextPeople));else{console.warn("Corrupt rows2");setEditableTripRows(normalizeRowsForTrip(TB_ROWS,nextPeople));localStorage.removeItem(TRAVEL_DRAFT_KEY);}}
           setNewTripName(d.newTripName||"");
           setNewTripDestination(d.newTripDestination||"");
           setNewTripStartDate(d.newTripStartDate||"");
@@ -3179,7 +3386,7 @@ function TravelBuilderPanel() {
     if(travelDraftSkipNextSaveRef.current){travelDraftSkipNextSaveRef.current=false;return;}
     try {setTravelDraftStatus("saving");localStorage.setItem(TRAVEL_DRAFT_KEY,JSON.stringify(buildTravelDraft()));setTravelDraftStatus("saved");}
     catch(err){console.warn("Travel draft autosave failed",err);setTravelDraftStatus("error");}
-  },[activeTripDraft,editableTripRows,newTripPreview,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose]);
+  },[activeTripDraft,tripPeople,editableTripRows,newTripPreview,newTripName,newTripDestination,newTripStartDate,newTripEndDate,newTripTravelers,newTripBudget,newTripPurpose]);
 
   useEffect(()=>{
     if(briefDone.current||tab!=="budget")return;
@@ -3196,12 +3403,12 @@ function TravelBuilderPanel() {
   },[tab]);
 
   const catData=[
-    {l:"Accommodation",v:editableTripRows.filter(r=>r.cat==="Accommodation").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:600,c:T.gold},
-    {l:"Flights",v:editableTripRows.filter(r=>["f1","f2","f3"].includes(r.id)).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.blue},
-    {l:"Transport",v:editableTripRows.filter(r=>r.cat==="Ground Transport").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:110,c:"#4db87a"},
-    {l:"Food",v:editableTripRows.filter(r=>r.cat==="Food & Dining"||String(r.id||"").startsWith("d")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.amber},
-    {l:"Gifts",v:editableTripRows.filter(r=>r.cat==="Graduation + Gifts"||String(r.id||"").startsWith("g")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:150,c:"#c95a84"},
-    {l:"Misc",v:editableTripRows.filter(r=>r.cat==="Misc + Buffer"||String(r.id||"").startsWith("m")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:210,c:T.red},
+    {l:"Accommodation",v:displayTripRows.filter(r=>r.cat==="Accommodation").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:600,c:T.gold},
+    {l:"Flights",v:displayTripRows.filter(r=>["f1","f2","f3"].includes(r.id)).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.blue},
+    {l:"Transport",v:displayTripRows.filter(r=>r.cat==="Ground Transport").reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:110,c:"#4db87a"},
+    {l:"Food",v:displayTripRows.filter(r=>r.cat==="Food & Dining"||String(r.id||"").startsWith("d")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:440,c:T.amber},
+    {l:"Gifts",v:displayTripRows.filter(r=>r.cat==="Graduation + Gifts"||String(r.id||"").startsWith("g")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:150,c:"#c95a84"},
+    {l:"Misc",v:displayTripRows.filter(r=>r.cat==="Misc + Buffer"||String(r.id||"").startsWith("m")).reduce((a,r)=>a+(parseFloat(r.act)||0),0),max:210,c:T.red},
   ];
 
   const STS={
@@ -3223,7 +3430,7 @@ function TravelBuilderPanel() {
         .tb-row{transition:all 0.15s!important}
         .tb-panel:hover{border-color:rgba(0,0,0,0.15)!important;transform:translateY(-2px)!important;box-shadow:0 8px 28px rgba(0,0,0,0.10)!important}
         .tb-panel{transition:all 0.22s!important}
-        @media(max-width:600px){.tb-row:hover{transform:none!important}.tb-metric-grid{grid-template-columns:1fr 1fr!important}.tb-bottom-grid{grid-template-columns:1fr!important}.tb-table-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}}
+        @media(max-width:600px){.tb-row:hover{transform:none!important}.tb-metric-grid{grid-template-columns:1fr 1fr!important}.tb-bottom-grid{grid-template-columns:1fr!important}.tb-table-scroll,.tb-budget-table-wrap,.tb-inner-tabs{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}.tb-inner-tabs button{flex:0 0 auto!important}.tb-split-summary-grid,.tb-split-totals-grid{grid-template-columns:1fr!important}.tb-budget-table{min-width:980px!important}}
       `}</style>
 
       {/* Header */}
@@ -3260,7 +3467,7 @@ function TravelBuilderPanel() {
       </div>
 
       {/* Inner tab nav */}
-      <div style={{display:"flex",gap:2,marginBottom:18,borderBottom:`1px solid ${T.border}`}}>
+      <div className="tb-inner-tabs" style={{display:"flex",gap:2,marginBottom:18,borderBottom:`1px solid ${T.border}`}}>
         {["budget","itinerary","analytics","archive","retro"].map(t=>(
           <button key={t} onClick={()=>setTab(t)}
             style={{padding:"7px 14px",background:tab===t?T.goldDim:"transparent",border:"none",borderBottom:tab===t?`2px solid ${T.gold}`:"2px solid transparent",color:tab===t?T.gold:T.muted,fontSize:11,fontWeight:600,textTransform:"capitalize",cursor:"pointer",transition:"all 0.15s",fontFamily:"inherit"}}>
@@ -3315,6 +3522,63 @@ function TravelBuilderPanel() {
             ))}
           </div>
 
+          <div style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:"14px 16px",marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:12}}>
+              <div>
+                <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700}}>Trip people roster</div>
+                <div style={{fontSize:12,color:"#4a4a52",marginTop:3}}>Shared splits use active people only.</div>
+              </div>
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {TB_PEOPLE.map(p=>(
+                  <label key={p.key} style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#4a4a52",fontWeight:700,background:tripPeople.includes(p.key)?"#dcfce7":"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:7,padding:"5px 9px"}}>
+                    <input type="checkbox" checked={tripPeople.includes(p.key)} onChange={e=>updateTripPeopleRoster(p.key,e.target.checked)} />
+                    {p.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="tb-split-summary-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8}}>
+              {[
+                ["Trip Total",tripReconciliation.tripTotal,"All rows","#1e293b"],
+                ["Attributed",tripReconciliation.attributedTotal,"Assigned rows","#15803d"],
+                ["Unattributed",tripReconciliation.unattributedTotal,"Unsplit rows","#b45309"],
+                ["Mismatches",mismatchRows.length,mismatchRows.length?"Needs review":"Assigned rows balance",mismatchRows.length?"#dc2626":"#15803d"],
+              ].map(([label,value,sub,color])=>(
+                <div key={label} style={{background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:8,padding:"10px 12px"}}>
+                  <div style={{fontSize:9,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:4}}>{label}</div>
+                  <div style={{fontSize:17,fontWeight:800,color}}>{typeof value==="number"&&label!=="Mismatches"?tbFmtMoney(value):value}</div>
+                  <div style={{fontSize:11,color:"#78788a",marginTop:2}}>{sub}</div>
+                </div>
+              ))}
+            </div>
+            {mismatchRows.length>0&&(
+              <div style={{marginTop:10,background:"#fee2e2",border:"0.5px solid rgba(220,38,38,0.25)",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#991b1b",fontWeight:600}}>
+                Split mismatch: {mismatchRows.map(r=>r.label||r.id).join(", ")}
+              </div>
+            )}
+          </div>
+
+          <div className="tb-split-totals-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+            <div style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:"14px 16px"}}>
+              <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:10}}>Per-person totals</div>
+              {TB_PEOPLE.map(p=>(
+                <div key={p.key} style={{display:"flex",justifyContent:"space-between",fontSize:13,color:tripPeople.includes(p.key)?"#1a1a1a":"#9ca3af",padding:"4px 0",borderBottom:"0.5px solid rgba(0,0,0,0.05)"}}>
+                  <span>{p.label}{tripPeople.includes(p.key)?"":" · not on trip"}</span>
+                  <strong>{tbFmtMoney(personTotals[p.key])}</strong>
+                </div>
+              ))}
+            </div>
+            <div style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:"14px 16px"}}>
+              <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700,marginBottom:10}}>Paid-by totals</div>
+              {TB_PEOPLE.map(p=>(
+                <div key={p.key} style={{display:"flex",justifyContent:"space-between",fontSize:13,color:tripPeople.includes(p.key)?"#1a1a1a":"#9ca3af",padding:"4px 0",borderBottom:"0.5px solid rgba(0,0,0,0.05)"}}>
+                  <span>{p.label}</span>
+                  <strong>{tbFmtMoney(paidByTotals[p.key])}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:14,alignItems:"center"}}>
             {[["#22c55e","#dcfce7","Booked"],["#f59e0b","#fef3c7","Book now"],["#78788a","#f1f5f9","Estimate"],["#3b82f6","#dbeafe","Actual — edit fields"],["#ef4444","#fee2e2","Over estimate"]].map(([c,bg,l])=>(
               <div key={l} style={{display:"flex",alignItems:"center",gap:5,fontSize:12,color:"#4a4a52"}}>
@@ -3324,12 +3588,12 @@ function TravelBuilderPanel() {
             <div style={{fontSize:12,color:travelDraftStatus==="error"?"#ef4444":"#78788a",marginLeft:"auto"}}>{travelDraftStatusText}</div>
           </div>
 
-          <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden",marginBottom:18}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,tableLayout:"fixed"}}>
-              <colgroup><col style={{width:"22%"}}/><col style={{width:"9%"}}/><col style={{width:"9%"}}/><col style={{width:"11%"}}/><col style={{width:"8%"}}/><col style={{width:"11%"}}/><col style={{width:"30%"}}/></colgroup>
+          <div className="tb-budget-table-wrap" style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden",marginBottom:18}}>
+            <table className="tb-budget-table" style={{width:"100%",borderCollapse:"collapse",fontSize:12,tableLayout:"fixed"}}>
+              <colgroup><col style={{width:"17%"}}/><col style={{width:"7%"}}/><col style={{width:"7%"}}/><col style={{width:"9%"}}/><col style={{width:"7%"}}/><col style={{width:"8%"}}/><col style={{width:"18%"}}/><col style={{width:"14%"}}/><col style={{width:"14%"}}/></colgroup>
               <thead>
                 <tr style={{background:"#f8f7f5"}}>
-                  {["Item","Low est.","High est.","Actual paid","+/–","Status","Notes"].map((h,i)=>(
+                  {["Item","Low est.","High est.","Actual paid","+/–","Status","Split","Shares","Notes"].map((h,i)=>(
                     <th key={h} style={{padding:"9px 12px",textAlign:i>0&&i<5?"right":i===5?"center":"left",fontFamily:"monospace",fontSize:8,letterSpacing:"0.09em",textTransform:"uppercase",color:T.muted,borderBottom:`1px solid ${T.border}`,fontWeight:400}}>{h}</th>
                   ))}
                 </tr>
@@ -3337,11 +3601,11 @@ function TravelBuilderPanel() {
               <tbody>
                 {(()=>{
                   let lc="";
-                  return editableTripRows.map(r=>{
+                  return displayTripRows.map(r=>{
                     const cells=[];
                     if(r.cat&&r.cat!==lc){lc=r.cat;const _cat=r.cat;cells.push(
                       <tr key={"c"+r.cat} style={{background:"#faeeda"}}>
-                        <td colSpan={7} style={{padding:"7px 14px",fontSize:10,letterSpacing:"0.08em",textTransform:"uppercase",color:"#633806",fontWeight:700}}>
+                        <td colSpan={9} style={{padding:"7px 14px",fontSize:10,letterSpacing:"0.08em",textTransform:"uppercase",color:"#633806",fontWeight:700}}>
                           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                             <span>{r.cat}</span>
                             <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -3362,6 +3626,8 @@ function TravelBuilderPanel() {
                     const nv=val!==""?parseFloat(val):null;
                     const diff=nv!==null?(Number(r.low)||0)-nv:null;
                     const s=STS[r.status]||STS["est"]||{bg:"#f1f5f9",c:"#64748b",t:"Estimate"};
+                    const rowBalance=getRowSplitStatus(r);
+                    const rowIncluded=getIncludedPeople(r,tripPeople);
                     cells.push(
                       <tr key={r.id} className="tb-row" style={{borderBottom:"0.5px solid rgba(0,0,0,0.07)",background:"#ffffff"}}>
                         <td style={{padding:"10px 14px"}}>
@@ -3392,6 +3658,56 @@ function TravelBuilderPanel() {
                             style={{background:s.bg,color:s.c,border:`1px solid ${s.c}30`,borderRadius:3,padding:"2px 6px",fontFamily:"monospace",fontSize:9,fontWeight:500,outline:"none"}}>
                             {STATUS_OPTIONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
                           </select>
+                        </td>
+                        <td style={{padding:"10px 10px",verticalAlign:"top"}}>
+                          <select value={r.splitType} onChange={e=>updateSplitRow(r.id,"splitType",e.target.value)}
+                            style={{width:"100%",background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:5,padding:"4px 6px",fontFamily:"inherit",fontSize:11,color:"#1a1a1a",outline:"none",marginBottom:5}}>
+                            {TB_SPLIT_TYPES.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                          </select>
+                          <select value={r.paidBy} onChange={e=>updateSplitRow(r.id,"paidBy",e.target.value)}
+                            style={{width:"100%",background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:5,padding:"4px 6px",fontFamily:"inherit",fontSize:11,color:"#4a4a52",outline:"none",marginBottom:5}}>
+                            <option value="">Paid by...</option>
+                            {TB_PEOPLE.map(p=><option key={p.key} value={p.key}>{p.label}</option>)}
+                          </select>
+                          {(r.splitType==="selected"||r.splitType==="custom")&&(
+                            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:5}}>
+                              {TB_PEOPLE.map(p=>(
+                                <label key={p.key} style={{fontSize:10,color:tripPeople.includes(p.key)?"#4a4a52":"#9ca3af",display:"flex",alignItems:"center",gap:2}}>
+                                  <input type="checkbox" disabled={!tripPeople.includes(p.key)} checked={r.peopleIncluded.includes(p.key)} onChange={()=>toggleRowPerson(r.id,p.key)} />
+                                  {p.label.slice(0,3)}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                          <label style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#78788a",marginBottom:4}}>
+                            <input type="checkbox" checked={r.reimbursable} onChange={e=>updateSplitRow(r.id,"reimbursable",e.target.checked)} />
+                            Reimbursable
+                          </label>
+                          {r.reimbursable&&(
+                            <select value={r.reimbursementStatus} onChange={e=>updateSplitRow(r.id,"reimbursementStatus",e.target.value)}
+                              style={{width:"100%",background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:5,padding:"3px 6px",fontFamily:"inherit",fontSize:10,color:"#4a4a52",outline:"none"}}>
+                              <option value="pending">Pending</option>
+                              <option value="requested">Requested</option>
+                              <option value="received">Received</option>
+                            </select>
+                          )}
+                          <div style={{marginTop:5,fontSize:10,fontWeight:800,color:rowBalance==="Mismatch"?"#dc2626":rowBalance==="Balanced"?"#15803d":"#b45309"}}>{rowBalance}</div>
+                        </td>
+                        <td style={{padding:"10px 10px",verticalAlign:"top",fontSize:11,color:"#4a4a52"}}>
+                          {TB_PEOPLE.map(p=>{
+                            const active=tripPeople.includes(p.key);
+                            const included=rowIncluded.includes(p.key);
+                            const editable=r.splitType==="custom"&&included;
+                            return <div key={p.key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:5,marginBottom:4,color:active?"#4a4a52":"#9ca3af"}}>
+                              <span>{p.label.slice(0,3)}</span>
+                              {editable
+                                ?<input type="number" value={r[p.shareField]} onChange={e=>updateSplitRow(r.id,p.shareField,e.target.value)} style={{width:62,textAlign:"right",background:"#fff7ed",border:"0.5px solid rgba(245,158,11,0.35)",borderRadius:4,padding:"2px 4px",fontSize:11,color:"#92400e",outline:"none"}}/>
+                                :<strong style={{color:included?"#1a1a1a":"#9ca3af"}}>{tbFmtMoney(r[p.shareField])}</strong>}
+                            </div>;
+                          })}
+                          {r.splitType==="custom"&&rowBalance==="Mismatch"&&(
+                            <div style={{fontSize:10,color:"#dc2626",fontWeight:700}}>Diff {tbFmtMoney(r.balanceDifference)}</div>
+                          )}
                         </td>
                         <td style={{padding:"10px 14px",fontSize:12,color:"#78788a",position:"relative"}}>
                           <input value={r.note} onChange={e=>updateTripRow(r.id,"note",e.target.value)}
@@ -3434,6 +3750,8 @@ function TravelBuilderPanel() {
                   <td style={{padding:"12px 14px",textAlign:"right",fontSize:14,color:"#1d4ed8",fontWeight:700}}>{tbFmt(tots.actual)}</td>
                   <td style={{padding:"12px 14px",textAlign:"right",fontSize:14,color:"#15803d",fontWeight:700}}>{tbFmt(tots.saved)}</td>
                   <td/>
+                  <td style={{padding:"12px 14px",fontSize:12,color:"#78788a",fontStyle:"italic"}}>Assigned rows must balance</td>
+                  <td style={{padding:"12px 14px",fontSize:12,color:"#78788a",fontStyle:"italic"}}>{tbFmtMoney(tripReconciliation.attributedTotal)}</td>
                   <td style={{padding:"12px 14px",fontSize:12,color:"#78788a",fontStyle:"italic"}}>Edit blue fields as costs come in</td>
                 </tr>
               </tbody>
