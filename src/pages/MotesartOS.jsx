@@ -3206,6 +3206,7 @@ function TravelBuilderPanel() {
   const [activeTripDraft,setActiveTripDraft] = useState(null);
   const [tripPeople,setTripPeople] = useState(()=>TB_DEFAULT_TRIP_PEOPLE);
   const [editableTripRows,setEditableTripRows] = useState(()=>TB_ROWS.map(r=>normalizeTravelRow({...r,act:r.fixed?r.act:(actuals[r.id]??r.act)})));
+  const [selectedPersonBudgetView,setSelectedPersonBudgetView] = useState("all");
   const [flightOptionsForRow,setFlightOptionsForRow] = useState(null);
   const [travelDraftStatus,setTravelDraftStatus] = useState("idle");
   const [toast,setToast] = useState(null);
@@ -3232,6 +3233,15 @@ function TravelBuilderPanel() {
   const paidByTotals = getPaidByTotals(displayTripRows);
   const mismatchRows = getMismatchRows(displayTripRows);
   const tripReconciliation = getTripReconciliation(displayTripRows);
+  const selectedBudgetPerson = TB_PEOPLE.find(p=>p.label===selectedPersonBudgetView) || null;
+  const budgetBreakdownRows = displayTripRows
+    .map(r=>{
+      const rowBalance = getRowSplitStatus(r);
+      const amount = selectedBudgetPerson ? r[selectedBudgetPerson.shareField] : getReconcilingAmount(r);
+      return {row:r,amount,rowBalance};
+    })
+    .filter(item=>!selectedBudgetPerson || tbToCents(item.amount)!==0);
+  const budgetBreakdownTotal = selectedBudgetPerson ? personTotals[selectedBudgetPerson.key] : tripReconciliation.tripTotal;
   const travelDraftStatusText = travelDraftStatus==="restored" ? "Draft restored from this browser." : travelDraftStatus==="saved" ? "Draft saved locally." : travelDraftStatus==="error" ? "Draft save issue — copy your details before leaving." : "Editable draft — not saved to Airtable yet.";
 
   function safeTravelNotice(message,type=""){setToast({msg:message,type});clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(null),2800);}
@@ -3431,7 +3441,7 @@ function TravelBuilderPanel() {
         .tb-panel:hover{border-color:rgba(0,0,0,0.15)!important;transform:translateY(-2px)!important;box-shadow:0 8px 28px rgba(0,0,0,0.10)!important}
         .tb-panel{transition:all 0.22s!important}
         .tb-mobile-budget-cards{display:none}
-        @media(max-width:600px){.tb-row:hover{transform:none!important}.tb-metric-grid{grid-template-columns:1fr 1fr!important}.tb-bottom-grid{grid-template-columns:1fr!important}.tb-inner-tabs{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}.tb-inner-tabs button{flex:0 0 auto!important}.tb-split-summary-grid,.tb-split-totals-grid{grid-template-columns:1fr!important}.tb-budget-table-wrap{display:none!important}.tb-mobile-budget-cards{display:block!important}}
+        @media(max-width:600px){.tb-row:hover{transform:none!important}.tb-metric-grid{grid-template-columns:1fr 1fr!important}.tb-bottom-grid{grid-template-columns:1fr!important}.tb-inner-tabs{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}.tb-inner-tabs button{flex:0 0 auto!important}.tb-split-summary-grid,.tb-split-totals-grid{grid-template-columns:1fr!important}.tb-budget-table-wrap{display:none!important}.tb-mobile-budget-cards{display:block!important}.tb-person-breakdown-row{grid-template-columns:1fr!important}.tb-budget-view-toggle{width:100%!important}.tb-budget-view-toggle button{flex:1 1 calc(50% - 4px)!important}}
       `}</style>
 
       {/* Header */}
@@ -3538,6 +3548,22 @@ function TravelBuilderPanel() {
                 ))}
               </div>
             </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12,flexWrap:"wrap",borderTop:"0.5px solid rgba(0,0,0,0.08)",paddingTop:12}}>
+              <div>
+                <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700}}>Budget view</div>
+                <div style={{fontSize:12,color:"#4a4a52",marginTop:3}}>{selectedBudgetPerson?`${selectedBudgetPerson.label}'s per-line shares`:"Full trip budget breakdown"}</div>
+              </div>
+              <div className="tb-budget-view-toggle" style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {["all",...TB_PEOPLE.map(p=>p.label)].map(view=>{
+                  const active=selectedPersonBudgetView===view;
+                  const label=view==="all"?"All":view;
+                  return <button key={view} type="button" onClick={()=>setSelectedPersonBudgetView(active||view==="all"?"all":view)}
+                    style={{background:active?"#111827":"#f8f7f5",border:active?"1px solid #111827":"0.5px solid rgba(0,0,0,0.12)",borderRadius:8,padding:"7px 10px",fontFamily:"inherit",fontSize:12,fontWeight:800,color:active?"#fff":"#4a4a52",cursor:"pointer",lineHeight:1}}>
+                    {label}
+                  </button>;
+                })}
+              </div>
+            </div>
             <div className="tb-split-summary-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:8}}>
               {[
                 ["Trip Total",tripReconciliation.tripTotal,"All rows","#1e293b"],
@@ -3577,6 +3603,44 @@ function TravelBuilderPanel() {
                   <strong>{tbFmtMoney(paidByTotals[p.key])}</strong>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:12,padding:14,marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+              <div>
+                <div style={{fontSize:10,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",fontWeight:700}}>Budget breakdown</div>
+                <div style={{fontSize:12,color:"#4a4a52",marginTop:3}}>{selectedBudgetPerson?`${selectedBudgetPerson.label} share view`:"All trip rows"}</div>
+              </div>
+              <div style={{fontSize:20,fontWeight:900,color:selectedBudgetPerson?"#15803d":"#1e293b"}}>{tbFmtMoney(budgetBreakdownTotal)}</div>
+            </div>
+            <div style={{display:"grid",gap:8}}>
+              {budgetBreakdownRows.length===0?(
+                <div style={{background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:9,padding:"12px 14px",fontSize:13,color:"#78788a",fontWeight:700}}>
+                  No attributed lines for {selectedBudgetPerson?.label||"this view"}.
+                </div>
+              ):budgetBreakdownRows.map(({row,amount,rowBalance})=>{
+                const amountPaid=getReconcilingAmount(row);
+                const statusLabel=STS[row.status]?.t||row.status||"Estimate";
+                const color=rowBalance==="Mismatch"?"#dc2626":rowBalance==="Balanced"?"#15803d":"#b45309";
+                return <div key={"breakdown_"+row.id} className="tb-person-breakdown-row" style={{display:"grid",gridTemplateColumns:"minmax(0,1.5fr) 110px 120px",gap:10,alignItems:"center",background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:9,padding:"10px 12px"}}>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:800,color:"#1a1a1a",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{row.label||"Untitled item"}</div>
+                    <div style={{fontSize:11,color:"#78788a",marginTop:3}}>{row.cat||"Same section"} · {statusLabel}</div>
+                  </div>
+                  <div style={{fontSize:12,color:"#4a4a52",fontWeight:800}}>
+                    <div style={{fontSize:9,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",marginBottom:2}}>Paid/actual</div>
+                    {tbFmtMoney(amountPaid)}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                    <div>
+                      <div style={{fontSize:9,letterSpacing:"0.07em",textTransform:"uppercase",color:"#78788a",marginBottom:2}}>{selectedBudgetPerson?`${selectedBudgetPerson.label} share`:"Row amount"}</div>
+                      <div style={{fontSize:14,fontWeight:900,color:"#1a1a1a"}}>{tbFmtMoney(amount)}</div>
+                    </div>
+                    <div style={{fontSize:11,fontWeight:900,color,background:rowBalance==="Mismatch"?"#fee2e2":rowBalance==="Balanced"?"#dcfce7":"#fef3c7",borderRadius:999,padding:"5px 8px",whiteSpace:"nowrap"}}>{rowBalance}</div>
+                  </div>
+                </div>;
+              })}
             </div>
           </div>
 
