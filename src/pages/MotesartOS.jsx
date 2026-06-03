@@ -3430,7 +3430,8 @@ function TravelBuilderPanel() {
         .tb-row{transition:all 0.15s!important}
         .tb-panel:hover{border-color:rgba(0,0,0,0.15)!important;transform:translateY(-2px)!important;box-shadow:0 8px 28px rgba(0,0,0,0.10)!important}
         .tb-panel{transition:all 0.22s!important}
-        @media(max-width:600px){.tb-row:hover{transform:none!important}.tb-metric-grid{grid-template-columns:1fr 1fr!important}.tb-bottom-grid{grid-template-columns:1fr!important}.tb-table-scroll,.tb-budget-table-wrap,.tb-inner-tabs{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}.tb-inner-tabs button{flex:0 0 auto!important}.tb-split-summary-grid,.tb-split-totals-grid{grid-template-columns:1fr!important}.tb-budget-table{min-width:980px!important}}
+        .tb-mobile-budget-cards{display:none}
+        @media(max-width:600px){.tb-row:hover{transform:none!important}.tb-metric-grid{grid-template-columns:1fr 1fr!important}.tb-bottom-grid{grid-template-columns:1fr!important}.tb-inner-tabs{overflow-x:auto!important;-webkit-overflow-scrolling:touch!important}.tb-inner-tabs button{flex:0 0 auto!important}.tb-split-summary-grid,.tb-split-totals-grid{grid-template-columns:1fr!important}.tb-budget-table-wrap{display:none!important}.tb-mobile-budget-cards{display:block!important}}
       `}</style>
 
       {/* Header */}
@@ -3759,6 +3760,177 @@ function TravelBuilderPanel() {
             <div style={{padding:"10px 0 4px"}}>
               <button onClick={addBudgetSection} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 16px",background:"#f8f7f5",border:"1.5px dashed rgba(0,0,0,0.12)",borderRadius:8,fontFamily:"inherit",fontSize:13,fontWeight:600,color:"#4a4a52",cursor:"pointer",width:"100%",justifyContent:"center"}}>+ New section</button>
             </div>
+          </div>
+
+          <div className="tb-mobile-budget-cards" style={{marginBottom:18}}>
+            {(()=>{
+              let lc="";
+              return displayTripRows.map(r=>{
+                const cards=[];
+                if(r.cat&&r.cat!==lc){lc=r.cat;const _cat=r.cat;cards.push(
+                  <div key={"mcat"+r.cat} style={{background:"#faeeda",border:"1px solid #ef9f27",borderRadius:10,padding:"9px 11px",margin:"12px 0 8px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                    <span style={{fontSize:10,letterSpacing:"0.08em",textTransform:"uppercase",color:"#633806",fontWeight:800}}>{r.cat}</span>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      {!TB_DEFAULT_SECTIONS.includes(_cat)&&(
+                        <button onClick={()=>deleteBudgetSection(_cat)} title="Delete this section" style={{background:"#fee2e2",border:"none",borderRadius:5,padding:"5px 8px",fontFamily:"inherit",fontSize:11,fontWeight:700,color:"#dc2626",cursor:"pointer",lineHeight:1}}>Delete</button>
+                      )}
+                      <button onClick={()=>addTripRow(_cat)} style={{background:"#22c55e",border:"none",borderRadius:5,padding:"5px 9px",fontFamily:"inherit",fontSize:11,fontWeight:800,color:"#fff",cursor:"pointer",lineHeight:1}}>+ Add</button>
+                    </div>
+                  </div>
+                );}
+                const section=lc;
+                const isFlightRow=section==="Flights";
+                const val=r.act!==undefined&&r.act!==null?String(r.act):"";
+                const nv=val!==""?parseFloat(val):null;
+                const diff=nv!==null?(Number(r.low)||0)-nv:null;
+                const s=STS[r.status]||STS["est"]||{bg:"#f1f5f9",c:"#64748b",t:"Estimate"};
+                const rowBalance=getRowSplitStatus(r);
+                const rowIncluded=getIncludedPeople(r,tripPeople);
+                cards.push(
+                  <div key={"mrow"+r.id} style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:12,padding:14,marginBottom:10,boxShadow:"0 1px 0 rgba(0,0,0,0.03)"}}>
+                    <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:10}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:9,letterSpacing:"0.08em",textTransform:"uppercase",color:"#9ca3af",fontWeight:800,marginBottom:4}}>{section||"Travel item"}</div>
+                        <input value={r.label} onChange={e=>updateTripRow(r.id,"label",e.target.value)}
+                          style={{background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:7,color:"#1a1a1a",fontFamily:"inherit",fontSize:14,fontWeight:700,width:"100%",boxSizing:"border-box",outline:"none",padding:"8px 9px"}}/>
+                      </div>
+                      {String(r.id||"").startsWith("custom_")&&(
+                        <button onClick={()=>removeTripRow(r.id)} style={{background:"#fee2e2",border:"none",borderRadius:7,color:"#dc2626",cursor:"pointer",fontSize:11,fontWeight:800,padding:"8px 9px",fontFamily:"inherit",lineHeight:1}} title="Remove row">Delete</button>
+                      )}
+                    </div>
+
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                      <label style={{display:"flex",flexDirection:"column",gap:4,fontSize:10,color:"#78788a",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em"}}>Low est.
+                        <input type="number" value={r.low} onChange={e=>updateTripRow(r.id,"low",e.target.value)}
+                          style={{background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:7,color:"#4a4a52",fontFamily:"inherit",fontSize:13,width:"100%",boxSizing:"border-box",textAlign:"right",outline:"none",padding:"8px 9px"}}/>
+                      </label>
+                      <label style={{display:"flex",flexDirection:"column",gap:4,fontSize:10,color:"#78788a",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em"}}>High est.
+                        <input type="number" value={r.high} onChange={e=>updateTripRow(r.id,"high",e.target.value)}
+                          style={{background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:7,color:"#4a4a52",fontFamily:"inherit",fontSize:13,width:"100%",boxSizing:"border-box",textAlign:"right",outline:"none",padding:"8px 9px"}}/>
+                      </label>
+                      <label style={{display:"flex",flexDirection:"column",gap:4,fontSize:10,color:"#78788a",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em"}}>Actual paid
+                        <input type="number" value={val} placeholder="enter" onChange={e=>setActual(r.id,e.target.value)}
+                          style={{background:"#dbeafe",border:"none",borderRadius:7,color:"#1d4ed8",fontFamily:"inherit",fontSize:13,fontWeight:800,width:"100%",boxSizing:"border-box",textAlign:"right",outline:"none",padding:"8px 9px"}}/>
+                      </label>
+                      <div style={{display:"flex",flexDirection:"column",gap:4,fontSize:10,color:"#78788a",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em"}}>Variance
+                        <div style={{background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:7,padding:"8px 9px",fontSize:13,fontWeight:800,textAlign:"right",color:diff===null?"#9ca3af":diff>0?"#15803d":diff<0?"#dc2626":"#9ca3af"}}>
+                          {diff===null?"-":diff>0?tbFmt(diff):diff<0?"("+tbFmt(Math.abs(diff))+")":"$0"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                      <label style={{display:"flex",flexDirection:"column",gap:4,fontSize:10,color:"#78788a",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em"}}>Status
+                        <select value={r.status} onChange={e=>updateTripRow(r.id,"status",e.target.value)}
+                          style={{background:s.bg,color:s.c,border:`1px solid ${s.c}30`,borderRadius:7,padding:"8px 9px",fontFamily:"inherit",fontSize:12,fontWeight:800,outline:"none",width:"100%",boxSizing:"border-box"}}>
+                          {STATUS_OPTIONS.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                        </select>
+                      </label>
+                      <label style={{display:"flex",flexDirection:"column",gap:4,fontSize:10,color:"#78788a",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em"}}>Split Type
+                        <select value={r.splitType} onChange={e=>updateSplitRow(r.id,"splitType",e.target.value)}
+                          style={{background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:7,padding:"8px 9px",fontFamily:"inherit",fontSize:12,color:"#1a1a1a",outline:"none",width:"100%",boxSizing:"border-box"}}>
+                          {TB_SPLIT_TYPES.map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                        </select>
+                      </label>
+                    </div>
+
+                    <label style={{display:"flex",flexDirection:"column",gap:4,fontSize:10,color:"#78788a",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Paid By
+                      <select value={r.paidBy} onChange={e=>updateSplitRow(r.id,"paidBy",e.target.value)}
+                        style={{background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:7,padding:"8px 9px",fontFamily:"inherit",fontSize:12,color:"#4a4a52",outline:"none",width:"100%",boxSizing:"border-box"}}>
+                        <option value="">Paid by...</option>
+                        {TB_PEOPLE.map(p=><option key={p.key} value={p.key}>{p.label}</option>)}
+                      </select>
+                    </label>
+
+                    {(r.splitType==="selected"||r.splitType==="custom")&&(
+                      <div style={{marginBottom:10}}>
+                        <div style={{fontSize:10,color:"#78788a",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>People Included</div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                          {TB_PEOPLE.map(p=>(
+                            <label key={p.key} style={{display:"flex",alignItems:"center",gap:4,fontSize:12,color:tripPeople.includes(p.key)?"#4a4a52":"#9ca3af",background:r.peopleIncluded.includes(p.key)?"#dcfce7":"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:7,padding:"6px 8px",fontWeight:800}}>
+                              <input type="checkbox" disabled={!tripPeople.includes(p.key)} checked={r.peopleIncluded.includes(p.key)} onChange={()=>toggleRowPerson(r.id,p.key)} />
+                              {p.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.08)",borderRadius:9,padding:10,marginBottom:10}}>
+                      <div style={{fontSize:10,color:"#78788a",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Shares</div>
+                      {TB_PEOPLE.map(p=>{
+                        const active=tripPeople.includes(p.key);
+                        const included=rowIncluded.includes(p.key);
+                        const editable=r.splitType==="custom"&&included;
+                        return <div key={p.key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:6,color:active?"#4a4a52":"#9ca3af",fontSize:13}}>
+                          <span style={{fontWeight:700}}>{p.label}</span>
+                          {editable
+                            ?<input type="number" value={r[p.shareField]} onChange={e=>updateSplitRow(r.id,p.shareField,e.target.value)} style={{width:110,textAlign:"right",background:"#fff7ed",border:"0.5px solid rgba(245,158,11,0.35)",borderRadius:6,padding:"6px 8px",fontSize:13,color:"#92400e",outline:"none",boxSizing:"border-box"}}/>
+                            :<strong style={{color:included?"#1a1a1a":"#9ca3af"}}>{tbFmtMoney(r[p.shareField])}</strong>}
+                        </div>;
+                      })}
+                    </div>
+
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10}}>
+                      <div style={{fontSize:10,fontWeight:900,letterSpacing:"0.08em",textTransform:"uppercase",color:"#78788a"}}>Balance status</div>
+                      <div style={{fontSize:12,fontWeight:900,color:rowBalance==="Mismatch"?"#dc2626":rowBalance==="Balanced"?"#15803d":"#b45309",background:rowBalance==="Mismatch"?"#fee2e2":rowBalance==="Balanced"?"#dcfce7":"#fef3c7",borderRadius:999,padding:"5px 9px"}}>{rowBalance}</div>
+                    </div>
+                    {r.splitType==="custom"&&rowBalance==="Mismatch"&&(
+                      <div style={{fontSize:12,color:"#dc2626",fontWeight:800,marginBottom:10}}>Difference {tbFmtMoney(r.balanceDifference)}</div>
+                    )}
+
+                    <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#78788a",fontWeight:700,marginBottom:8}}>
+                      <input type="checkbox" checked={r.reimbursable} onChange={e=>updateSplitRow(r.id,"reimbursable",e.target.checked)} />
+                      Reimbursable
+                    </label>
+                    {r.reimbursable&&(
+                      <select value={r.reimbursementStatus} onChange={e=>updateSplitRow(r.id,"reimbursementStatus",e.target.value)}
+                        style={{width:"100%",background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:7,padding:"8px 9px",fontFamily:"inherit",fontSize:12,color:"#4a4a52",outline:"none",boxSizing:"border-box",marginBottom:10}}>
+                        <option value="pending">Pending</option>
+                        <option value="requested">Requested</option>
+                        <option value="received">Received</option>
+                      </select>
+                    )}
+
+                    <label style={{display:"flex",flexDirection:"column",gap:4,fontSize:10,color:"#78788a",fontWeight:800,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:10}}>Notes
+                      <input value={r.note} onChange={e=>updateTripRow(r.id,"note",e.target.value)}
+                        style={{background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:7,color:"#4a4a52",fontFamily:"inherit",fontSize:13,width:"100%",boxSizing:"border-box",outline:"none",padding:"8px 9px"}}/>
+                    </label>
+
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                      {isFlightRow&&(
+                        <button onClick={()=>setFlightOptionsForRow(flightOptionsForRow===r.id?null:r.id)}
+                          style={{background:"#fef3c7",border:"1px solid rgba(245,158,11,0.4)",borderRadius:7,padding:"7px 11px",fontFamily:"inherit",fontSize:12,fontWeight:800,color:"#b45309",cursor:"pointer"}}>Options</button>
+                      )}
+                      {r.url
+                        ? <a href={r.url} target="_blank" rel="noopener" style={{color:"#b45309",textDecoration:"none",fontWeight:800,fontSize:12}}>Book</a>
+                        : r.status==="booknow" ? <span style={{color:"#9ca3af",fontSize:12}}>No link</span> : null
+                      }
+                      <span style={{marginLeft:"auto",fontSize:11,color:"#9ca3af",fontWeight:700}}>Saved locally</span>
+                    </div>
+
+                    {isFlightRow&&flightOptionsForRow===r.id&&(
+                      <div style={{marginTop:10,background:"#ffffff",border:"0.5px solid rgba(0,0,0,0.12)",borderRadius:10,padding:12,boxShadow:"0 8px 24px rgba(0,0,0,0.08)"}}>
+                        <div style={{fontSize:13,fontWeight:800,color:"#1a1a1a",marginBottom:8}}>Flight Options</div>
+                        {TB_FLIGHT_OPTIONS.map(opt=>(
+                          <div key={opt.title} style={{borderTop:"0.5px solid rgba(0,0,0,0.08)",paddingTop:9,marginTop:9}}>
+                            <div style={{fontSize:13,fontWeight:700,color:"#1a1a1a"}}>{opt.title}</div>
+                            <div style={{fontSize:12,color:"#b45309",marginTop:3,fontWeight:700}}>{tbFmt(opt.low)}-{tbFmt(opt.high)}</div>
+                            <div style={{fontSize:11,color:"#78788a",marginTop:3,lineHeight:1.5}}>{opt.note}</div>
+                            <div style={{display:"flex",gap:6,marginTop:7}}>
+                              <button onClick={()=>useFlightOption(r.id,opt)} style={{flex:1,background:"#f8f7f5",border:"0.5px solid rgba(0,0,0,0.1)",borderRadius:6,padding:"7px 0",fontFamily:"inherit",fontSize:12,fontWeight:700,color:"#4a4a52",cursor:"pointer"}}>Use</button>
+                              <button onClick={()=>openFlightBooking(opt.bookingUrl)} style={{flex:1,background:"#3b82f6",border:"none",borderRadius:6,padding:"7px 0",fontFamily:"inherit",fontSize:12,fontWeight:700,color:"#fff",cursor:"pointer"}}>Book Now</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+                return cards;
+              });
+            })()}
+            <button onClick={addBudgetSection} style={{display:"flex",alignItems:"center",gap:6,padding:"11px 16px",background:"#f8f7f5",border:"1.5px dashed rgba(0,0,0,0.12)",borderRadius:10,fontFamily:"inherit",fontSize:13,fontWeight:800,color:"#4a4a52",cursor:"pointer",width:"100%",justifyContent:"center"}}>+ New section</button>
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
