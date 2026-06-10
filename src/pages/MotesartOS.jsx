@@ -2877,19 +2877,16 @@ const TRAVEL_DRAFT_KEY = "fm_travel_builder_active_draft_v1";
 const tbFmt = (n) => "$" + Math.round(n).toLocaleString();
 const tbFmtMoney = (n) => "$" + (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const TB_ROWS = [
-  {id:"hotel",cat:"Accommodation",     label:"Marriott Marquis — 3 nights",    low:481,high:481, fixed:true, act:481,  status:"booked",  note:"MM4 rate. Skybridge to Wintrust Arena."},
-  {id:"f1",   cat:"Flights",           label:"Kadence — LAX → JFK — Jun 12",   low:200,high:225, fixed:false,act:"",   status:"booknow", url:"https://www.google.com/travel/flights", note:"Nonstop. JetBlue / Delta / AA."},
-  {id:"f2",   cat:"",                  label:"Kadence — JFK → LAX — Jun 22",   low:200,high:225, fixed:false,act:"",   status:"booknow", url:"https://www.google.com/travel/flights", note:"Return leg. Nonstop."},
-  {id:"t1",   cat:"Ground Transport",  label:"CTA + Uber — all days",          low:60, high:110, fixed:false,act:"",   status:"est",     note:"No rental. Skybridge + CTA."},
-  {id:"d1",   cat:"Food & Dining",     label:"Jun 12 — arrival dinner",        low:40, high:80,  fixed:false,act:"",   status:"est",     note:"NY dinner — Kadence arrives."},
-  {id:"d2",   cat:"",                  label:"Jun 13 — Chicago day",           low:60, high:120, fixed:false,act:"",   status:"est",     note:"Dinner before graduation."},
-  {id:"d3",   cat:"",                  label:"Jun 14 — graduation dinner",     low:80, high:150, fixed:false,act:"",   status:"est",     note:"Big dinner for Kayliah."},
-  {id:"d4",   cat:"",                  label:"Jun 15–22 — NY meals",           low:100,high:200, fixed:false,act:"",   status:"est",     note:"Kadence + Motes in NY."},
-  {id:"tk",   cat:"Graduation + Gifts",label:"Graduation tickets (4+)",        low:0,  high:0,   fixed:true, act:0,    status:"confirm", note:"Text Kayliah — may be included."},
-  {id:"g1",   cat:"",                  label:"Gift for Kayliah",               low:50, high:100, fixed:false,act:"",   status:"est",     note:"Thoughtful + meaningful."},
-  {id:"g2",   cat:"",                  label:"Flowers + celebration",          low:20, high:50,  fixed:false,act:"",   status:"est",     note:"Bouquet at ceremony."},
-  {id:"m1",   cat:"Misc + Buffer",     label:"Tips + activities",              low:60, high:110, fixed:false,act:"",   status:"est",     note:"15–20% on services."},
-  {id:"m2",   cat:"",                  label:"Emergency buffer",               low:50, high:100, fixed:false,act:"",   status:"est",     note:"Always carry a buffer."},
+  { cat:"Accommodation",     label:"Marriott Marquis — 3 nights",          low:486.98, high:486.98, status:"booked",  note:"Hotel conf 79410769. Jun 12–15. Skybridge to Wintrust Arena. Your half: $243.49." },
+  { cat:"Flights",           label:"JFK → ORD — Sat Jun 13",               low:0,      high:0,      status:"paid",    note:"Departs 7:00 AM, arrives 8:45 AM. Conf HHYRYL." },
+  { cat:"",                  label:"ORD → JFK — Mon Jun 15",               low:0,      high:0,      status:"paid",    note:"Departs 6:00 AM, arrives 9:20 AM. Conf HHYRYL." },
+  { cat:"Ground Transport",  label:"CTA + Uber — all days",                low:60,     high:130,    status:"est",     note:"Airport, hotel, graduation, grad party, local travel." },
+  { cat:"Food & Dining",     label:"Sat 6/13 — arrival day",               low:100,    high:100,    status:"est",     note:"Meals on arrival day." },
+  { cat:"",                  label:"Sun 6/14 — graduation day",            low:150,    high:150,    status:"est",     note:"Graduation + grad party at 4619 N Ravenswood." },
+  { cat:"",                  label:"Mon 6/15 — airport",                   low:40,     high:40,     status:"est",     note:"Airport breakfast/snacks before 6 AM flight." },
+  { cat:"Graduation + Gifts",label:"Graduation tickets",                   low:0,      high:0,      status:"confirm", note:"Text Kayliah — may be included." },
+  { cat:"",                  label:"Gift for Kayliah",                     low:0,      high:0,      status:"paid",    note:"Already paid. Not in budget." },
+  { cat:"Misc + Buffer",     label:"Cushion — tips + unexpected",          low:75,     high:75,     status:"est",     note:"Tips, snacks, unexpected small costs." }
 ];
 
 const TB_BLANK_ROWS = [
