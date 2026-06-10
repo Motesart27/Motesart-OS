@@ -2877,7 +2877,7 @@ const TRAVEL_DRAFT_KEY = "fm_travel_builder_active_draft_v1";
 const tbFmt = (n) => "$" + Math.round(n).toLocaleString();
 const tbFmtMoney = (n) => "$" + (Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const TB_ROWS = [
-  { cat:"Accommodation",     label:"Marriott Marquis — 3 nights",          low:486.98, high:486.98, status:"booked",  note:"Hotel conf 79410769. Jun 12–15. Skybridge to Wintrust Arena. Your half: $243.49." },
+  { cat:"Accommodation",     label:"Marriott Marquis — 3 nights",          low:486.98, high:486.98, status:"booked",  note:"Hotel conf 79410769. Jun 12–15. Skybridge to Wintrust Arena. Split with Bishop Motes — your half: $243.49." },
   { cat:"Flights",           label:"JFK → ORD — Sat Jun 13",               low:0,      high:0,      status:"paid",    note:"Departs 7:00 AM, arrives 8:45 AM. Conf HHYRYL." },
   { cat:"",                  label:"ORD → JFK — Mon Jun 15",               low:0,      high:0,      status:"paid",    note:"Departs 6:00 AM, arrives 9:20 AM. Conf HHYRYL." },
   { cat:"Ground Transport",  label:"CTA + Uber — all days",                low:60,     high:130,    status:"est",     note:"Airport, hotel, graduation, grad party, local travel." },
@@ -3221,7 +3221,7 @@ function TravelBuilderPanel() {
   const activeTripTitle = activeTripDraft?.name || "Chicago Graduation Trip";
   const activeTripMeta = activeTripDraft
     ? [activeTripDraft.dateRange||"Dates pending", activeTripDraft.destination||"Destination pending", activeTripDraft.travelers||"Travelers pending", activeTripDraft.purpose||"Purpose pending"]
-    : ["June 12–15 2026","Marriott Marquis Chicago","Denarius + Kadence","Kayliah Graduation"];
+    : ["June 12–15 2026","Marriott Marquis Chicago","Denarius + Bishop Motes","Kayliah Graduation"];
   const currentTripName = activeTripTitle;
   const bookedTotal = displayTripRows
     .filter(r=>["booked","confirm"].includes(r.status))
