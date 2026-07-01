@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .DS_Store
+private/
 *.local
 .env
 .env.*
@@ -8,3 +9,4 @@ dist/
 .claude-flow/
 .netlify/
 screenshots/
+.DS_Store
