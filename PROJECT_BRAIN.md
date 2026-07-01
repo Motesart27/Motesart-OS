@@ -2,7 +2,7 @@
 **Repo HEAD at brain landing:** `8fdd7ba`
 **Brain coverage verified through:** `027c191` (FM-6A.1 SHIPPED)
 **Known undocumented gap:** 12 commits between `027c191` and `8fdd7ba` — see Section 13A
-**Last Updated:** 2026-05-04
+**Last Updated:** 2026-07-01
 **Brain Owners:** Claude (claude.ai) + Codex (local agent) + ChatGPT (web)
 **Project Areas:** Motesart OS → FinanceMind OS (in-app) + FinanceMind Standalone App
 
@@ -19,11 +19,43 @@ FinanceMind exists in **two surfaces** that must stay in sync:
 
 **Sync Rule:** Any logic built on one surface must be ported to the other within 1 session, OR explicitly documented as surface-specific in this brain. No silent drift.
 
-**Source-of-Truth Hierarchy:**
-1. PROJECT_BRAIN.md (this file) — single canonical state
-2. SKILL.md files (`/mnt/skills/user/financemind/SKILL.md`) — financial rules
-3. Live deployed code — implementation truth
-4. Snapshots in localStorage — runtime data truth
+**Finance Authority Model (locked 2026-07-01):**
+
+FinanceMind must separate raw money-movement evidence from Denarius-verified business meaning. Documentation and build work must follow this model until Denarius explicitly approves a migration.
+
+| Source / Surface | Role | Authority | Limitation |
+|---|---|---|---|
+| Bank / Plaid / ChatGPT Finances | Freshest raw money-movement evidence: actual transactions, balances, deposits, withdrawals, recurring charges, money in, money out. | Highest for "did money move?" including exact bank amounts, dates, and balances. | Does not know reimbursement agreements, Dr. Mo splits, book-management rules, settlement context, business meaning, or manual corrections. ChatGPT Finances is a reference dashboard only unless an official export/API path is verified. |
+| Excel master ledger: `Denarius Financial - January 2026 - Present.xlsx` | Current Denarius-verified master for business meaning: reimbursement logic, Dr. Mo book-management terms, manually confirmed balances, settlement rules, payback notes, corrections, and finance explanations. Confirmed local read-only audit path: `/Users/Denarius Motes/Downloads/Denarius Financial - January 2026 - Present.xlsx`. | Highest for "what does this transaction mean?" Excel remains the verified business-meaning truth until Airtable is proven to mirror it. | Reachable as a local file for read-only audit; not confirmed as OneDrive/SharePoint live sync. Deprecated drifting local audit copy: `/Users/Denarius Motes/Downloads/Motesart-OS/private/finance/Denarius_Financial_-_2026_v2.xlsx`; superseded by the canonical master and must not be read for new FinanceMind source-of-truth work. |
+| Airtable | Structured database / FinanceMind backend candidate for bills, bill events, income events, balances, trips, trip line items, piano students, invoices, invoice line items, reimbursements, settlements, and dashboard records. | Only as strong as its proven agreement with Excel. Airtable may win only for fields proven synced from Excel or explicitly approved by Denarius. | Do not call Airtable the source of truth until an audit confirms it matches Excel or Denarius explicitly approves the migration. |
+| FinanceMind app | Dashboard and workflow layer: shows what is due, what is paid, who owes whom, what needs review, what changed, and what should be explained. | Not a finance truth source. It presents verified calculations and review states. | Must not silently overwrite live money data or convert preview state into truth. |
+| Excel automation | Possible workbook automation/import path. | Depends on workbook location and connector capability. Microsoft Graph can read/write Excel workbooks stored in OneDrive for Business, SharePoint, or Group drive. | Verify workbook location before promising automation. If local, Google Drive, or personal OneDrive, identify the correct import path before claiming live programmatic Excel writes are possible. |
+| ChatGPT / Mya / Claude / Codex | Audit, build, compare, explain, and propose actions. | Not a finance source. AI explains verified deterministic calculations only. | Never decide financial truth alone, never write to Excel/Airtable/calendar/email without explicit approval, never handle bank credentials. |
+
+Default tie-break rules:
+- For "did money move," exact bank amounts, dates, and balances: bank/Plaid wins.
+- For "what does it mean," reimbursement split, responsible person, settlement meaning, Dr. Mo agreement, business/personal meaning, and manual corrections: Excel wins.
+- If Excel is silent, Airtable is inconsistent, or the bank feed conflicts with the ledger: send to Denarius review. Do not guess.
+- Airtable wins only for fields proven to be synced from Excel or explicitly approved by Denarius.
+
+Audit sequence:
+1. Phase 0 — Repo audit: confirm what FinanceMind reads today, including Excel, Airtable, localStorage, seed data, Plaid, backend API, and manual uploads.
+2. Phase 1 — Source authority map: maintain `docs/source-authority-matrix.md`.
+3. Phase 2 — Excel-first comparison: treat Excel as the verified business-meaning master and compare Airtable against Excel for missing bills, reimbursements, mismatches, settlement notes, duplicates, and unmapped fields.
+4. Phase 3 — Bank/Plaid comparison: compare bank/Plaid activity against Excel for missing charges, mismatched amounts, duplicate charges, reimbursements received, expected reimbursements not received, and Denarius-review items.
+5. Phase 4 — Controlled Airtable update: only after Denarius approval, update Airtable from verified Excel truth, add missing structured records, mark records synced/verified, and keep an audit trail. Never let Excel or Airtable overwrite each other automatically.
+6. Phase 5 — Decide future master: after the audit, decide whether Excel remains the master and Airtable stays a structured mirror, or Airtable becomes the operational source of truth with Excel as audit/reporting workbook.
+
+Hard rules:
+- Excel is the current verified business-meaning master.
+- Airtable is not source of truth until proven.
+- Bank/Plaid is raw evidence, not business meaning.
+- ChatGPT Finances is a reference dashboard, not a verified integration pipe.
+- No automatic writes to Excel, Airtable, calendar, or email.
+- Deterministic code calculates money; AI only explains verified calculations.
+- Codex, Claude, ChatGPT, and Mya are not finance sources.
+- Rotate any exposed API keys. Never print secrets.
+- Never delete Airtable tables, Excel sheets, or records during audit.
 
 ---
 
@@ -687,3 +719,44 @@ Next phases:
 
 Sync state:  brain landed at repo SHA 8fdd7ba with explicit Phase 4A/4B gap notice
 ```
+
+---
+
+## 15. FINANCE SOURCE OF TRUTH
+
+**Locked:** 2026-07-01
+
+The FinanceMind workbook `Denarius Financial - January 2026 - Present.xlsx` is the master ledger for financial **meaning**.
+
+Confirmed local read-only audit path:
+`/Users/Denarius Motes/Downloads/Denarius Financial - January 2026 - Present.xlsx`
+
+Status: reachable as a local file for read-only audit; not confirmed as OneDrive/SharePoint live sync.
+
+Deprecated workbook:
+`/Users/Denarius Motes/Downloads/Motesart-OS/private/finance/Denarius_Financial_-_2026_v2.xlsx`
+
+Deprecated workbook status: drifting local audit copy; superseded by the canonical master; stop reading it for new FinanceMind source-of-truth work.
+
+The **July 2026** sheet format is the canonical structure going forward:
+- Dual Income / Expense summary block
+- Per-account bank-balance block
+- Savings tracked separately
+- Net Remaining
+- Expense blocks for MT, Oceanside, Personal, and Ma Sol with budgeted-vs-actual tracking and entity tags
+
+Sheets **January 2026 through June 2026 are frozen historical record**. Do not modify them, reconcile them, normalize them, or backfill them in this phase.
+
+Sheet-name normalization rule: the workbook contains a May sheet named `May 26 ` with a trailing space. All workbook readers must normalize/strip sheet names when matching while preserving original workbook sheet names unchanged.
+
+Airtable base `appkksRRCOGUotdl8` (`FinanceMind OS`) is the structured database candidate. It is **not** a source of truth yet. Airtable gains authority only in a future phase after an audit proves it mirrors the Excel master, or after Denarius explicitly approves migration.
+
+Authority rules:
+- Excel = current Denarius-verified master for financial meaning.
+- Airtable = structured DB candidate / mirror until proven.
+- Bank/Plaid = raw money-movement evidence in a future read layer.
+- FinanceMind app = dashboard/workflow layer, not financial truth.
+- Agents never write finance data without explicit approval.
+- Agents never handle bank credentials.
+- Agents never print secrets.
+- Deterministic code calculates money; AI explains verified calculations only.
