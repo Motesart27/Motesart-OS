@@ -5,6 +5,18 @@ function getToken() { return localStorage.getItem('som_token') }
 export function setToken(t) { localStorage.setItem('som_token', t) }
 export function clearToken() { localStorage.removeItem('som_token'); localStorage.removeItem('som_user') }
 
+function isTokenLocallyExpired(token) {
+  try {
+    const [, payload] = token.split('.')
+    if (!payload) return false
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=')
+    const decoded = JSON.parse(atob(normalized))
+    return Boolean(decoded.exp && decoded.exp * 1000 < Date.now())
+  } catch {
+    return false
+  }
+}
+
 const api = {
   async login(email, password) {
     const res = await fetch(`${SOM_API}/auth/login`, {
@@ -16,15 +28,40 @@ const api = {
     if (!res.ok) throw new Error(data.message || `Login failed: ${res.status}`)
     return data
   },
-  verifySession() {
+  async verifySession() {
+    const t = getToken()
+    if (!t) return { valid: false, logout: true, reason: 'missing_token' }
+    if (isTokenLocallyExpired(t)) return { valid: false, logout: true, reason: 'expired_token' }
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+
     try {
-      const t = getToken()
-      if (!t) return Promise.resolve({ valid: false })
-      const payload = JSON.parse(atob(t.split('.')[1]))
-      if (payload.exp && payload.exp * 1000 < Date.now()) return Promise.resolve({ valid: false })
-      return Promise.resolve({ valid: true, user: payload })
+      const res = await fetch(`${SOM_API}/auth/verify`, {
+        headers: { Authorization: `Bearer ${t}` },
+        signal: controller.signal,
+      })
+
+      if (res.status === 401 || res.status === 403) {
+        return { valid: false, logout: true, reason: 'rejected_token', status: res.status }
+      }
+      if (res.status >= 500) {
+        return { valid: false, logout: false, reason: 'backend_unavailable', status: res.status }
+      }
+      if (!res.ok) {
+        return { valid: false, logout: true, reason: 'verify_failed', status: res.status }
+      }
+
+      const data = await res.json().catch(() => null)
+      if (!data || !data.valid || !data.user) {
+        return { valid: false, logout: true, reason: 'bad_verify_response' }
+      }
+
+      return { valid: true, user: data.user, exp: data.exp ?? null }
     } catch {
-      return Promise.resolve({ valid: false })
+      return { valid: false, logout: false, reason: 'network_unavailable' }
+    } finally {
+      clearTimeout(timeout)
     }
   },
   post(path, body = {}) {

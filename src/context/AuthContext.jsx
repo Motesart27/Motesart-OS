@@ -54,14 +54,14 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('som:force-logout', handler)
   }, [logout])
 
-  // ── Verify user still exists in Airtable on app boot ──
-  // Prevents legacy/ghost users from persisting via stale localStorage
+  // ── Verify session with backend on app boot ──
+  // localStorage is a cache only; /auth/verify is the auth source of truth.
   useEffect(() => {
     if (!user || !user.email) return
 
     const token = localStorage.getItem('som_token')
     if (!token) {
-      // No token = legacy session. Force re-login.
+      // No token = no backend-verifiable session.
       console.warn('[SOM Auth] No token found — clearing legacy session')
       console.warn('Session expired. Please log in again.')
       logout()
@@ -75,20 +75,22 @@ export function AuthProvider({ children }) {
       .then(data => {
         if (cancelled) return
         if (!data || !data.valid) {
-          console.warn('[SOM Auth] Session invalid — forcing re-login')
-          console.warn('Session expired. Please log in again.')
-          logout()
+          if (data?.logout) {
+            console.warn('[SOM Auth] Session rejected by backend — forcing re-login')
+            console.warn('Session expired. Please log in again.')
+            logout()
+          } else {
+            console.warn('[SOM Auth] Session could not be verified — keeping cached user temporarily')
+          }
         } else if (data.user) {
-          // Refresh role from Airtable (in case admin changed it)
-          setUser(prev => prev ? { ...prev, role: data.user.role || 'student' } : null)
+          // Replace cached user with the canonical user returned by the backend.
+          setUser({ ...data.user, role: data.user.role || 'student' })
         }
       })
       .catch(() => {
-        // Backend unreachable — do NOT grant access. Force re-login.
+        // Defensive fallback: API should convert outages to { logout: false }.
         if (!cancelled) {
-          console.warn('[SOM Auth] Backend unreachable — clearing session')
-          console.warn('Session expired. Please log in again.')
-          logout()
+          console.warn('[SOM Auth] Session verification failed — keeping cached user temporarily')
         }
       })
       .finally(() => { if (!cancelled) setVerifying(false) })
