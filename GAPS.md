@@ -8,11 +8,11 @@ Severity legend: 🔴 CRITICAL · 🟠 HIGH · 🟡 MEDIUM · ⚪ LOW
 ---
 
 ## 🔴 1. Real credentials and a signing secret are committed to git
-**What:** `netlify/functions/osauth.mjs` hardcodes a real login email, a real password, and the JWT-signing HMAC secret:
+**What:** `netlify/functions/osauth.mjs` hardcodes a real login email, a real plaintext password, and a JWT-signing HMAC secret. The literal values are intentionally redacted here because the repo is public.
 ```js
-const EMAIL    = 'motesarttech@gmail.com'
-const PASSWORD = 'Blessedall2026'
-crypto.createHmac('sha256', 'motesart-os-2026')...
+const EMAIL    = '[REDACTED_ADMIN_EMAIL]'
+const PASSWORD = '[REDACTED_PLAINTEXT_PASSWORD]'
+crypto.createHmac('sha256', '[REDACTED_JWT_SECRET]')...
 ```
 `src/pages/Login.jsx` also prefills the real admin email as the default input value.
 **Where:** `netlify/functions/osauth.mjs` (lines 3–8), `src/pages/Login.jsx` (`useState('motesarttech@gmail.com')`).
