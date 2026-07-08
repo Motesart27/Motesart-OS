@@ -8,21 +8,16 @@ Severity legend: 🔴 CRITICAL · 🟠 HIGH · 🟡 MEDIUM · ⚪ LOW
 ---
 
 ## 🔴 1. Real credentials and a signing secret are committed to git
-**What:** `netlify/functions/osauth.mjs` hardcodes a real login email, a real password, and the JWT-signing HMAC secret:
-```js
-const EMAIL    = 'motesarttech@gmail.com'
-const PASSWORD = 'Blessedall2026'
-crypto.createHmac('sha256', 'motesart-os-2026')...
-```
-`src/pages/Login.jsx` also prefills the real admin email as the default input value.
-**Where:** `netlify/functions/osauth.mjs` (lines 3–8), `src/pages/Login.jsx` (`useState('motesarttech@gmail.com')`).
-**Why it matters:** Anyone with repo read access (or the public GitHub history) has the admin password and can forge valid tokens with the known HMAC secret. This is the single highest risk in the codebase. It persists in git history even after deletion.
-**Fix (do all, in order):**
+**What:** `netlify/functions/osauth.mjs` hardcoded a real login email, a real password, and the JWT-signing HMAC secret. `src/pages/Login.jsx` also prefilled the real admin email as the default input value. The literal password and signing-secret values are intentionally not repeated here because this repository is public.
+**Where:** `netlify/functions/osauth.mjs` (lines 3-8), `src/pages/Login.jsx` (email `useState(...)` initializer).
+**Why it matters:** Anyone with repo read access or public GitHub history could have seen the admin password and the signing secret. The values must be treated as burned even after code deletion.
+**Fix:**
 1. Rotate the password immediately (owner action, outside code).
-2. Move `EMAIL`, `PASSWORD`, and the HMAC secret to Netlify environment variables (`OSAUTH_EMAIL`, `OSAUTH_PASSWORD_HASH`, `OSAUTH_JWT_SECRET`); read them via `process.env`. Store a bcrypt/scrypt **hash**, not the plaintext password.
-3. Remove the email default from `Login.jsx` (use `placeholder="Email"` instead of a prefilled value).
-4. Scrub git history (git filter-repo/BFG) or, given it is a solo private repo, rotate everything and treat the old secret as burned.
-> Note: this function is also *orphaned* (see #6) — but rotating/removing the committed secret is required regardless.
+2. Rotate the JWT/HMAC signing secret immediately (owner action, outside code).
+3. Delete the orphaned `netlify/functions/osauth.mjs` implementation, or if a Netlify-native login is later reintroduced, read credentials and signing material from environment variables only. Store a bcrypt/scrypt hash, not a plaintext password.
+4. Remove the admin email prefill from `Login.jsx` while keeping the email placeholder text.
+5. Scrub git history with git filter-repo/BFG if the public history must be cleaned; regardless, treat the old values as compromised.
+> Note: this function is also *orphaned* (see #6), but rotating/removing the committed secret is required regardless.
 
 ---
 

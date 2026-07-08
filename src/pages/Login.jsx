@@ -11,7 +11,7 @@ export default function Login() {
     if (user) navigate('/os', { replace: true })
   }, [user, navigate])
 
-  const [email, setEmail]       = useState('motesarttech@gmail.com')
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
