@@ -8,22 +8,15 @@ Severity legend: 🔴 CRITICAL · 🟠 HIGH · 🟡 MEDIUM · ⚪ LOW
 ---
 
 ## 🔴 1. Real credentials and a signing secret are committed to git
-**What:** `netlify/functions/osauth.mjs` hardcodes a real login email, a real password, and the JWT-signing HMAC secret:
-```js
-const EMAIL    = 'motesarttech@gmail.com'
-const PASSWORD = 'Blessedall2026'
-crypto.createHmac('sha256', 'motesart-os-2026')...
-```
-`src/pages/Login.jsx` also prefills the real admin email as the default input value.
-**Where:** `netlify/functions/osauth.mjs` (lines 3–8), `src/pages/Login.jsx` (`useState('motesarttech@gmail.com')`).
-**Why it matters:** Anyone with repo read access (or the public GitHub history) has the admin password and can forge valid tokens with the known HMAC secret. This is the single highest risk in the codebase. It persists in git history even after deletion.
+**What:** `netlify/functions/osauth.mjs` hardcodes the real admin login email, the real admin password, and the JWT-signing HMAC secret as string literals (values intentionally not repeated here — open the file). `src/pages/Login.jsx` also prefills the real admin email as the default input value.
+**Where:** `netlify/functions/osauth.mjs` (lines 3–8: `const EMAIL`, `const PASSWORD`, and the `crypto.createHmac('sha256', ...)` secret), `src/pages/Login.jsx` (`useState(...)` email default).
+**Why it matters:** The repo is public — anyone can read the admin password from the file or git history and can forge valid tokens with the known HMAC secret. This is the single highest risk in the codebase. It persists in git history even after deletion. Treat all three values as burned.
 **Fix (do all, in order):**
 1. Rotate the password immediately (owner action, outside code).
 2. Move `EMAIL`, `PASSWORD`, and the HMAC secret to Netlify environment variables (`OSAUTH_EMAIL`, `OSAUTH_PASSWORD_HASH`, `OSAUTH_JWT_SECRET`); read them via `process.env`. Store a bcrypt/scrypt **hash**, not the plaintext password.
 3. Remove the email default from `Login.jsx` (use `placeholder="Email"` instead of a prefilled value).
-4. Scrub git history (git filter-repo/BFG) or, given it is a solo private repo, rotate everything and treat the old secret as burned.
+4. Scrub git history (git filter-repo/BFG) or rotate everything and treat the old secrets as burned.
 > Note: this function is also *orphaned* (see #6) — but rotating/removing the committed secret is required regardless.
-
 ---
 
 ## 🟠 2. Session "verification" is client-side only and the comments claim otherwise
