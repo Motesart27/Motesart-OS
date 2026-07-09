@@ -22,6 +22,12 @@ export const ROUTES = {
 
 const DISPATCH_KEY = '_mos_dispatches';
 const QUEUE_KEY = '_mos_queue';
+const LEGACY_AI_KEY_PREFIX = '_';
+const LEGACY_AI_KEY_SUFFIXES = ['mos_key', 'fm_key'];
+
+try {
+  LEGACY_AI_KEY_SUFFIXES.forEach((suffix) => localStorage.removeItem(`${LEGACY_AI_KEY_PREFIX}${suffix}`));
+} catch {}
 
 export function loadDispatches() {
   try { return JSON.parse(localStorage.getItem(DISPATCH_KEY) || '[]'); }
@@ -78,66 +84,17 @@ export async function quickDispatch(message, route = 'pa', source = 'motesart-os
   }
 }
 
-// ── CLASSIFY SERVICE (Anthropic Messages API) ────────
+// ── CLASSIFY SERVICE ────────────────────────────────
 
 export async function classifyDispatch(record) {
-  const key = getApiKey();
-  if (!key) throw new Error('No API key — set _mos_key or _fm_key in localStorage');
-
-  const routeList = Object.entries(ROUTES)
-    .map(([k, v]) => `${k}: ${v.label} — ${v.desc}`)
-    .join('\n');
-
-  const sys = `You are Mya, the dispatch intelligence for Motesart OS. Classify incoming messages and produce a routing receipt.
-
-Available routes:
-${routeList}
-
-User's selected route: ${record.route === 'auto' ? 'AUTO — you decide the best route' : record.route}
-Priority: ${record.priority}
-Attachments: ${record.attachments?.length > 0 ? record.attachments.map(a => a.name).join(', ') : 'none'}
-
-Respond ONLY with a JSON object (no markdown, no backticks, no explanation):
-{
-  "route": "pa|book|som|claude|os|finance",
-  "confidence": "high|medium|low",
-  "reason": "one sentence why this route",
-  "summary": "2-3 sentence summary for the receipt card",
-  "next_action": "one clear next step",
-  "category": "task|question|request|update|escalation"
-}`;
-
-  const res = await fetch('/.netlify/functions/claude', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 400,
-      system: sys,
-      messages: [{ role: 'user', content: record.message }],
-    }),
+  const route = ['auto', ...Object.keys(ROUTES)].includes(record.route) ? record.route : 'auto';
+  return api.classifyMyaDispatch({
+    message: record.message || '',
+    route,
+    priority: record.priority || 'normal',
+    attachments: (record.attachments || []).map((item) => String(item?.name || item)).filter(Boolean),
+    client_dispatch_id: record.client_dispatch_id || record.id || '',
   });
-
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'API error');
-
-  const text = (data.content?.[0]?.text || '').trim();
-  try {
-    return JSON.parse(text.replace(/```json|```/g, '').trim());
-  } catch {
-    return {
-      route: record.route === 'auto' ? 'pa' : record.route,
-      confidence: 'medium',
-      reason: 'Auto-classified based on content',
-      summary: record.message.substring(0, 140),
-      next_action: 'Review and act on this dispatch',
-      category: 'task',
-    };
-  }
 }
 
 // ── RECEIPT SERVICE ──────────────────────────────────
@@ -320,13 +277,6 @@ export function dropQueueItem(idx, { queue, onUpdate, dispatches }) {
   queue.splice(idx, 1);
   saveQueue(queue);
   onUpdate({ dispatches, queue });
-}
-
-// ── HELPERS ──────────────────────────────────────────
-
-function getApiKey() {
-  try { return localStorage.getItem('_mos_key') || localStorage.getItem('_fm_key') || ''; }
-  catch { return ''; }
 }
 
 export function formatTime(iso) {
