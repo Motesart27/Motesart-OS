@@ -3,11 +3,15 @@
  * Executive dashboard — Denarius Motes private access only.
  * Completely separate from School of Motesart.
  */
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext.jsx'
 import Login from './pages/Login.jsx'
 import MotesartOS from './pages/MotesartOS.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+
+const V2Gallery = lazy(() => import('./v2/Gallery.jsx'))
+const MOS_V2 = import.meta.env.VITE_MOS_V2 === 'true' || window.MOS_V2 === true
 
 function PrivateRoute({ children }) {
   const { user, verifying } = useAuth()
@@ -22,6 +26,7 @@ export default function App() {
       <Route path="/"      element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/os"    element={<PrivateRoute><MotesartOS /></PrivateRoute>} />
+      {MOS_V2 && <Route path="/v2" element={<Suspense fallback={null}><V2Gallery /></Suspense>} />}
       <Route path="*"      element={<Navigate to="/login" replace />} />
     </Routes>
   )
