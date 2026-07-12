@@ -19,18 +19,27 @@ button, body { font-family: var(--font); }
 .v2-gallery__heading { margin-bottom: 20px; }
 .v2-gallery__heading p { color: var(--text-3); }
 .v2-gallery__row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.v2-gallery__button-matrix { display: grid; grid-template-columns: 110px repeat(4, minmax(0, 1fr)); gap: 14px; align-items: center; }
+.v2-gallery__button-row { display: contents; }
+.v2-gallery__matrix-corner, .v2-gallery__matrix-heading, .v2-gallery__matrix-label { color: var(--text-3); font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+.v2-gallery__matrix-corner, .v2-gallery__matrix-heading { text-transform: uppercase; }
+.v2-gallery__matrix-cell { display: flex; align-items: center; min-height: 52px; }
 .v2-gallery__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .v2-gallery__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .v2-gallery__progress-label { display: flex; justify-content: space-between; margin: 26px 0 10px; color: var(--text-2); font-size: 12px; }
 .v2-gallery__progress-label strong { color: var(--text-1); font-variant-numeric: tabular-nums; }
 .v2-gallery__shortcut { color: var(--text-3); font-size: 12px; }
-.v2-gallery__forced-hover { transform: translateY(-2px); box-shadow: var(--e2); }
-.v2-gallery__forced-focus { outline: 2px solid var(--info); outline-offset: 2px; }
+.v2-gallery__forced-hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--e2); }
+.v2-gallery__forced-focus:not(:disabled) { outline: 2px solid var(--info); outline-offset: 2px; }
 
 @media (max-width: 760px) {
   .v2-gallery { padding: 36px 20px 80px; }
   .v2-gallery__hero { align-items: flex-start; flex-direction: column; }
   .v2-gallery h1 { font-size: 40px; }
+  .v2-gallery__button-matrix { grid-template-columns: 1fr 1fr; }
+  .v2-gallery__matrix-corner { display: none; }
+  .v2-gallery__matrix-heading { display: none; }
+  .v2-gallery__matrix-label { grid-column: 1 / -1; margin-top: 10px; }
   .v2-gallery__grid, .v2-gallery__stats { grid-template-columns: 1fr; }
 }
 

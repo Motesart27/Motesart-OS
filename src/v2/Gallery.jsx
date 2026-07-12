@@ -4,6 +4,12 @@ import './gallery.css'
 import { Button, Card, Chip, Kbd, Panel, ProgressBar, ProgressRing, Sparkline, StatCard, Toast } from './components/index.jsx'
 
 const chipTones = ['info', 'good', 'warn', 'crit', 'ai', 'exec']
+const buttonVariants = [
+  { label: 'Primary', variant: 'pri' },
+  { label: 'Ghost', variant: 'ghost' },
+  { label: 'AI action', variant: 'ai' },
+  { label: 'Danger', variant: 'danger' },
+]
 
 export default function Gallery() {
   const [toastVisible, setToastVisible] = useState(false)
@@ -26,15 +32,22 @@ export default function Gallery() {
       </header>
 
       <Panel aria-labelledby="buttons-title">
-        <GalleryHeading id="buttons-title" title="Buttons" description="Default, hover simulation, keyboard focus, and disabled states." />
-        <div className="v2-gallery__row">
-          <Button>Primary</Button>
-          <Button variant="ghost">Ghost</Button>
-          <Button variant="ai">AI action</Button>
-          <Button variant="danger">Danger</Button>
-          <Button className="v2-gallery__forced-hover">Hover</Button>
-          <Button className="v2-gallery__forced-focus">Focus</Button>
-          <Button disabled>Disabled</Button>
+        <GalleryHeading id="buttons-title" title="Buttons" description="Every production variant across default, hover, keyboard focus, and native disabled states." />
+        <div className="v2-gallery__button-matrix" role="group" aria-labelledby="buttons-title">
+          <span className="v2-gallery__matrix-corner" aria-hidden="true">Variant</span>
+          <span className="v2-gallery__matrix-heading">Default</span>
+          <span className="v2-gallery__matrix-heading">Hover</span>
+          <span className="v2-gallery__matrix-heading">Keyboard focus</span>
+          <span className="v2-gallery__matrix-heading">Disabled</span>
+          {buttonVariants.map(({ label, variant }) => (
+            <div className="v2-gallery__button-row" key={variant}>
+              <strong className="v2-gallery__matrix-label">{label}</strong>
+              <div className="v2-gallery__matrix-cell"><Button variant={variant} aria-label={`${label}, default`}>{label}</Button></div>
+              <div className="v2-gallery__matrix-cell"><Button variant={variant} className="v2-gallery__forced-hover" aria-label={`${label}, simulated hover`}>{label}</Button></div>
+              <div className="v2-gallery__matrix-cell"><Button variant={variant} className="v2-gallery__forced-focus" aria-label={`${label}, simulated keyboard focus`}>{label}</Button></div>
+              <div className="v2-gallery__matrix-cell"><Button variant={variant} disabled aria-label={`${label}, disabled`}>{label}</Button></div>
+            </div>
+          ))}
         </div>
       </Panel>
 
