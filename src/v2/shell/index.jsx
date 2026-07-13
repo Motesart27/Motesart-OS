@@ -138,44 +138,50 @@ export function Shell() {
   )
 }
 
-export function RailNav({ preview = false, expanded = false }) {
+export function RailNav({ preview = false, previewState = 'default' }) {
+  const expanded = previewState === 'expanded' || previewState === 'expanded-focus'
+  const forcedClass = preview ? ` v2-rail--preview-state-${previewState}` : ''
+  const BrandElement = preview ? 'span' : NavLink
   return (
-    <nav className={`v2-rail${preview ? ' v2-rail--preview' : ''}${expanded ? ' v2-rail--forced-expanded' : ''}`} aria-label="Motes OS modules">
-      <NavLink className="v2-rail__brand" to="/v2/home" aria-label="Motes OS home">
+    <nav className={`v2-rail${preview ? ' v2-rail--preview' : ''}${expanded ? ' v2-rail--forced-expanded' : ''}${forcedClass}`} aria-label="Motes OS modules">
+      <BrandElement className="v2-rail__brand" {...(!preview && { to: '/v2/home', 'aria-label': 'Motes OS home' })}>
         <span className="v2-orb" aria-hidden="true" />
         <span className="v2-rail__brand-text">MOTES OS<small>THE COCKPIT</small></span>
-      </NavLink>
+      </BrandElement>
       <div className="v2-rail__links">
-        {modules.map(([slug, label, icon]) => (
-          <NavLink key={slug} to={`/v2/${slug}`} className={({ isActive }) => `v2-rail__link${isActive ? ' is-active' : ''}`}>
-            <ShellIcon name={icon} />
-            <span className="v2-rail__label">{label}</span>
-          </NavLink>
-        ))}
+        {modules.map(([slug, label, icon], index) => {
+          if (preview) return (
+            <span key={slug} data-preview-target={index === 0 ? '' : undefined} className={`v2-rail__link${previewState === 'active' && index === 0 ? ' is-active' : ''}`}>
+              <ShellIcon name={icon} /><span className="v2-rail__label">{label}</span>
+            </span>
+          )
+          return <NavLink key={slug} to={`/v2/${slug}`} className={({ isActive }) => `v2-rail__link${isActive ? ' is-active' : ''}`}><ShellIcon name={icon} /><span className="v2-rail__label">{label}</span></NavLink>
+        })}
       </div>
       <div className="v2-rail__foot">
         <div className="v2-rail__status"><span className="v2-system-dot" aria-hidden="true" /><span className="v2-rail__label">All systems green</span></div>
-        <button type="button" className="v2-rail__link"><ShellIcon name="settings" /><span className="v2-rail__label">Settings</span></button>
+        {preview ? <span className="v2-rail__link"><ShellIcon name="settings" /><span className="v2-rail__label">Settings</span></span> : <button type="button" className="v2-rail__link"><ShellIcon name="settings" /><span className="v2-rail__label">Settings</span></button>}
         <div className="v2-rail__identity"><span className="v2-avatar" aria-hidden="true">DM</span><span className="v2-rail__label">Denarius Motes<small>Executive</small></span></div>
       </div>
     </nav>
   )
 }
 
-export function TopBar({ title = 'Home', focusMode = 'Balanced', onFocusMode = () => {}, execActive = false, onExec = () => {}, onSearch = () => {}, preview = false }) {
+export function TopBar({ title = 'Home', focusMode = 'Balanced', onFocusMode = () => {}, execActive = false, onExec = () => {}, onSearch = () => {}, preview = false, searchState = 'default', execState = 'default' }) {
   const date = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())
+  const previewTabIndex = preview ? -1 : undefined
   return (
     <header className={`v2-topbar${preview ? ' v2-topbar--preview' : ''}`}>
       <div className="v2-topbar__title"><strong>{title}</strong><span>{date}</span></div>
-      <button type="button" className="v2-search-pill" onClick={onSearch} aria-label="Open command palette">
+      <button type="button" tabIndex={previewTabIndex} className={`v2-search-pill${preview ? ` v2-search-pill--forced-${searchState}` : ''}`} onClick={onSearch} aria-label="Open command palette">
         <ShellIcon name="search" /><span>Ask Mya or search</span><kbd>⌘K</kbd>
       </button>
       <div className="v2-topbar__right">
         <div className="v2-focus-switcher" aria-label="Focus mode preview">
-          {focusModes.map((mode) => <button type="button" key={mode} className={focusMode === mode ? 'is-active' : ''} aria-pressed={focusMode === mode} onClick={() => onFocusMode(mode)}>{mode}</button>)}
+          {focusModes.map((mode) => <button type="button" tabIndex={previewTabIndex} key={mode} className={focusMode === mode ? 'is-active' : ''} aria-pressed={focusMode === mode} onClick={() => onFocusMode(mode)}>{mode}</button>)}
         </div>
-        <button type="button" className={`v2-exec-button${execActive ? ' is-active' : ''}`} aria-pressed={execActive} onClick={onExec}>EXEC</button>
-        <button type="button" className="v2-bell" aria-label="Notifications"><ShellIcon name="bell" /><span aria-label="Unread notifications" /></button>
+        <button type="button" tabIndex={previewTabIndex} className={`v2-exec-button${execActive || execState === 'active' ? ' is-active' : ''}${preview ? ` v2-exec-button--forced-${execState}` : ''}`} aria-pressed={execActive || execState === 'active'} onClick={onExec}>EXEC</button>
+        <button type="button" tabIndex={previewTabIndex} className="v2-bell" aria-label="Notifications"><ShellIcon name="bell" /><span aria-label="Unread notifications" /></button>
       </div>
     </header>
   )
@@ -230,8 +236,8 @@ export function WorkspaceSkeleton({ module = 'work' }) {
   )
 }
 
-export function MyaBar({ onOpen = () => {}, preview = false }) {
-  return <button type="button" data-mya-bar className={`v2-mya-bar${preview ? ' v2-mya-bar--preview' : ''}`} onClick={onOpen}><span className="v2-orb" aria-hidden="true" /><span>How can I help?</span><kbd>Space</kbd></button>
+export function MyaBar({ onOpen = () => {}, preview = false, previewState = 'default' }) {
+  return <button type="button" tabIndex={preview ? -1 : undefined} data-mya-bar className={`v2-mya-bar${preview ? ` v2-mya-bar--preview v2-mya-bar--forced-${previewState}` : ''}`} onClick={onOpen}><span className="v2-orb" aria-hidden="true" /><span>How can I help?</span><kbd>Space</kbd></button>
 }
 
 export function PaletteShell({ onClose = () => {}, preview = false }) {
@@ -268,8 +274,8 @@ export function PaletteShell({ onClose = () => {}, preview = false }) {
     <div className={`v2-palette-layer${preview ? ' v2-palette-layer--preview' : ''}`}>
       {!preview && <button type="button" className="v2-palette-veil" onClick={onClose} aria-label="Close command palette" />}
       <section ref={dialogRef} className="v2-palette" role="dialog" aria-modal={!preview || undefined} aria-labelledby="v2-palette-title">
-        <div className="v2-palette__pin"><span className="v2-orb" aria-hidden="true" /><label id="v2-palette-title" className="v2-visually-hidden" htmlFor="v2-palette-input">Command palette</label><input ref={inputRef} id="v2-palette-input" placeholder="How can I help?" autoComplete="off" /><button type="button" aria-label="Voice controls arrive in Phase D" disabled><ShellIcon name="mic" /></button></div>
-        <div className="v2-palette__empty"><span>Visual shell</span><p>Search and actions arrive in Phase D.</p></div>
+        <div className="v2-palette__pin"><span className="v2-orb" aria-hidden="true" /><label id="v2-palette-title" className="v2-visually-hidden" htmlFor="v2-palette-input">Command palette</label><input ref={inputRef} id="v2-palette-input" placeholder="How can I help?" autoComplete="off" readOnly={preview} tabIndex={preview ? -1 : undefined} /><button type="button" tabIndex={preview ? -1 : undefined} aria-label="Voice controls arrive in Phase D" disabled><ShellIcon name="mic" /></button></div>
+        <div className="v2-palette__body" aria-hidden="true" />
         <footer><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span><strong>MYA · READY</strong></footer>
       </section>
     </div>

@@ -11,6 +11,27 @@ const buttonVariants = [
   { label: 'AI action', variant: 'ai' },
   { label: 'Danger', variant: 'danger' },
 ]
+const railPreviewStates = [
+  ['default', 'Collapsed · default'],
+  ['hover', 'Collapsed · forced hover'],
+  ['focus', 'Collapsed · forced keyboard focus'],
+  ['active', 'Collapsed · active beacon'],
+  ['expanded', 'Expanded · default'],
+  ['expanded-focus', 'Expanded · forced hover/focus-within'],
+]
+const topBarPreviewStates = [
+  [{}, 'Search · default · focus inactive/active · EXEC default · bell badge'],
+  [{ searchState: 'hover' }, 'Search · forced hover'],
+  [{ searchState: 'focus' }, 'Search · forced keyboard focus'],
+  [{ execState: 'hover' }, 'EXEC · forced hover'],
+  [{ execState: 'focus' }, 'EXEC · forced keyboard focus'],
+  [{ execState: 'active' }, 'EXEC · stub-active'],
+]
+const myaBarPreviewStates = [
+  ['default', 'Default'],
+  ['hover', 'Forced hover'],
+  ['focus', 'Forced keyboard focus'],
+]
 
 export default function Gallery() {
   const [toastVisible, setToastVisible] = useState(false)
@@ -108,20 +129,23 @@ export default function Gallery() {
       <Panel aria-labelledby="shell-title">
         <GalleryHeading id="shell-title" title="Phase B shell" description="The persistent cockpit frame across collapsed, expanded, modal, and workspace states." />
         <div className="v2-gallery__shell-rails">
-          <figure><RailNav preview /><figcaption>Rail · collapsed</figcaption></figure>
-          <figure><RailNav preview expanded /><figcaption>Rail · expanded overlay</figcaption></figure>
+          {railPreviewStates.map(([state, label]) => <figure key={state}><RailNav preview previewState={state} /><figcaption>{label}</figcaption></figure>)}
         </div>
       </Panel>
 
       <Panel aria-labelledby="topbar-title">
-        <GalleryHeading id="topbar-title" title="Top bar" description="Search, focus preview, EXEC stub, and quiet notification badge." />
-        <TopBar preview />
+        <GalleryHeading id="topbar-title" title="Top bar" description="Deterministic search, focus-switcher, EXEC, and quiet notification states." />
+        <div className="v2-gallery__topbar-states">
+          {topBarPreviewStates.map(([props, label]) => <figure key={label}><TopBar preview {...props} /><figcaption>{label}</figcaption></figure>)}
+        </div>
       </Panel>
 
       <section className="v2-gallery__grid" aria-label="Mya shell components">
         <Card>
-          <GalleryHeading title="MyaBar" description="Default cockpit prompt with keyboard hint." />
-          <div className="v2-gallery__mya-specimen"><MyaBar preview /></div>
+          <GalleryHeading title="MyaBar" description="Default, forced-hover, and forced-focus cockpit prompt states." />
+          <div className="v2-gallery__mya-states">
+            {myaBarPreviewStates.map(([state, label]) => <figure key={state}><div className="v2-gallery__mya-specimen"><MyaBar preview previewState={state} /></div><figcaption>{label}</figcaption></figure>)}
+          </div>
         </Card>
         <Card>
           <GalleryHeading title="L2 workspace" description="Header, KPI strip, worklist, and context-rail skeleton." />
