@@ -718,3 +718,42 @@ Sync state:  brain landed at repo SHA 8fdd7ba with explicit Phase 4A/4B gap noti
   - Historical PR #9 thread disposition
   - Phase B PLAN
   - Denarius gutter ruling
+
+---
+
+## 17. MOTES OS V2 — PHASE B CLOSEOUT
+
+- Phase B is **COMPLETE**.
+- PR #13 merged into `main`.
+- Main SHA: `dc4eb48cb5833e6f6cb9222149a992462403f87e`.
+- The persistent cockpit shell now exists:
+  - Rail
+  - Top bar
+  - Stage
+  - Boot
+  - MyaBar
+  - Empty palette shell
+  - Module placeholders
+  - L2 skeletons
+- The permanent Foundation Gallery remains at `/v2`.
+- The Stage gutter is 18px by Denarius ruling.
+- The cumulative v2 bundle is 13.41 kB gzip.
+- Production `VITE_MOS_V2` remains `false`.
+- Phase C has not started.
+- Phase C planning may begin only after:
+  1. The Phase B closeout PR merges.
+  2. The mandatory post-merge runtime confirmation set is completed.
+  3. Phase C governing sources are read.
+  4. The Phase C PLAN is approved by Denarius.
+- Do not reopen Phase B unless:
+  - Shell behavior regresses.
+  - The post-merge runtime confirmation reveals a defect.
+  - Phase C Design QA finds shell-fidelity drift.
+
+### Non-blocking architecture debts
+
+- Land the 18px amendment into the handoff/orders record.
+- Close ADR §13.2.
+- Refresh stale vault facts noted in the Phase B packet.
+
+These debts are recorded only and are not resolved by the Phase B closeout workstream.
