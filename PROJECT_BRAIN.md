@@ -687,3 +687,17 @@ Next phases:
 
 Sync state:  brain landed at repo SHA 8fdd7ba with explicit Phase 4A/4B gap notice
 ```
+
+---
+
+## 15. MOTES OS V2 — PHASE A CLOSEOUT
+
+- Phase A is **COMPLETE** and merged at main SHA `60d19cfafb58b258a9d4b052175ffdd8aba35699`.
+- The `/v2` Foundation Gallery is permanent and must not be replaced.
+- Design Bible v1.1 is controlling.
+- DB-G8 governs disabled Button behavior.
+- Phase B is next but has not started.
+- Phase B cannot contain Phase C–G work.
+- The Phase B PLAN must surface the stage-gutter decision: 24px law versus the recorded 18px mockup deviation.
+- FOLLOW-UP F-1 remains separate and outside Phase B unless separately approved.
+- Production `VITE_MOS_V2` remains `false` until a later approved release gate.
