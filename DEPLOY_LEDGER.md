@@ -47,3 +47,51 @@
 - **Closure authority:** Denarius Motes
 - **Closure date:** July 12, 2026
 - **Status:** SOM-AUTH-401 CLOSED
+
+## 2026-07-13 — MOSV2-B
+
+- **Date:** July 13, 2026
+- **Workstream:** MOSV2-B
+- **Phase:** Phase B — Shell
+- **Status:** COMPLETE
+- **PR:** #13
+- **Merge method:** Merge commit
+- **Approved head SHA:** `7897ef2696ee68b6ec990e0ea1bdae85bdec581f`
+- **Resulting main SHA:** `dc4eb48cb5833e6f6cb9222149a992462403f87e`
+- **Rollback SHA:** `7a1e8682c65331fdfcdb6ec1bcce3b6181d42757`
+- **Files merged:**
+  - `src/App.jsx`
+  - `src/v2/Gallery.jsx`
+  - `src/v2/V2App.jsx`
+  - `src/v2/gallery.css`
+  - `src/v2/shell/index.jsx`
+  - `src/v2/shell/shell.css`
+- **Scope shipped:**
+  - RailNav
+  - TopBar
+  - Stage shell
+  - Boot sequence
+  - MyaBar shell
+  - Empty command-palette shell
+  - Placeholder module routes
+  - L2 workspace skeletons
+  - Permanent Foundation Gallery Phase B specimens
+  - Accessibility and focus handling
+  - Reduced-motion implementation
+  - CLS instrumentation
+- **Stage gutter:** 18px — approved by Denarius before implementation
+- **Bundle:**
+  - CSS gzip: 6.25 kB
+  - JS gzip: 7.16 kB
+  - Combined Phase B v2: 13.41 kB gzip
+  - Phase A baseline: 5.60 kB gzip
+  - Phase B delta: +7.81 kB gzip
+  - Remaining under 80 kB ceiling: 66.59 kB
+- **Design QA:** READY FOR APPROVAL
+- **Design QA review:** `DESIGN_QA_PHASE_B_PR13_REVIEW_R3_v1.0.md`
+- **Production `VITE_MOS_V2`:** `false`
+- **Production exposure:** None
+- **Phase C:** Not started
+- **Remaining post-merge evidence obligation:** Mandatory runtime confirmation set must complete before Phase C PLAN approval
+- **Security:** No secret values recorded
+- **Final status:** MOSV2-B COMPLETE
