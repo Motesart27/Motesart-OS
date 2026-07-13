@@ -18,3 +18,32 @@
 - **Deploy Preview value:** `true`
 - **Status:** PHASE A COMPLETE
 - **Follow-up:** F-1 pre-existing deprecated `apple-mobile-web-app-capable` shell meta; add the recommended `mobile-web-app-capable` tag in a separate approved workstream
+
+## 2026-07-12 — SOM-AUTH-401
+
+- **Workstream:** SOM-AUTH-401
+- **System:** School of Motesart backend
+- **Incident:** Authentication failure plus false-negative health monitoring
+- **Initial symptom:** `POST /auth/login` returned 401
+- **Authentication root cause:** Stale or malformed `MASTER_LOGIN_PASSWORD` state loaded at backend startup
+- **Monitoring root cause:** Runtime shell route registry was not the authoritative deployed endpoint contract
+- **Resolution:**
+  - Rotated `MASTER_LOGIN_PASSWORD`
+  - Applied the Railway variable change
+  - Restarted/redeployed the backend
+  - Replaced route-registry checks with canonical in-process OpenAPI validation
+  - Removed temporary runtime topology diagnostics
+- **Login:** PASS
+- **Authenticated hard refresh:** PASS
+- **`/auth/verify` flow:** PASS
+- **`/health`:** HTTP 200, overall GREEN
+- **Required route checks:** GREEN
+- **Airtable:** GREEN
+- **Optional calendar:** GREEN and non-blocking
+- **`MASTER_LOGIN_EMAIL`:** Unchanged
+- **`JWT_SECRET`:** Unchanged
+- **Frontend API target:** Unchanged and correct
+- **Final backend main SHA:** `0c0ea198a6b778c67af775e945fce08f9e3119c4`
+- **Closure authority:** Denarius Motes
+- **Closure date:** July 12, 2026
+- **Status:** SOM-AUTH-401 CLOSED

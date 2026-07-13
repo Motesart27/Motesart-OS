@@ -701,3 +701,20 @@ Sync state:  brain landed at repo SHA 8fdd7ba with explicit Phase 4A/4B gap noti
 - The Phase B PLAN must surface the stage-gutter decision: 24px law versus the recorded 18px mockup deviation.
 - FOLLOW-UP F-1 remains separate and outside Phase B unless separately approved.
 - Production `VITE_MOS_V2` remains `false` until a later approved release gate.
+
+---
+
+## 16. SOM-AUTH-401 FORMAL CLOSEOUT
+
+- SOM-AUTH-401 is **CLOSED**.
+- Authentication is operational.
+- Production health is GREEN.
+- Health validation uses the canonical in-process OpenAPI contract.
+- Temporary runtime topology diagnostics were removed.
+- The Motes OS Phase B authentication gate is cleared.
+- Phase B has not started.
+- Remaining Phase B prerequisites still require their own verification:
+  - Governing orders available to Codex
+  - Historical PR #9 thread disposition
+  - Phase B PLAN
+  - Denarius gutter ruling
