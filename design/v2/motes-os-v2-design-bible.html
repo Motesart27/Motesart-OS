@@ -106,9 +106,9 @@ ul{margin:10px 0 0 18px;color:var(--text-2)} li{margin:4px 0}
   <h1>Graphite<br>Design Bible</h1>
   <p class="subtitle">A disciplined visual and interaction system for an executive operating environment that feels quiet, exact, intelligent, and alive—without becoming theatrical.</p>
   <div class="meta">
-    <span class="chip">Version 1.0</span>
+    <span class="chip">Version 1.1</span>
     <span class="chip">Status: ACTIVE</span>
-    <span class="chip">Date: 2026-07-11</span>
+    <span class="chip">Date: 2026-07-12</span>
     <span class="chip">Owner: Chief Architect seat</span>
     <span class="chip">Reconciled against desktop + phone references</span>
   </div>
@@ -121,13 +121,13 @@ ul{margin:10px 0 0 18px;color:var(--text-2)} li{margin:4px 0}
 <tr><th>Field</th><th>Value</th></tr>
 <tr><td>Title</td><td>Motes OS v2 — Graphite Design Bible</td></tr>
 <tr><td>Filename</td><td><code>motes-os-v2-design-bible.html</code></td></tr>
-<tr><td>Version</td><td>1.0</td></tr>
-<tr><td>Date</td><td>July 11, 2026</td></tr>
-<tr><td>Status</td><td><strong>ACTIVE</strong> — approved by Denarius Motes, July 11, 2026.</td></tr>
+<tr><td>Version</td><td>1.1</td></tr>
+<tr><td>Date</td><td>July 12, 2026</td></tr>
+<tr><td>Status</td><td><strong>ACTIVE</strong> — approved by Denarius Motes, July 12, 2026.</td></tr>
 <tr><td>Owning seat</td><td>Chief Architect</td></tr>
 <tr><td>Provenance</td><td>Reconstructed (original file not located) and <strong>reconciled against the desktop and phone behavioral references</strong> by the Chief Architect seat. Reconciliation rulings, recorded mockup deviations, and gaps are in §12.</td></tr>
-<tr><td>Facts verified as of</td><td>July 11, 2026 — against MOTES_OS_V2_CODEX_HANDOFF v1.1, CODEX_EXECUTION_ORDERS v1.1, motes-os-v2-desktop.html, motes-os-v2-phone.html</td></tr>
-<tr><td>Supersedes</td><td>The pre-activation reconciled reconstruction of July 11, 2026 (identical content; activation chrome updated) and the earlier reconstructed draft it replaced. Fills the design-bible slot in the source hierarchy (rank 2).</td></tr>
+<tr><td>Facts verified as of</td><td>July 12, 2026 — against MOTES_OS_V2_CODEX_HANDOFF v1.1, CODEX_EXECUTION_ORDERS v1.1, motes-os-v2-desktop.html, motes-os-v2-phone.html, and ruling DB-G8 (disabled Button state; approved by Denarius Motes, July 12, 2026)</td></tr>
+<tr><td>Supersedes</td><td>Design Bible v1.0 ACTIVE of July 11, 2026, in full; sole content change: §4 Button disabled recipe + §12.3 row G8 per ruling DB-G8. Fills the design-bible slot in the source hierarchy (rank 2).</td></tr>
 <tr><td>Primary sources</td><td>MOTES_OS_V2_CODEX_HANDOFF v1.1 (rank 1 — tokens §1, phases §2, acceptance §3, Mya layer §4); CODEX_EXECUTION_ORDERS v1.1 (AGENTS.md rules, phase DoDs)</td></tr>
 <tr><td>Behavioral references</td><td><code>motes-os-v2-desktop.html</code> · <code>motes-os-v2-phone.html</code> — “when a behavior exists in a mockup, port its EXACT structure, timings, and easings” (AGENTS.md rank 3)</td></tr>
 <tr><td>Conflict rule</td><td>Handoff wins, then this bible, then mockups for behavior, then live schema; builder judgment is code-architecture only. Genuine conflicts STOP work and become BLOCKED notes. Conflicts found during reconciliation are ruled in §12.1 — do not re-litigate them silently.</td></tr>
@@ -204,7 +204,7 @@ ul{margin:10px 0 0 18px;color:var(--text-2)} li{margin:4px 0}
 <p class="lede">Every component exposes default, hover, focus, active, disabled, loading, empty, and error states where applicable. All interactive elements: visible hover state, focus ring (2px --info, 2px offset), ≥AA contrast. Anatomy below is mockup-exact; port the reference CSS, don’t reinterpret it.</p>
 
 <h3>Desktop components</h3>
-<div class="rule"><strong>Button</strong><div>Variants: primary (info fill) · ghost (transparent + stroke-2 border) · ai (ai fill) · danger (crit fill). 14px/600, radius --r-s, padding 11×15, --e1. Hover: −2px lift + --e2. Press: scale(.97). Focus ring standard.</div></div>
+<div class="rule"><strong>Button</strong><div>Variants: primary (info fill) · ghost (transparent + stroke-2 border) · ai (ai fill) · danger (crit fill). 14px/600, radius --r-s, padding 11×15, --e1. Hover: −2px lift + --e2. Press: scale(.97). Focus ring standard. Disabled (ruling DB-G8): native <code>disabled</code> attribute on real buttons. One recipe, all four variants — variant hue never survives into disabled. Filled variants: <code>--bg-3</code> fill, <code>--text-3</code> label, <code>inset 0 0 0 1px var(--stroke-1)</code> in place of elevation, border 0. Ghost: transparent fill, <code>--stroke-1</code> border, <code>--text-3</code> label, no shadow. Geometry, type, and radius unchanged; <code>transform: none</code>; platform-default cursor; hover/press rules guarded <code>:not(:disabled)</code>; never lifts, presses, glows, or dispatches; not focusable (native), so the focus-ring spec is unaffected. Button-only: any other component’s disabled presentation requires its own ruling.</div></div>
 <div class="rule"><strong>Card</strong><div><strong>Opaque</strong> surface: --bg-2, stroke-1 border, radius --r-m, --e1. Liftable cards (<code>.lift</code>): hover −3px translate + .35° rotate + --e3 + stroke-2 border. Tilt cap ≤0.4° (law). Cards are not glass.</div></div>
 <div class="rule"><strong>Panel</strong><div><strong>Glass</strong> surface: --glass + blur(20px) saturate(140%), stroke-1, radius --r-l, --e1. Hover: border to stroke-2 + --e2 — panels brighten, they do not lift. Panels host zone-level content (hero, business health).</div></div>
 <div class="rule"><strong>Chip</strong><div>11.5px/600, 4×10 padding, pill radius. Color pairing law: -d fill + -t text of the same accent. Six accents only; color never the sole carrier (count/label text always present).</div></div>
@@ -379,12 +379,13 @@ ul{margin:10px 0 0 18px;color:var(--text-2)} li{margin:4px 0}
 <tr><td>G5</td><td>Voice-toggle placement on the phone Mya card unspecified</td><td>Phase F PLAN</td></tr>
 <tr><td>G6</td><td>Tile loading/empty/partial/stale/error visuals and the chart keyboard equivalent are law but not mocked</td><td>Phase C PLAN (state map is already mandatory before code)</td></tr>
 <tr><td>G7</td><td>Bell grouped-digest panel visual not mocked (bell + badge only)</td><td>Phase G (data) with its own gated spec; visuals per PGS §10 quiet rules</td></tr>
+<tr><td>G8</td><td>Button disabled state mandated by the Phase A gallery (Orders PART 2) but unspecified in every source</td><td>Filled by ruling DB-G8, approved by Denarius Motes July 12, 2026, effective in this version</td></tr>
 </table>
 <div class="callout warning">Nothing in §12 relaxes any gate. Where a ruling defers to a phase PLAN, building past that point without the Denarius decision is a BLOCKED violation, not a judgment call.</div>
 </section>
 
 <footer>
-<p><strong>Activation record:</strong> Approved by Denarius Motes and ACTIVE as of July 11, 2026. The file lives in <code>design/v2/</code> beside the two mockups (docs-only PR) and holds rank 2 in the build hierarchy. Amendments only by superseding version with an updated facts-verified-as-of line — never by silent edit.</p>
+<p><strong>Activation record:</strong> Approved by Denarius Motes and ACTIVE as of July 12, 2026. The file lives in <code>design/v2/</code> beside the two mockups (docs-only PR) and holds rank 2 in the build hierarchy. Amendments only by superseding version with an updated facts-verified-as-of line — never by silent edit.</p>
 <p>Motesart Technologies · Motes OS v2 · The Cockpit · Chief Architect seat</p>
 </footer>
 </main>
