@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './tokens.css'
 import './gallery.css'
 import { Button, Card, Chip, Kbd, Panel, ProgressBar, ProgressRing, Sparkline, StatCard, Toast } from './components/index.jsx'
+import { MyaBar, PaletteShell, RailNav, Stage, TopBar } from './shell/index.jsx'
 
 const chipTones = ['info', 'good', 'warn', 'crit', 'ai', 'exec']
 const buttonVariants = [
@@ -102,6 +103,35 @@ export default function Gallery() {
           <Button variant="ai" onClick={() => setToastVisible(true)}>Show toast</Button>
           <span className="v2-gallery__shortcut"><Kbd>Tab</Kbd> focus <Kbd>Enter</Kbd> activate</span>
         </div>
+      </Panel>
+
+      <Panel aria-labelledby="shell-title">
+        <GalleryHeading id="shell-title" title="Phase B shell" description="The persistent cockpit frame across collapsed, expanded, modal, and workspace states." />
+        <div className="v2-gallery__shell-rails">
+          <figure><RailNav preview /><figcaption>Rail · collapsed</figcaption></figure>
+          <figure><RailNav preview expanded /><figcaption>Rail · expanded overlay</figcaption></figure>
+        </div>
+      </Panel>
+
+      <Panel aria-labelledby="topbar-title">
+        <GalleryHeading id="topbar-title" title="Top bar" description="Search, focus preview, EXEC stub, and quiet notification badge." />
+        <TopBar preview />
+      </Panel>
+
+      <section className="v2-gallery__grid" aria-label="Mya shell components">
+        <Card>
+          <GalleryHeading title="MyaBar" description="Default cockpit prompt with keyboard hint." />
+          <div className="v2-gallery__mya-specimen"><MyaBar preview /></div>
+        </Card>
+        <Card>
+          <GalleryHeading title="L2 workspace" description="Header, KPI strip, worklist, and context-rail skeleton." />
+          <div className="v2-gallery__workspace-thumb"><Stage module="work" preview /></div>
+        </Card>
+      </section>
+
+      <Panel aria-labelledby="palette-title">
+        <GalleryHeading id="palette-title" title="Command palette shell" description="Open modal state only; search, actions, and voice behavior remain excluded." />
+        <PaletteShell preview />
       </Panel>
 
       <Toast visible={toastVisible}>Foundation proof recorded.</Toast>
