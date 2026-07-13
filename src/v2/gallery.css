@@ -31,6 +31,15 @@ button, body { font-family: var(--font); }
 .v2-gallery__shortcut { color: var(--text-3); font-size: 12px; }
 .v2-gallery__forced-hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--e2); }
 .v2-gallery__forced-focus:not(:disabled) { outline: 2px solid var(--info); outline-offset: 2px; }
+.v2-gallery__shell-rails { display: grid; grid-template-columns: repeat(4, 64px) repeat(2, 216px); gap: 24px; align-items: start; overflow-x: auto; padding: 2px 2px 10px; }
+.v2-gallery figure { margin: 0; }
+.v2-gallery figcaption { margin-top: 10px; color: var(--text-3); font-size: 11px; }
+.v2-gallery__topbar-states { display: grid; gap: 18px; overflow-x: auto; padding: 2px; }
+.v2-gallery__topbar-states figure { min-width: 1020px; }
+.v2-gallery__mya-states { display: grid; gap: 16px; }
+.v2-gallery__mya-specimen { display: grid; min-height: 140px; place-items: center; border-radius: var(--r-m); background: var(--bg-0); }
+.v2-gallery__workspace-thumb { max-height: 310px; overflow: hidden; border-radius: var(--r-l); }
+.v2-gallery__workspace-thumb .v2-stage { width: 160%; transform: scale(.625); transform-origin: top left; }
 
 @media (max-width: 760px) {
   .v2-gallery { padding: 36px 20px 80px; }
@@ -41,6 +50,7 @@ button, body { font-family: var(--font); }
   .v2-gallery__matrix-heading { display: none; }
   .v2-gallery__matrix-label { grid-column: 1 / -1; margin-top: 10px; }
   .v2-gallery__grid, .v2-gallery__stats { grid-template-columns: 1fr; }
+  .v2-gallery__shell-rails { gap: 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

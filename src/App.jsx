@@ -10,7 +10,7 @@ import Login from './pages/Login.jsx'
 import MotesartOS from './pages/MotesartOS.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 
-const V2Gallery = lazy(() => import('./v2/Gallery.jsx'))
+const V2App = lazy(() => import('./v2/V2App.jsx'))
 const MOS_V2 = import.meta.env.VITE_MOS_V2 === 'true' || window.MOS_V2 === true
 
 function PrivateRoute({ children }) {
@@ -26,7 +26,7 @@ export default function App() {
       <Route path="/"      element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/os"    element={<PrivateRoute><MotesartOS /></PrivateRoute>} />
-      {MOS_V2 && <Route path="/v2" element={<Suspense fallback={null}><V2Gallery /></Suspense>} />}
+      {MOS_V2 && <Route path="/v2/*" element={<Suspense fallback={null}><V2App /></Suspense>} />}
       <Route path="*"      element={<Navigate to="/login" replace />} />
     </Routes>
   )
