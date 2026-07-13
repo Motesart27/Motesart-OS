@@ -17,4 +17,4 @@
 - **Production value:** `false`
 - **Deploy Preview value:** `true`
 - **Status:** PHASE A COMPLETE
-- **Follow-up:** F-1 deprecated `mobile-web-app-capable` shell meta, separate workstream
+- **Follow-up:** F-1 pre-existing deprecated `apple-mobile-web-app-capable` shell meta; add the recommended `mobile-web-app-capable` tag in a separate approved workstream
