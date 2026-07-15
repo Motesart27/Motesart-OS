@@ -1,15 +1,45 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import api from '../services/api'
+
+function getPostLoginDestination(state) {
+  const from = state?.from
+  if (!from || typeof from !== 'object' || Array.isArray(from)) return '/os'
+
+  const { pathname, search = '', hash = '' } = from
+  if (typeof pathname !== 'string' || typeof search !== 'string' || typeof hash !== 'string') return '/os'
+
+  const isV2Path = pathname === '/v2' || pathname.startsWith('/v2/')
+  const hasUnsafeCharacters = /[\\\u0000-\u001F\u007F]/.test(`${pathname}${search}${hash}`)
+  const hasMalformedSearch = search !== '' && (!search.startsWith('?') || search.includes('#'))
+  const hasMalformedHash = hash !== '' && !hash.startsWith('#')
+
+  if (!isV2Path || pathname.startsWith('//') || hasUnsafeCharacters || hasMalformedSearch || hasMalformedHash) return '/os'
+
+  const destination = `${pathname}${search}${hash}`
+  try {
+    decodeURI(pathname)
+    decodeURI(search)
+    decodeURI(hash)
+    const parsed = new URL(destination, window.location.origin)
+    if (parsed.origin !== window.location.origin || parsed.pathname !== pathname || parsed.search !== search || parsed.hash !== hash) return '/os'
+  } catch {
+    return '/os'
+  }
+
+  return destination
+}
 
 export default function Login() {
   const { login, user } = useAuth()
+  const location = useLocation()
   const navigate = useNavigate()
+  const destination = getPostLoginDestination(location.state)
 
   useEffect(() => {
-    if (user) navigate('/os', { replace: true })
-  }, [user, navigate])
+    if (user) navigate(destination, { replace: true })
+  }, [user, navigate, destination])
 
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
@@ -26,7 +56,7 @@ export default function Login() {
       if (!token) { setError('Login failed — no token returned'); return }
       const userData = data?.user || { email: email.trim(), name: 'Denarius Motes', role: 'admin' }
       login(userData, token)
-      navigate('/os', { replace: true })
+      navigate(destination, { replace: true })
     } catch (err) {
       setError(err?.message || 'Login failed')
     } finally {
