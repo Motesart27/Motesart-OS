@@ -26,7 +26,7 @@ export default function App() {
       <Route path="/"      element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/os"    element={<PrivateRoute><MotesartOS /></PrivateRoute>} />
-      {MOS_V2 && <Route path="/v2/*" element={<Suspense fallback={null}><V2App /></Suspense>} />}
+      {MOS_V2 && <Route path="/v2/*" element={<PrivateRoute><Suspense fallback={null}><V2App /></Suspense></PrivateRoute>} />}
       <Route path="*"      element={<Navigate to="/login" replace />} />
     </Routes>
   )
