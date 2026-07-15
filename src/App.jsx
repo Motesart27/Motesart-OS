@@ -4,7 +4,7 @@
  * Completely separate from School of Motesart.
  */
 import { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext.jsx'
 import Login from './pages/Login.jsx'
 import MotesartOS from './pages/MotesartOS.jsx'
@@ -15,8 +15,12 @@ const MOS_V2 = import.meta.env.VITE_MOS_V2 === 'true' || window.MOS_V2 === true
 
 function PrivateRoute({ children }) {
   const { user, verifying } = useAuth()
+  const location = useLocation()
   if (verifying) return null
-  if (!user) return <Navigate to="/login" replace />
+  if (!user) {
+    const { pathname, search, hash } = location
+    return <Navigate to="/login" replace state={{ from: { pathname, search, hash } }} />
+  }
   return <ErrorBoundary>{children}</ErrorBoundary>
 }
 
@@ -26,7 +30,7 @@ export default function App() {
       <Route path="/"      element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/os"    element={<PrivateRoute><MotesartOS /></PrivateRoute>} />
-      {MOS_V2 && <Route path="/v2/*" element={<Suspense fallback={null}><V2App /></Suspense>} />}
+      {MOS_V2 && <Route path="/v2/*" element={<PrivateRoute><Suspense fallback={null}><V2App /></Suspense></PrivateRoute>} />}
       <Route path="*"      element={<Navigate to="/login" replace />} />
     </Routes>
   )

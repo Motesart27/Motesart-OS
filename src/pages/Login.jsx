@@ -1,15 +1,46 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import api from '../services/api'
+
+function getPostLoginDestination(state) {
+  const from = state?.from
+  if (!from || typeof from !== 'object' || Array.isArray(from)) return '/os'
+
+  const { pathname, search = '', hash = '' } = from
+  if (typeof pathname !== 'string' || typeof search !== 'string' || typeof hash !== 'string') return '/os'
+  if (search !== '' || hash !== '') return '/os'
+
+  let decodedPathname
+  try {
+    decodedPathname = decodeURIComponent(pathname)
+  } catch {
+    return '/os'
+  }
+
+  const isV2Path = decodedPathname === '/v2' || decodedPathname.startsWith('/v2/')
+  const hasUnsafeCharacters = /[\\\u0000-\u001F\u007F]/.test(decodedPathname)
+  if (!isV2Path || decodedPathname.startsWith('//') || hasUnsafeCharacters) return '/os'
+
+  try {
+    const parsed = new URL(decodedPathname, window.location.origin)
+    if (parsed.origin !== window.location.origin || parsed.pathname !== decodedPathname || parsed.search !== '' || parsed.hash !== '') return '/os'
+  } catch {
+    return '/os'
+  }
+
+  return decodedPathname
+}
 
 export default function Login() {
   const { login, user } = useAuth()
+  const location = useLocation()
   const navigate = useNavigate()
+  const destination = getPostLoginDestination(location.state)
 
   useEffect(() => {
-    if (user) navigate('/os', { replace: true })
-  }, [user, navigate])
+    if (user) navigate(destination, { replace: true })
+  }, [user, navigate, destination])
 
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
@@ -26,7 +57,7 @@ export default function Login() {
       if (!token) { setError('Login failed — no token returned'); return }
       const userData = data?.user || { email: email.trim(), name: 'Denarius Motes', role: 'admin' }
       login(userData, token)
-      navigate('/os', { replace: true })
+      navigate(destination, { replace: true })
     } catch (err) {
       setError(err?.message || 'Login failed')
     } finally {
