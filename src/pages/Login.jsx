@@ -9,26 +9,27 @@ function getPostLoginDestination(state) {
 
   const { pathname, search = '', hash = '' } = from
   if (typeof pathname !== 'string' || typeof search !== 'string' || typeof hash !== 'string') return '/os'
+  if (search !== '' || hash !== '') return '/os'
 
-  const isV2Path = pathname === '/v2' || pathname.startsWith('/v2/')
-  const hasUnsafeCharacters = /[\\\u0000-\u001F\u007F]/.test(`${pathname}${search}${hash}`)
-  const hasMalformedSearch = search !== '' && (!search.startsWith('?') || search.includes('#'))
-  const hasMalformedHash = hash !== '' && !hash.startsWith('#')
-
-  if (!isV2Path || pathname.startsWith('//') || hasUnsafeCharacters || hasMalformedSearch || hasMalformedHash) return '/os'
-
-  const destination = `${pathname}${search}${hash}`
+  let decodedPathname
   try {
-    decodeURI(pathname)
-    decodeURI(search)
-    decodeURI(hash)
-    const parsed = new URL(destination, window.location.origin)
-    if (parsed.origin !== window.location.origin || parsed.pathname !== pathname || parsed.search !== search || parsed.hash !== hash) return '/os'
+    decodedPathname = decodeURIComponent(pathname)
   } catch {
     return '/os'
   }
 
-  return destination
+  const isV2Path = decodedPathname === '/v2' || decodedPathname.startsWith('/v2/')
+  const hasUnsafeCharacters = /[\\\u0000-\u001F\u007F]/.test(decodedPathname)
+  if (!isV2Path || decodedPathname.startsWith('//') || hasUnsafeCharacters) return '/os'
+
+  try {
+    const parsed = new URL(decodedPathname, window.location.origin)
+    if (parsed.origin !== window.location.origin || parsed.pathname !== decodedPathname || parsed.search !== '' || parsed.hash !== '') return '/os'
+  } catch {
+    return '/os'
+  }
+
+  return decodedPathname
 }
 
 export default function Login() {
