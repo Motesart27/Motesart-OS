@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test:operator-bridge": "node --test tests/operator-bridge/*.test.mjs",
+    "pilot:operator-bridge": "node scripts/run-operator-bridge-pilot.mjs"
   },
   "dependencies": {
     "express": "^4.21.0",
