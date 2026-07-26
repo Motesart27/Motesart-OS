@@ -9,6 +9,21 @@
   force = true
 
 [[redirects]]
+  from = "https://deploy-preview-22--motesart-os.netlify.app/assets/*"
+  to = "/index.html"
+  status = 404
+
+[[redirects]]
+  from = "https://deploy-preview-22--motesart-os.netlify.app/operator-bridge-staging"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "https://deploy-preview-22--motesart-os.netlify.app/operator-bridge-staging/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
