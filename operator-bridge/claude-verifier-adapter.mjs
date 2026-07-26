@@ -449,6 +449,7 @@ export class ClaudeVerifierAdapter {
         },
       })
       if (execution.timed_out || execution.exit_code !== 0) {
+        const resultEvent = [...execution.events].reverse().find((event) => event.type === 'result')
         const partialArtifact = await this.persistPartial({
           request,
           partialPath,
@@ -457,7 +458,15 @@ export class ClaudeVerifierAdapter {
         throw new VerifierAdapterError(
           execution.timed_out ? 'BLOCKED_VERIFIER_TIMEOUT' : 'BLOCKED_ADAPTER_UNAVAILABLE',
           'Independent verifier execution did not complete',
-          { partial_artifact: partialArtifact, stderr_bytes: execution.stderr_bytes },
+          {
+            partial_artifact: partialArtifact,
+            stderr_bytes: execution.stderr_bytes,
+            exit_code: execution.exit_code,
+            signal: execution.signal,
+            result_subtype: resultEvent?.subtype ?? null,
+            result_is_error: resultEvent?.is_error ?? null,
+            event_types: [...new Set(execution.events.map((event) => event.type))],
+          },
         )
       }
       let verdict

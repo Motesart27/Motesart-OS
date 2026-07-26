@@ -84,7 +84,7 @@ const ledger = await new FileWorkOrderLedger({ root: path.join(root, 'control-pl
 const adapter = new ClaudeVerifierAdapter({
   artifactStore,
   workspaceRoot: path.join(root, 'verifier-workspaces'),
-  maxBudgetUsd: '4.00',
+  maxBudgetUsd: '10.00',
 })
 const identity = await adapter.verifyIdentity()
 if (!identity.logged_in) throw new Error('VERIFIER_AUTHENTICATION_UNAVAILABLE')
@@ -122,18 +122,114 @@ if (collection.head_sha !== exactHead) throw new Error('PR22_HEAD_MOVED')
 const qualificationArtifacts = await importArtifacts(qualificationRoot, (manifest) => qualificationHashes.has(manifest.sha256), artifactStore)
 if (qualificationArtifacts.length !== 2) throw new Error('QUALIFICATION_ARTIFACTS_INCOMPLETE')
 const pilotArtifacts = await importArtifacts(pilotRoot, () => true, artifactStore)
-const reviewInputs = [...collection.artifacts, ...qualificationArtifacts, ...pilotArtifacts]
-
-const review = await adapter.review({
-  work_order_id: workOrderId,
-  review_contract_id: 'mya-operator-bridge-pr22-exact-head-v1',
-  artifacts: reviewInputs,
-  repository_identity: repository,
-  exact_head_sha: exactHead,
-  approved_review_prompt: reviewContract,
-  timeout_policy: { timeout_ms: 480_000, retry_policy: 'NONE' },
+const pilotManifestArtifact = await artifactStore.putArtifact({
+  workOrderId,
+  artifactType: 'evidence_report',
+  content: JSON.stringify({
+    schema_version: 'motesart.operator_bridge.imported_pilot_manifest.v1',
+    verified_artifact_count: pilotArtifacts.length,
+    artifacts: pilotArtifacts.map((artifact) => ({
+      artifact_id: artifact.artifact_id,
+      artifact_type: artifact.artifact_type,
+      sha256: artifact.sha256,
+      byte_count: artifact.byte_count,
+    })),
+  }, null, 2),
+  producingExecutor: 'operator-bridge-verified-local-import',
   attempt: claimed.attempt_count,
+  sensitivity: 'internal',
 })
+const pilotReviewArtifacts = pilotArtifacts.filter((artifact) => ['decision_card', 'evidence_report', 'model_response'].includes(artifact.artifact_type))
+const reviewInputs = [...collection.artifacts, ...qualificationArtifacts, ...pilotReviewArtifacts, pilotManifestArtifact]
+
+let review
+try {
+  review = await adapter.review({
+    work_order_id: workOrderId,
+    review_contract_id: 'mya-operator-bridge-pr22-exact-head-v1',
+    artifacts: reviewInputs,
+    repository_identity: repository,
+    exact_head_sha: exactHead,
+    approved_review_prompt: reviewContract,
+    timeout_policy: { timeout_ms: 480_000, retry_policy: 'NONE' },
+    attempt: claimed.attempt_count,
+  })
+} catch (error) {
+  const blockerCode = error.code ?? 'BLOCKED_ADAPTER_UNAVAILABLE'
+  const partialArtifact = error.metadata?.partial_artifact ?? null
+  const blockedArtifacts = partialArtifact ? [...reviewInputs, partialArtifact] : reviewInputs
+  const projectedBlocked = {
+    ...(await ledger.get(workOrderId)),
+    status: 'BLOCKED',
+    blocker_code: blockerCode,
+    next_action: 'RESUME_WITH_NEW_SUPERVISED_REVIEW_ATTEMPT',
+  }
+  const blockedCard = createDecisionCard({
+    workOrder: projectedBlocked,
+    originatingInstruction: 'Issue #21 Phase 1B independent exact-head review of Motesart-OS PR #22',
+    artifacts: blockedArtifacts,
+    kimiResult: null,
+    codexResult: { status: 'ADAPTER_IMPLEMENTED_AND_QUALIFIED', independent_verdict: false },
+    fableResult: { status: 'BLOCKED', blocker_code: blockerCode, independent_verdict_created: false, resumable: true },
+    blockingFindings: [{ code: blockerCode, blocking: true }],
+  })
+  const blockedCardArtifact = await artifactStore.putArtifact({
+    workOrderId,
+    artifactType: 'decision_card',
+    content: JSON.stringify(blockedCard, null, 2),
+    producingExecutor: 'motesart-os-local-return-channel',
+    attempt: claimed.attempt_count,
+    sensitivity: 'internal',
+  })
+  await artifactStore.sealArtifact(blockedCardArtifact)
+  const blockedOrder = await ledger.transition(workOrderId, 'BLOCKED', {
+    actor: 'motesart-os-local-return-channel',
+    reason: blockerCode,
+    leaseToken: claimed.lease_token,
+    patch: {
+      blocker_code: blockerCode,
+      next_action: 'RESUME_WITH_NEW_SUPERVISED_REVIEW_ATTEMPT',
+      result_uri: partialArtifact?.immutable_relative_uri ?? null,
+      result_hash: partialArtifact?.sha256 ?? null,
+      evidence_uri: blockedCardArtifact.immutable_relative_uri,
+      evidence_hash: blockedCardArtifact.sha256,
+    },
+  })
+  const blockedEvidence = await artifactStore.putArtifact({
+    workOrderId,
+    artifactType: 'evidence_report',
+    content: JSON.stringify({
+      schema_version: 'motesart.operator_bridge.phase1b_review_block.v1',
+      work_order: blockedOrder,
+      exact_head: exactHead,
+      blocker_code: blockerCode,
+      partial_artifact: partialArtifact,
+      decision_card_artifact: blockedCardArtifact,
+      error_metadata: error.metadata ?? {},
+      manual_artifact_movements: 0,
+      github_writes: 0,
+      production_mutations: 0,
+    }, null, 2),
+    producingExecutor: 'operator-bridge-phase1b-review',
+    attempt: claimed.attempt_count,
+    sensitivity: 'internal',
+  })
+  await artifactStore.sealArtifact(blockedEvidence)
+  const blockedSummary = {
+    status: 'BLOCKED',
+    blocker_code: blockerCode,
+    work_order_id: workOrderId,
+    exact_reviewed_head: null,
+    target_head: exactHead,
+    partial_artifact_hash: partialArtifact?.sha256 ?? null,
+    decision_card_hash: blockedCardArtifact.sha256,
+    evidence_hash: blockedEvidence.sha256,
+    manual_artifact_movements: 0,
+  }
+  await writeFile(path.join(root, 'PHASE1B_REVIEW_SUMMARY.json'), `${JSON.stringify(blockedSummary, null, 2)}\n`, { mode: 0o600 })
+  process.stdout.write(`${JSON.stringify(blockedSummary, null, 2)}\n`)
+  process.exit(2)
+}
 await ledger.transition(workOrderId, 'VERIFYING', {
   actor: VERIFIER_ADAPTER_ID,
   reason: 'INDEPENDENT_VERDICT_RETURNED',
@@ -157,7 +253,7 @@ const projected = {
 const decisionCard = createDecisionCard({
   workOrder: projected,
   originatingInstruction: 'Issue #21 Phase 1B independent exact-head review of Motesart-OS PR #22',
-  artifacts: [...reviewInputs, review.verdict_artifact],
+  artifacts: [...collection.artifacts, ...qualificationArtifacts, ...pilotArtifacts, pilotManifestArtifact, review.verdict_artifact],
   kimiResult: null,
   codexResult: { status: 'ADAPTER_IMPLEMENTED_AND_QUALIFIED', independent_verdict: false },
   fableResult: {
@@ -203,6 +299,7 @@ const evidence = {
   collected_pr_artifact_count: collection.artifacts.length,
   imported_qualification_artifact_count: qualificationArtifacts.length,
   imported_pilot_artifact_count: pilotArtifacts.length,
+  submitted_pilot_artifact_count: pilotReviewArtifacts.length + 1,
   verifier_identity: identity,
   verdict: review.verdict,
   verdict_artifact: review.verdict_artifact,
