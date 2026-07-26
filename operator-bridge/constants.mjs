@@ -72,4 +72,7 @@ export const ARTIFACT_TYPES = Object.freeze([
   'pull_request_identity',
   'workflow_status',
   'commit_history',
+  'verifier_identity',
+  'verifier_qualification',
+  'verifier_verdict',
 ])

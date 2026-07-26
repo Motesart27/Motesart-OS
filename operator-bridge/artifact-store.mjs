@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { ARTIFACT_TYPES } from './constants.mjs'
@@ -103,5 +103,14 @@ export class LocalArtifactStore {
   async copyVerifiedArtifact(manifest, destination) {
     await this.readArtifact(manifest)
     await copyFile(path.join(this.root, manifest.immutable_relative_uri), destination)
+  }
+
+  async sealArtifact(manifest) {
+    await this.readArtifact(manifest)
+    const objectPath = path.join(this.root, manifest.immutable_relative_uri)
+    const manifestPath = path.join(this.root, 'manifests', `${manifest.artifact_id}.json`)
+    await chmod(objectPath, 0o400)
+    await chmod(manifestPath, 0o400)
+    return { artifact_id: manifest.artifact_id, sha256: manifest.sha256, sealed: true }
   }
 }
