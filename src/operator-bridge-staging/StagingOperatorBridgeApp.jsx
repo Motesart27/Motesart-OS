@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { STAGING_BANNER, StagingClient } from './api.js'
+import { createManualRetryIdempotencyKey, isManualRetryEligible } from './manualRetry.js'
 import './staging.css'
 
 const BOARD = [
@@ -117,9 +118,37 @@ function WorkBoard({ orders, onSelect }) {
   )
 }
 
-function WorkDetail({ detail }) {
+function WorkDetail({ client, detail, onRetried }) {
+  const retryKey = useRef(null)
+  const [retryInFlight, setRetryInFlight] = useState(false)
+  const [retryError, setRetryError] = useState(null)
+  const [retriedId, setRetriedId] = useState(null)
+  const selectedId = detail?.order?.work_order?.work_order_id ?? null
+
+  useEffect(() => {
+    retryKey.current = null
+    setRetryError(null)
+    setRetriedId(null)
+  }, [selectedId])
+
   if (!detail) return <section className="bridge-panel bridge-empty"><h2>Work-Order Detail</h2><p>Select a work order to inspect its immutable timeline and artifacts.</p></section>
   const { work_order: order } = detail.order
+  const retry = async () => {
+    if (!isManualRetryEligible(order) || retryInFlight) return
+    if (!window.confirm(`Retry ${order.work_order_id} once? This preserves the existing work-order ID and history.`)) return
+    setRetryInFlight(true)
+    setRetryError(null)
+    try {
+      retryKey.current ??= createManualRetryIdempotencyKey(order.work_order_id)
+      const result = await client.manualRetry(order.work_order_id, retryKey.current)
+      setRetriedId(result.work_order.work_order_id)
+      await onRetried(order.work_order_id)
+    } catch (failure) {
+      setRetryError(failure.code ?? 'MANUAL_RETRY_UNAVAILABLE')
+    } finally {
+      setRetryInFlight(false)
+    }
+  }
   return (
     <section className="bridge-panel bridge-detail">
       <div className="bridge-panel-heading"><h2>Work-Order Detail</h2><span className={`bridge-status status-${order.status.toLowerCase()}`}>{order.status}</span></div>
@@ -128,9 +157,13 @@ function WorkDetail({ detail }) {
       <dl className="bridge-metadata">
         <div><dt>Executor</dt><dd>{order.executor}</dd></div><div><dt>Lease owner</dt><dd>{order.lease_owner ?? '—'}</dd></div>
         <div><dt>Heartbeat</dt><dd>{order.heartbeat_at ?? '—'}</dd></div><div><dt>Lease expires</dt><dd>{order.lease_expires_at ?? '—'}</dd></div>
-        <div><dt>Attempts</dt><dd>{order.attempt_count}</dd></div><div><dt>Approval</dt><dd>{order.approval_class}</dd></div>
+        <div><dt>Attempts</dt><dd>{order.attempt_count}</dd></div><div><dt>Manual retries</dt><dd>{order.manual_retry_count ?? 0} / 1</dd></div>
+        <div><dt>Approval</dt><dd>{order.approval_class}</dd></div>
         <div><dt>Blocker</dt><dd>{order.blocker_code ?? '—'}</dd></div><div><dt>Next action</dt><dd>{order.next_action}</dd></div>
       </dl>
+      {isManualRetryEligible(order) && <div className="bridge-manual-retry"><button type="button" disabled={retryInFlight} onClick={retry}>{retryInFlight ? 'Retrying…' : 'Retry this work order once'}</button><span>Owner-authorized, same ID, one attempt only.</span></div>}
+      {retriedId && <div className="bridge-created">Requeued existing work order: <code>{retriedId}</code></div>}
+      {retryError && <div className="bridge-error">{retryError}</div>}
       <h3>Timeline</h3>
       <ol className="bridge-timeline">{detail.events.events.map((event) => <li key={event.event_id}><time>{event.created_at}</time><strong>{event.code}</strong><span>{event.from_status ?? '∅'} → {event.to_status}</span><code>{short(event.event_hash)}</code></li>)}</ol>
       <h3>Artifacts and hashes</h3>
@@ -186,7 +219,7 @@ export default function StagingOperatorBridgeApp({ buildHead }) {
       {serviceError && <div className="bridge-error bridge-global-error">{serviceError}</div>}
       <NewWorkOrder client={client} onCreated={(id) => { setSelectedId(id); refresh() }} />
       <WorkBoard orders={orders} onSelect={select} />
-      <WorkDetail detail={detail} />
+      <WorkDetail client={client} detail={detail} onRetried={async (id) => { setSelectedId(id); await refresh() }} />
     </div>
   )
 }

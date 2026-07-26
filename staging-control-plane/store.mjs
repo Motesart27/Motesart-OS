@@ -6,6 +6,7 @@ import { constantTimeEqual, sha256 } from './security.mjs'
 
 const EMPTY_HEAD = '0'.repeat(64)
 const ACTIVE_LEASE_STATES = new Set(['CLAIMED', 'RUNNING'])
+const MANUAL_RETRY_BLOCKERS = new Set(['KIMI_RESPONSE_UNAVAILABLE', 'KIMI_REASONING_ONLY_LENGTH'])
 
 export class StagingStoreError extends Error {
   constructor(code, status = 409) {
@@ -26,6 +27,16 @@ function stable(value) {
 
 function publicOrder(order) {
   const { lease_token_hash: _leaseTokenHash, ...safe } = order
+  safe.manual_retry_count = order.manual_retry_count ?? 0
+  safe.manual_retry_eligible = order.status === 'BLOCKED'
+    && MANUAL_RETRY_BLOCKERS.has(order.blocker_code)
+    && !order.lease_owner
+    && !order.lease_token_hash
+    && !order.lease_expires_at
+    && !order.heartbeat_at
+    && safe.manual_retry_count < 1
+    && order.approval_class === 'READ_ONLY'
+    && order.scope?.read_only === true
   return structuredClone(safe)
 }
 
@@ -63,6 +74,7 @@ export class StagingStore {
         chain_head: EMPTY_HEAD,
         work_orders: {},
         idempotency: {},
+        manual_retry_idempotency: {},
         events: [],
         artifacts: {},
         decision_cards: {},
@@ -182,6 +194,8 @@ export class StagingStore {
         evidence_artifact_id: null,
         decision_card_artifact_id: null,
         blocker_code: null,
+        manual_retry_count: 0,
+        manual_retry_history: [],
         next_action: 'QUEUE_FOR_ORCA',
         created_at: now,
         updated_at: now,
@@ -231,6 +245,85 @@ export class StagingStore {
     const card = state.decision_cards[workOrderId]
     if (!card) throw new StagingStoreError('DECISION_CARD_NOT_AVAILABLE', 404)
     return structuredClone(card)
+  }
+
+  async manualRetry(workOrderId, { actor, idempotencyKey }) {
+    return this._exclusive(async () => {
+      const state = await this._readVerified()
+      state.manual_retry_idempotency ??= {}
+      const idempotencyHash = sha256(`${workOrderId}:${idempotencyKey}`)
+      const recorded = state.manual_retry_idempotency[idempotencyHash]
+      if (recorded) return { ...structuredClone(recorded), duplicate: true }
+
+      const order = state.work_orders[workOrderId]
+      if (!order) throw new StagingStoreError('WORK_ORDER_NOT_FOUND', 404)
+      if (order.lease_owner || order.lease_token_hash || order.lease_expires_at || order.heartbeat_at) {
+        throw new StagingStoreError('MANUAL_RETRY_ACTIVE_LEASE', 409)
+      }
+      if ((order.manual_retry_count ?? 0) >= 1) throw new StagingStoreError('MANUAL_RETRY_LIMIT_REACHED', 409)
+      if (order.status !== 'BLOCKED') throw new StagingStoreError('MANUAL_RETRY_STATE_NOT_ALLOWED', 409)
+      if (!MANUAL_RETRY_BLOCKERS.has(order.blocker_code)) throw new StagingStoreError('MANUAL_RETRY_BLOCKER_NOT_ALLOWED', 409)
+      if (order.approval_class !== 'READ_ONLY' || order.scope?.read_only !== true) {
+        throw new StagingStoreError('MANUAL_RETRY_READ_ONLY_REQUIRED', 409)
+      }
+      const now = new Date(this.clock()).toISOString()
+      const priorBlocker = order.blocker_code
+      const authorized = this._appendEvent(state, {
+        workOrderId,
+        fromStatus: 'BLOCKED',
+        toStatus: 'BLOCKED',
+        code: 'MANUAL_RETRY_AUTHORIZED',
+        actor,
+        metadata: {
+          attempt_count: order.attempt_count,
+          blocker_code: priorBlocker,
+          idempotency_key_sha256: sha256(idempotencyKey),
+          manual_retry_count: 1,
+        },
+      })
+      order.manual_retry_count = 1
+      order.manual_retry_history = [
+        ...(order.manual_retry_history ?? []),
+        {
+          authorized_at: now,
+          authorized_event_id: authorized.event_id,
+          blocker_code: priorBlocker,
+          execution_attempt: order.attempt_count,
+          idempotency_key_sha256: sha256(idempotencyKey),
+        },
+      ]
+      Object.assign(order, {
+        status: 'QUEUED',
+        blocker_code: null,
+        next_action: 'QUEUE_FOR_ORCA',
+        lease_owner: null,
+        lease_token_hash: null,
+        lease_expires_at: null,
+        heartbeat_at: null,
+        updated_at: now,
+      })
+      const requeued = this._appendEvent(state, {
+        workOrderId,
+        fromStatus: 'BLOCKED',
+        toStatus: 'QUEUED',
+        code: 'WORK_ORDER_REQUEUED',
+        actor,
+        metadata: {
+          authorized_event_id: authorized.event_id,
+          manual_retry_count: order.manual_retry_count,
+          preserved_attempt_count: order.attempt_count,
+        },
+      })
+      order.manual_retry_history.at(-1).requeued_event_id = requeued.event_id
+      const result = {
+        work_order: publicOrder(order),
+        authorized_event_id: authorized.event_id,
+        requeued_event_id: requeued.event_id,
+      }
+      state.manual_retry_idempotency[idempotencyHash] = structuredClone(result)
+      await this._write(state)
+      return { ...result, duplicate: false }
+    })
   }
 
   async claim({ leaseOwner, leaseTtlMs = 60_000 }) {

@@ -9,6 +9,7 @@ const OWNER_BODY_FIELDS = new Set(['owner_id', 'password'])
 const WORK_ORDER_FIELDS = new Set(['instruction', 'originating_surface', 'task_type', 'scope', 'priority', 'approval_class', 'executor', 'idempotency_key'])
 const ARTIFACT_FIELDS = new Set(['artifact_type', 'content_base64', 'sha256', 'byte_count', 'sensitivity_classification'])
 const COMPLETE_FIELDS = new Set(['result_artifact_id', 'evidence_artifact_id', 'decision_card_artifact_id'])
+const MANUAL_RETRY_FIELDS = new Set(['idempotency_key'])
 
 export class StagingApiError extends Error {
   constructor(code, status = 400) {
@@ -173,7 +174,7 @@ export function createStagingApi({ store, config, logger = console }) {
         audit('owner_session_rejected', { status: 401 })
         throw new StagingApiError('AUTHENTICATION_INVALID', 401)
       }
-      const token = signToken({ sub: config.ownerId, role: 'owner', scopes: ['work-orders:submit', 'work-orders:read'] }, config.sessionSigningKey, {
+      const token = signToken({ sub: config.ownerId, role: 'owner', scopes: ['work-orders:submit', 'work-orders:read', 'work-orders:retry'] }, config.sessionSigningKey, {
         issuer: config.issuer,
         audience: 'motesart-os-staging-preview',
         ttlSeconds: config.ownerSessionTtlSeconds,
@@ -201,7 +202,7 @@ export function createStagingApi({ store, config, logger = console }) {
 
     if (pathname.startsWith('/v1/work-orders')) {
       const previewOrigin = requirePreview(request)
-      requireRole(request, 'owner')
+      const identity = requireRole(request, 'owner')
       if (request.method === 'POST' && pathname === '/v1/work-orders') {
         const body = validateWorkOrder(await bodyJson(request))
         const created = await store.createWorkOrder(body)
@@ -211,6 +212,21 @@ export function createStagingApi({ store, config, logger = console }) {
       }
       if (request.method === 'GET' && pathname === '/v1/work-orders') {
         send(response, 200, { work_orders: await store.listWorkOrders() }, previewOrigin)
+        return
+      }
+      const retryMatch = pathname.match(/^\/v1\/work-orders\/([A-Za-z0-9._:-]+)\/manual-retry$/)
+      if (retryMatch && request.method === 'POST') {
+        const body = await bodyJson(request, 4_000)
+        exactFields(body, MANUAL_RETRY_FIELDS)
+        if (!/^[A-Za-z0-9._:-]{8,180}$/.test(body.idempotency_key ?? '')) throw new StagingApiError('INVALID_IDEMPOTENCY_KEY')
+        const result = await store.manualRetry(retryMatch[1], { actor: identity.sub, idempotencyKey: body.idempotency_key })
+        audit('manual_retry_processed', {
+          work_order_id: result.work_order.work_order_id,
+          duplicate: result.duplicate,
+          manual_retry_count: result.work_order.manual_retry_count,
+          status: result.work_order.status,
+        })
+        send(response, 200, result, previewOrigin)
         return
       }
       const match = pathname.match(/^\/v1\/work-orders\/([A-Za-z0-9._:-]+)(?:\/(events|artifacts|decision-card))?$/)

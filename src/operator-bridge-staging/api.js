@@ -46,6 +46,13 @@ export class StagingClient {
     return this.request('/v1/work-orders', { method: 'POST', body })
   }
 
+  manualRetry(id, idempotencyKey) {
+    return this.request(`/v1/work-orders/${encodeURIComponent(id)}/manual-retry`, {
+      method: 'POST',
+      body: { idempotency_key: idempotencyKey },
+    })
+  }
+
   detail(id) {
     return Promise.all([
       this.request(`/v1/work-orders/${encodeURIComponent(id)}`),

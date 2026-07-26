@@ -3,6 +3,9 @@ import { appendFile, readFile, unlink, writeFile } from 'node:fs/promises'
 import { BLOCKER_CODES } from './constants.mjs'
 
 const SYSTEM_PROMPT = 'You are a read-only architecture reviewer. Analyze only supplied public or synthetic artifacts. Do not claim external access, take actions, or recommend bypassing governance. Separate facts, inferences, unknowns, risks, and recommendations.'
+export const KIMI_OUTPUT_CONTRACTS = Object.freeze({
+  PRIORITY_RISK_ASSESSMENT_V1: 'Return a concise final assessment only. Include exactly three priority risks. Each risk must include supporting evidence and one recommendation. Do not include hidden reasoning or chain-of-thought.',
+})
 
 export class KimiAdapterError extends Error {
   constructor(code, message, metadata = {}) {
@@ -21,19 +24,24 @@ function extractSseContent(buffer) {
   const parts = buffer.split(/\r?\n/)
   const remainder = parts.pop() ?? ''
   const tokens = []
+  let reasoningPresent = false
+  const finishReasons = []
   for (const line of parts) {
     if (!line.startsWith('data:')) continue
     const data = line.slice(5).trim()
     if (!data || data === '[DONE]') continue
     try {
       const parsed = JSON.parse(data)
-      const content = parsed.choices?.[0]?.delta?.content
+      const choice = parsed.choices?.[0]
+      const content = choice?.delta?.content
       if (typeof content === 'string') tokens.push(content)
+      if (typeof choice?.delta?.reasoning_content === 'string' && choice.delta.reasoning_content.length > 0) reasoningPresent = true
+      if (typeof choice?.finish_reason === 'string') finishReasons.push(choice.finish_reason)
     } catch {
       throw new KimiAdapterError('KIMI_MALFORMED_STREAM', 'Kimi stream was malformed')
     }
   }
-  return { tokens, remainder }
+  return { tokens, remainder, reasoningPresent, finishReasons }
 }
 
 export class KimiStreamingAdapter {
@@ -57,16 +65,20 @@ export class KimiStreamingAdapter {
     this.artifactStore = artifactStore
     this.timeoutMs = timeoutMs
     this.maxOutputTokens = maxOutputTokens
-    this.maxAttempts = maxAttempts
+    if (maxAttempts !== 1) throw new TypeError('Automatic Kimi retries are disabled')
+    this.maxAttempts = 1
     this.logger = logger
     this.clock = clock
   }
 
-  async analyzeSections({ workOrderId, sections, apiKey, attempt = 1 }) {
+  async analyzeSections({ workOrderId, sections, apiKey, attempt = 1, outputContract = null }) {
     if (!apiKey) throw new KimiAdapterError('KIMI_GATEWAY_CREDENTIAL_UNAVAILABLE', 'Kimi gateway unavailable')
+    if (outputContract !== null && !Object.hasOwn(KIMI_OUTPUT_CONTRACTS, outputContract)) {
+      throw new KimiAdapterError('KIMI_OUTPUT_CONTRACT_INVALID', 'Kimi output contract is unavailable')
+    }
     const results = []
     for (const section of sections) {
-      results.push(await this._streamWithPolicy({ workOrderId, section, apiKey, attempt }))
+      results.push(await this._streamWithPolicy({ workOrderId, section, apiKey, attempt, outputContract }))
     }
     const assembled = results.map((result) => `# ${result.section_title}\n\n${result.content}`).join('\n\n')
     const assembledArtifact = await this.artifactStore.putArtifact({
@@ -87,25 +99,17 @@ export class KimiStreamingAdapter {
   }
 
   async _streamWithPolicy(input) {
-    let lastError
-    for (let currentAttempt = 1; currentAttempt <= this.maxAttempts; currentAttempt += 1) {
-      try {
-        return await this._streamSection({ ...input, transportAttempt: currentAttempt })
-      } catch (error) {
-        lastError = error
-        const hasPartial = error.metadata?.partial_byte_count > 0
-        if (hasPartial || currentAttempt >= this.maxAttempts) throw error
-        safeLog(this.logger, 'kimi_retry_before_first_token', { attempt: currentAttempt, error_class: error.name })
-      }
-    }
-    throw lastError
+    return this._streamSection({ ...input, transportAttempt: 1 })
   }
 
-  async _streamSection({ workOrderId, section, apiKey, attempt, transportAttempt }) {
+  async _streamSection({ workOrderId, section, apiKey, attempt, transportAttempt, outputContract }) {
+    const userPrompt = outputContract
+      ? `${KIMI_OUTPUT_CONTRACTS[outputContract]}\n\n${section.prompt}`
+      : section.prompt
     const promptArtifact = await this.artifactStore.putArtifact({
       workOrderId,
       artifactType: 'prompt',
-      content: section.prompt,
+      content: userPrompt,
       producingExecutor: 'orca-edge-worker',
       attempt,
       sensitivity: 'public',
@@ -116,6 +120,10 @@ export class KimiStreamingAdapter {
     let firstTokenAt = null
     let byteCount = 0
     let content = ''
+    let connectionStatus = 'NOT_ESTABLISHED'
+    let streamCompleted = false
+    let reasoningPresent = false
+    let finishReason = null
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs)
     try {
@@ -127,7 +135,10 @@ export class KimiStreamingAdapter {
           model: this.model,
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: section.prompt },
+            {
+              role: 'user',
+              content: userPrompt,
+            },
           ],
           max_completion_tokens: this.maxOutputTokens,
           stream: true,
@@ -139,12 +150,15 @@ export class KimiStreamingAdapter {
           status_category: `${Math.floor(response.status / 100)}xx`,
         })
       }
+      connectionStatus = 'ESTABLISHED'
       const decoder = new TextDecoder()
       let pending = ''
       for await (const chunk of response.body) {
         pending += decoder.decode(chunk, { stream: true })
         const parsed = extractSseContent(pending)
         pending = parsed.remainder
+        reasoningPresent ||= parsed.reasoningPresent
+        if (parsed.finishReasons.length) finishReason = parsed.finishReasons.at(-1)
         for (const token of parsed.tokens) {
           if (firstTokenAt === null) firstTokenAt = this.clock()
           content += token
@@ -155,13 +169,30 @@ export class KimiStreamingAdapter {
       }
       pending += '\n'
       const trailing = extractSseContent(pending)
+      reasoningPresent ||= trailing.reasoningPresent
+      if (trailing.finishReasons.length) finishReason = trailing.finishReasons.at(-1)
       for (const token of trailing.tokens) {
         if (firstTokenAt === null) firstTokenAt = this.clock()
         content += token
         byteCount += Buffer.byteLength(token)
         await appendFile(partialPath, token, { mode: 0o600 })
       }
-      if (!content) throw new KimiAdapterError('KIMI_RESPONSE_UNAVAILABLE', 'Kimi response contained no assistant text')
+      streamCompleted = true
+      if (!content) {
+        const code = reasoningPresent && finishReason === 'length'
+          ? 'KIMI_REASONING_ONLY_LENGTH'
+          : 'KIMI_RESPONSE_UNAVAILABLE'
+        throw new KimiAdapterError(code, 'Kimi response contained no assistant text', {
+          classification: code === 'KIMI_REASONING_ONLY_LENGTH'
+            ? 'REASONING_ONLY_COMPLETION_LENGTH'
+            : 'STREAM_COMPLETED_WITHOUT_ASSISTANT_CONTENT',
+          connection_status: connectionStatus,
+          finish_reason: finishReason,
+          assistant_byte_count: 0,
+          reasoning_present: reasoningPresent,
+          duration_ms: this.clock() - startedAt,
+        })
+      }
       const artifact = await this.artifactStore.putArtifact({
         workOrderId,
         artifactType: 'model_response',
@@ -184,6 +215,10 @@ export class KimiStreamingAdapter {
         duration_ms: finishedAt - startedAt,
         model: this.model,
         streaming: true,
+        connection_status: connectionStatus,
+        finish_reason: finishReason,
+        reasoning_present: reasoningPresent,
+        classification: 'STREAM_COMPLETED_WITH_ASSISTANT_CONTENT',
         content,
       }
     } catch (error) {
@@ -203,12 +238,42 @@ export class KimiStreamingAdapter {
       const timedOut = controller.signal.aborted
       const code = timedOut
         ? (partial.length ? BLOCKER_CODES.KIMI_TIMEOUT_PARTIAL : BLOCKER_CODES.KIMI_TIMEOUT_BEFORE_FIRST_TOKEN)
-        : (error.code ?? 'KIMI_STREAM_FAILED')
-      safeLog(this.logger, 'kimi_stream_failed', { section_id: section.id, error_class: error.name, blocker_code: code, partial_byte_count: partial.length })
+        : (error.code ?? (connectionStatus === 'NOT_ESTABLISHED'
+            ? 'KIMI_CONNECTION_FAILED'
+            : (firstTokenAt === null && !streamCompleted ? 'KIMI_FIRST_TOKEN_UNAVAILABLE' : 'KIMI_STREAM_FAILED')))
+      const classification = error.metadata?.classification
+        ?? (code === BLOCKER_CODES.KIMI_TIMEOUT_PARTIAL
+          ? 'TIMEOUT_WITH_PARTIAL_ASSISTANT_CONTENT'
+          : code === BLOCKER_CODES.KIMI_TIMEOUT_BEFORE_FIRST_TOKEN
+            ? 'TIMEOUT_BEFORE_FIRST_ASSISTANT_TOKEN'
+            : code === 'KIMI_CONNECTION_FAILED' || code === 'KIMI_GATEWAY_ERROR'
+              ? 'CONNECTION_FAILURE'
+              : code === 'KIMI_FIRST_TOKEN_UNAVAILABLE'
+                ? 'STREAM_FAILED_BEFORE_FIRST_ASSISTANT_TOKEN'
+                : 'STREAM_FAILURE')
+      const durationMs = this.clock() - startedAt
+      safeLog(this.logger, 'kimi_stream_failed', {
+        section_id: section.id,
+        error_class: error.name,
+        blocker_code: code,
+        connection_status: connectionStatus,
+        first_token_time_ms: firstTokenAt === null ? null : firstTokenAt - startedAt,
+        finish_reason: error.metadata?.finish_reason ?? finishReason,
+        assistant_byte_count: partial.length,
+        reasoning_present: error.metadata?.reasoning_present ?? reasoningPresent,
+        duration_ms: durationMs,
+        classification,
+      })
       throw new KimiAdapterError(code, 'Kimi streaming analysis did not complete', {
         partial_artifact: partialArtifact,
         partial_byte_count: partial.length,
         time_to_first_token_ms: firstTokenAt === null ? null : firstTokenAt - startedAt,
+        connection_status: connectionStatus,
+        finish_reason: error.metadata?.finish_reason ?? finishReason,
+        assistant_byte_count: partial.length,
+        reasoning_present: error.metadata?.reasoning_present ?? reasoningPresent,
+        duration_ms: durationMs,
+        classification,
       })
     } finally {
       clearTimeout(timeout)
