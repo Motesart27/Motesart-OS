@@ -1,0 +1,433 @@
+import { randomBytes, randomUUID } from 'node:crypto'
+import { chmod, mkdir, open, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+
+import { constantTimeEqual, sha256 } from './security.mjs'
+
+const EMPTY_HEAD = '0'.repeat(64)
+const ACTIVE_LEASE_STATES = new Set(['CLAIMED', 'RUNNING'])
+
+export class StagingStoreError extends Error {
+  constructor(code, status = 409) {
+    super(code)
+    this.name = 'StagingStoreError'
+    this.code = code
+    this.status = status
+  }
+}
+
+function stable(value) {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
+function publicOrder(order) {
+  const { lease_token_hash: _leaseTokenHash, ...safe } = order
+  return structuredClone(safe)
+}
+
+export class StagingStore {
+  constructor({ root, clock = () => Date.now(), retentionDays = 30 }) {
+    this.root = root
+    this.clock = clock
+    this.retentionDays = retentionDays
+    this.namespaceRoot = path.join(root, 'staging')
+    this.ledgerDirectory = path.join(this.namespaceRoot, 'ledger')
+    this.artifactDirectory = path.join(this.namespaceRoot, 'artifacts', 'sha256')
+    this.statePath = path.join(this.ledgerDirectory, 'state.json')
+    this.lockPath = path.join(this.ledgerDirectory, 'writer.lock')
+    this._tail = Promise.resolve()
+    this._lockHandle = null
+  }
+
+  async init() {
+    await mkdir(this.ledgerDirectory, { recursive: true, mode: 0o700 })
+    await mkdir(this.artifactDirectory, { recursive: true, mode: 0o700 })
+    try {
+      this._lockHandle = await open(this.lockPath, 'wx', 0o600)
+      await this._lockHandle.writeFile(JSON.stringify({ pid: process.pid, created_at: new Date(this.clock()).toISOString() }))
+    } catch (error) {
+      if (error.code === 'EEXIST') throw new StagingStoreError('STAGING_LEDGER_LOCKED', 503)
+      throw error
+    }
+    try {
+      await readFile(this.statePath, 'utf8')
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error
+      await this._write({
+        schema_version: 'motesart.operator_bridge.staging_store.v1',
+        namespace: 'staging',
+        chain_head: EMPTY_HEAD,
+        work_orders: {},
+        idempotency: {},
+        events: [],
+        artifacts: {},
+        decision_cards: {},
+      })
+    }
+    await this._readVerified()
+    return this
+  }
+
+  async close() {
+    await this._lockHandle?.close().catch(() => undefined)
+    this._lockHandle = null
+    await unlink(this.lockPath).catch(() => undefined)
+  }
+
+  _exclusive(operation) {
+    const next = this._tail.then(operation, operation)
+    this._tail = next.catch(() => undefined)
+    return next
+  }
+
+  async _write(state) {
+    const temporary = `${this.statePath}.${process.pid}.${randomUUID()}.tmp`
+    await writeFile(temporary, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 })
+    await rename(temporary, this.statePath)
+  }
+
+  _appendEvent(state, { workOrderId, fromStatus, toStatus, code, actor, metadata = {} }) {
+    const event = {
+      event_id: randomUUID(),
+      work_order_id: workOrderId,
+      from_status: fromStatus,
+      to_status: toStatus,
+      code,
+      actor,
+      metadata,
+      created_at: new Date(this.clock()).toISOString(),
+      previous_hash: state.chain_head,
+    }
+    event.event_hash = sha256(stable(event))
+    state.events.push(event)
+    state.chain_head = event.event_hash
+    return event
+  }
+
+  _verifyChain(state) {
+    let head = EMPTY_HEAD
+    for (const event of state.events) {
+      if (event.previous_hash !== head) throw new StagingStoreError('LEDGER_INTEGRITY_FAILURE', 503)
+      const { event_hash: eventHash, ...unsigned } = event
+      if (sha256(stable(unsigned)) !== eventHash) throw new StagingStoreError('LEDGER_INTEGRITY_FAILURE', 503)
+      head = eventHash
+    }
+    if (state.chain_head !== head) throw new StagingStoreError('LEDGER_INTEGRITY_FAILURE', 503)
+  }
+
+  async _readVerified() {
+    const state = JSON.parse(await readFile(this.statePath, 'utf8'))
+    if (state.namespace !== 'staging') throw new StagingStoreError('STAGING_NAMESPACE_INVALID', 503)
+    this._verifyChain(state)
+    return state
+  }
+
+  _reconcileExpired(state) {
+    const now = this.clock()
+    for (const order of Object.values(state.work_orders)) {
+      if (!ACTIVE_LEASE_STATES.has(order.status) || Date.parse(order.lease_expires_at) > now) continue
+      const prior = order.status
+      Object.assign(order, {
+        status: 'QUEUED',
+        lease_owner: null,
+        lease_token_hash: null,
+        lease_expires_at: null,
+        heartbeat_at: null,
+        blocker_code: 'LEASE_EXPIRED',
+        next_action: 'RECLAIM_BY_ORCA',
+        updated_at: new Date(now).toISOString(),
+      })
+      this._appendEvent(state, {
+        workOrderId: order.work_order_id,
+        fromStatus: prior,
+        toStatus: 'QUEUED',
+        code: 'LEASE_EXPIRED_RECLAIMED',
+        actor: 'staging-control-plane',
+      })
+    }
+  }
+
+  async createWorkOrder(input) {
+    return this._exclusive(async () => {
+      const state = await this._readVerified()
+      const existingId = state.idempotency[input.idempotency_key]
+      if (existingId) return { work_order: publicOrder(state.work_orders[existingId]), duplicate: true }
+      const now = new Date(this.clock()).toISOString()
+      const workOrder = {
+        work_order_id: `wo_staging_${randomUUID()}`,
+        requested_by: input.requested_by,
+        originating_surface: input.originating_surface,
+        instruction: input.instruction,
+        task_type: input.task_type,
+        scope: input.scope,
+        priority: input.priority,
+        approval_class: input.approval_class,
+        executor: input.executor === 'AUTO_ROUTE' ? 'ORCA' : input.executor,
+        requested_executor: input.executor,
+        required_artifacts: input.task_type === 'staging_smoke_test'
+          ? ['test_log', 'decision_card']
+          : ['repository_identity', 'workflow_status', 'model_response', 'test_log', 'verifier_verdict', 'decision_card'],
+        status: 'DRAFT',
+        lease_owner: null,
+        lease_token_hash: null,
+        lease_expires_at: null,
+        heartbeat_at: null,
+        attempt_count: 0,
+        idempotency_key: input.idempotency_key,
+        result_artifact_id: null,
+        evidence_artifact_id: null,
+        decision_card_artifact_id: null,
+        blocker_code: null,
+        next_action: 'QUEUE_FOR_ORCA',
+        created_at: now,
+        updated_at: now,
+      }
+      state.work_orders[workOrder.work_order_id] = workOrder
+      state.idempotency[input.idempotency_key] = workOrder.work_order_id
+      this._appendEvent(state, { workOrderId: workOrder.work_order_id, fromStatus: null, toStatus: 'DRAFT', code: 'WORK_ORDER_CREATED', actor: input.requested_by })
+      workOrder.status = 'QUEUED'
+      workOrder.updated_at = new Date(this.clock()).toISOString()
+      this._appendEvent(state, { workOrderId: workOrder.work_order_id, fromStatus: 'DRAFT', toStatus: 'QUEUED', code: 'SUPERVISED_SUBMISSION_QUEUED', actor: input.requested_by })
+      await this._write(state)
+      return { work_order: publicOrder(workOrder), duplicate: false }
+    })
+  }
+
+  async listWorkOrders() {
+    return this._exclusive(async () => {
+      const state = await this._readVerified()
+      this._reconcileExpired(state)
+      await this._write(state)
+      return Object.values(state.work_orders).map(publicOrder).sort((a, b) => b.created_at.localeCompare(a.created_at))
+    })
+  }
+
+  async getWorkOrder(workOrderId) {
+    const state = await this._readVerified()
+    const order = state.work_orders[workOrderId]
+    if (!order) throw new StagingStoreError('WORK_ORDER_NOT_FOUND', 404)
+    return publicOrder(order)
+  }
+
+  async getEvents(workOrderId) {
+    await this.getWorkOrder(workOrderId)
+    const state = await this._readVerified()
+    return state.events.filter((event) => event.work_order_id === workOrderId).map((event) => structuredClone(event))
+  }
+
+  async getArtifacts(workOrderId) {
+    await this.getWorkOrder(workOrderId)
+    const state = await this._readVerified()
+    return Object.values(state.artifacts).filter((artifact) => artifact.work_order_id === workOrderId).map((artifact) => structuredClone(artifact))
+  }
+
+  async getDecisionCard(workOrderId) {
+    await this.getWorkOrder(workOrderId)
+    const state = await this._readVerified()
+    const card = state.decision_cards[workOrderId]
+    if (!card) throw new StagingStoreError('DECISION_CARD_NOT_AVAILABLE', 404)
+    return structuredClone(card)
+  }
+
+  async claim({ leaseOwner, leaseTtlMs = 60_000 }) {
+    return this._exclusive(async () => {
+      const state = await this._readVerified()
+      this._reconcileExpired(state)
+      const order = Object.values(state.work_orders)
+        .filter((candidate) => candidate.status === 'QUEUED' && candidate.executor === 'ORCA')
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))[0]
+      if (!order) {
+        await this._write(state)
+        return null
+      }
+      const leaseToken = randomBytes(32).toString('base64url')
+      const prior = order.status
+      const now = this.clock()
+      Object.assign(order, {
+        status: 'CLAIMED',
+        lease_owner: leaseOwner,
+        lease_token_hash: sha256(leaseToken),
+        lease_expires_at: new Date(now + leaseTtlMs).toISOString(),
+        heartbeat_at: new Date(now).toISOString(),
+        attempt_count: order.attempt_count + 1,
+        blocker_code: null,
+        next_action: 'START_TYPED_EXECUTION',
+        updated_at: new Date(now).toISOString(),
+      })
+      this._appendEvent(state, { workOrderId: order.work_order_id, fromStatus: prior, toStatus: 'CLAIMED', code: 'LEASE_CLAIMED', actor: leaseOwner })
+      await this._write(state)
+      return { work_order: publicOrder(order), lease_token: leaseToken }
+    })
+  }
+
+  _requireLease(order, leaseToken) {
+    if (!order.lease_token_hash || !constantTimeEqual(order.lease_token_hash, sha256(leaseToken ?? ''))) {
+      throw new StagingStoreError('STALE_FENCING_TOKEN', 409)
+    }
+    if (Date.parse(order.lease_expires_at) <= this.clock()) throw new StagingStoreError('LEASE_EXPIRED', 409)
+  }
+
+  async heartbeat(workOrderId, { leaseOwner, leaseToken, leaseTtlMs = 60_000 }) {
+    return this._exclusive(async () => {
+      const state = await this._readVerified()
+      const order = state.work_orders[workOrderId]
+      if (!order) throw new StagingStoreError('WORK_ORDER_NOT_FOUND', 404)
+      this._requireLease(order, leaseToken)
+      if (order.lease_owner !== leaseOwner) throw new StagingStoreError('WRONG_LEASE_OWNER', 403)
+      const now = this.clock()
+      const prior = order.status
+      order.status = 'RUNNING'
+      order.heartbeat_at = new Date(now).toISOString()
+      order.lease_expires_at = new Date(now + leaseTtlMs).toISOString()
+      order.updated_at = new Date(now).toISOString()
+      order.next_action = 'CONTINUE_TYPED_EXECUTION'
+      this._appendEvent(state, { workOrderId, fromStatus: prior, toStatus: 'RUNNING', code: prior === 'CLAIMED' ? 'EXECUTION_STARTED' : 'LEASE_HEARTBEAT', actor: leaseOwner })
+      await this._write(state)
+      return publicOrder(order)
+    })
+  }
+
+  async uploadArtifact(workOrderId, { leaseOwner, leaseToken, artifact }) {
+    const content = Buffer.from(artifact.content_base64, 'base64')
+    if (content.length !== artifact.byte_count || sha256(content) !== artifact.sha256) {
+      await this.block(workOrderId, { leaseOwner, leaseToken, blockerCode: 'ARTIFACT_INTEGRITY_FAILURE', nextAction: 'REGENERATE_ARTIFACT' })
+      throw new StagingStoreError('ARTIFACT_INTEGRITY_FAILURE', 409)
+    }
+    return this._exclusive(async () => {
+      const state = await this._readVerified()
+      const order = state.work_orders[workOrderId]
+      if (!order) throw new StagingStoreError('WORK_ORDER_NOT_FOUND', 404)
+      this._requireLease(order, leaseToken)
+      if (order.lease_owner !== leaseOwner) throw new StagingStoreError('WRONG_LEASE_OWNER', 403)
+      const objectPath = path.join(this.artifactDirectory, artifact.sha256)
+      try {
+        const existing = await readFile(objectPath)
+        if (sha256(existing) !== artifact.sha256) throw new StagingStoreError('ARTIFACT_INTEGRITY_FAILURE', 503)
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+        await writeFile(objectPath, content, { mode: 0o400, flag: 'wx' })
+      }
+      const artifactId = `art_staging_${randomUUID()}`
+      const metadata = {
+        artifact_id: artifactId,
+        work_order_id: workOrderId,
+        artifact_type: artifact.artifact_type,
+        immutable_uri: `staging/artifacts/sha256/${artifact.sha256}`,
+        sha256: artifact.sha256,
+        byte_count: artifact.byte_count,
+        producer: leaseOwner,
+        attempt: order.attempt_count,
+        sensitivity_classification: artifact.sensitivity_classification,
+        retention_status: `delete-after-${this.retentionDays}-days`,
+        created_at: new Date(this.clock()).toISOString(),
+      }
+      state.artifacts[artifactId] = metadata
+      const prior = order.status
+      order.status = 'RUNNING'
+      order.updated_at = new Date(this.clock()).toISOString()
+      this._appendEvent(state, { workOrderId, fromStatus: prior, toStatus: 'RUNNING', code: 'ARTIFACT_STORED', actor: leaseOwner, metadata: { artifact_id: artifactId, artifact_type: artifact.artifact_type, sha256: artifact.sha256 } })
+      await this._write(state)
+      const roundTrip = await readFile(objectPath)
+      if (sha256(roundTrip) !== artifact.sha256) throw new StagingStoreError('ARTIFACT_INTEGRITY_FAILURE', 503)
+      return structuredClone(metadata)
+    })
+  }
+
+  async complete(workOrderId, { leaseOwner, leaseToken, resultArtifactId, evidenceArtifactId, decisionCardArtifactId }) {
+    return this._exclusive(async () => {
+      const state = await this._readVerified()
+      const order = state.work_orders[workOrderId]
+      if (!order) throw new StagingStoreError('WORK_ORDER_NOT_FOUND', 404)
+      if (order.status === 'COMPLETED') {
+        if (order.result_artifact_id === resultArtifactId && order.decision_card_artifact_id === decisionCardArtifactId) return publicOrder(order)
+        throw new StagingStoreError('COMPLETION_CONFLICT', 409)
+      }
+      this._requireLease(order, leaseToken)
+      if (order.lease_owner !== leaseOwner) throw new StagingStoreError('WRONG_LEASE_OWNER', 403)
+      const artifacts = Object.values(state.artifacts).filter((artifact) => artifact.work_order_id === workOrderId)
+      const types = new Set(artifacts.map((artifact) => artifact.artifact_type))
+      const missing = order.required_artifacts.filter((type) => !types.has(type))
+      if (missing.length) {
+        const prior = order.status
+        Object.assign(order, { status: 'BLOCKED', blocker_code: 'REQUIRED_ARTIFACT_MISSING', next_action: 'UPLOAD_REQUIRED_ARTIFACTS', lease_owner: null, lease_token_hash: null, lease_expires_at: null, heartbeat_at: null, updated_at: new Date(this.clock()).toISOString() })
+        this._appendEvent(state, { workOrderId, fromStatus: prior, toStatus: 'BLOCKED', code: 'REQUIRED_ARTIFACT_MISSING', actor: leaseOwner, metadata: { missing_artifact_types: missing } })
+        await this._write(state)
+        throw new StagingStoreError('REQUIRED_ARTIFACT_MISSING', 409)
+      }
+      for (const artifactId of [resultArtifactId, evidenceArtifactId, decisionCardArtifactId]) {
+        if (!state.artifacts[artifactId] || state.artifacts[artifactId].work_order_id !== workOrderId) {
+          const prior = order.status
+          Object.assign(order, { status: 'BLOCKED', blocker_code: 'RETURN_CHANNEL_INCOMPLETE', next_action: 'REBUILD_RETURN_CHANNEL', lease_owner: null, lease_token_hash: null, lease_expires_at: null, heartbeat_at: null, updated_at: new Date(this.clock()).toISOString() })
+          this._appendEvent(state, { workOrderId, fromStatus: prior, toStatus: 'BLOCKED', code: 'RETURN_CHANNEL_INCOMPLETE', actor: leaseOwner })
+          await this._write(state)
+          throw new StagingStoreError('ARTIFACT_REFERENCE_INVALID', 409)
+        }
+      }
+      const cardMetadata = state.artifacts[decisionCardArtifactId]
+      if (cardMetadata.artifact_type !== 'decision_card') throw new StagingStoreError('DECISION_CARD_INVALID', 409)
+      const cardContent = JSON.parse(await readFile(path.join(this.root, cardMetadata.immutable_uri), 'utf8'))
+      if (cardContent.work_order_id !== workOrderId || cardContent.controls?.approve?.enabled !== false) {
+        const prior = order.status
+        Object.assign(order, { status: 'BLOCKED', blocker_code: 'EXECUTOR_SELF_APPROVAL_REJECTED', next_action: 'INDEPENDENT_REVIEW_REQUIRED', lease_owner: null, lease_token_hash: null, lease_expires_at: null, heartbeat_at: null, updated_at: new Date(this.clock()).toISOString() })
+        this._appendEvent(state, { workOrderId, fromStatus: prior, toStatus: 'BLOCKED', code: 'EXECUTOR_SELF_APPROVAL_REJECTED', actor: leaseOwner })
+        await this._write(state)
+        throw new StagingStoreError('DECISION_CARD_INVALID', 409)
+      }
+      const prior = order.status
+      order.status = 'VERIFYING'
+      order.updated_at = new Date(this.clock()).toISOString()
+      this._appendEvent(state, { workOrderId, fromStatus: prior, toStatus: 'VERIFYING', code: 'RETURN_CHANNEL_VERIFYING', actor: leaseOwner })
+      Object.assign(order, {
+        status: 'COMPLETED',
+        result_artifact_id: resultArtifactId,
+        evidence_artifact_id: evidenceArtifactId,
+        decision_card_artifact_id: decisionCardArtifactId,
+        blocker_code: null,
+        next_action: 'SUPERVISED_REVIEW_COMPLETE',
+        lease_owner: null,
+        lease_token_hash: null,
+        lease_expires_at: null,
+        heartbeat_at: null,
+        updated_at: new Date(this.clock()).toISOString(),
+      })
+      state.decision_cards[workOrderId] = cardContent
+      this._appendEvent(state, { workOrderId, fromStatus: 'VERIFYING', toStatus: 'COMPLETED', code: 'DECISION_CARD_PUBLISHED', actor: leaseOwner, metadata: { decision_card_artifact_id: decisionCardArtifactId } })
+      await this._write(state)
+      return publicOrder(order)
+    })
+  }
+
+  async block(workOrderId, { leaseOwner, leaseToken, blockerCode, nextAction }) {
+    return this._exclusive(async () => {
+      const state = await this._readVerified()
+      const order = state.work_orders[workOrderId]
+      if (!order) throw new StagingStoreError('WORK_ORDER_NOT_FOUND', 404)
+      if (order.lease_token_hash) this._requireLease(order, leaseToken)
+      if (order.lease_owner && order.lease_owner !== leaseOwner) throw new StagingStoreError('WRONG_LEASE_OWNER', 403)
+      const prior = order.status
+      Object.assign(order, { status: 'BLOCKED', blocker_code: blockerCode, next_action: nextAction, lease_owner: null, lease_token_hash: null, lease_expires_at: null, heartbeat_at: null, updated_at: new Date(this.clock()).toISOString() })
+      this._appendEvent(state, { workOrderId, fromStatus: prior, toStatus: 'BLOCKED', code: blockerCode, actor: leaseOwner })
+      await this._write(state)
+      return publicOrder(order)
+    })
+  }
+
+  async release(workOrderId, { leaseOwner, leaseToken }) {
+    return this._exclusive(async () => {
+      const state = await this._readVerified()
+      const order = state.work_orders[workOrderId]
+      if (!order) throw new StagingStoreError('WORK_ORDER_NOT_FOUND', 404)
+      this._requireLease(order, leaseToken)
+      if (order.lease_owner !== leaseOwner) throw new StagingStoreError('WRONG_LEASE_OWNER', 403)
+      const prior = order.status
+      Object.assign(order, { status: 'QUEUED', blocker_code: 'WAITING_FOR_ORCA', next_action: 'RECLAIM_AFTER_RECONNECT', lease_owner: null, lease_token_hash: null, lease_expires_at: null, heartbeat_at: null, updated_at: new Date(this.clock()).toISOString() })
+      this._appendEvent(state, { workOrderId, fromStatus: prior, toStatus: 'QUEUED', code: 'ORCA_RELEASED', actor: leaseOwner })
+      await this._write(state)
+      return publicOrder(order)
+    })
+  }
+}
