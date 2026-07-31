@@ -19,6 +19,21 @@ export function sha256(value) {
   return createHash('sha256').update(value).digest('hex')
 }
 
+// Exact currently supported token scopes, from the session-issuing routes in
+// app.mjs. Owner: work-orders:submit/read/retry. ORCA worker: claim,
+// heartbeat, artifact:return, complete, block, release.
+export const KNOWN_SCOPES = Object.freeze([
+  'work-orders:submit',
+  'work-orders:read',
+  'work-orders:retry',
+  'claim',
+  'heartbeat',
+  'artifact:return',
+  'complete',
+  'block',
+  'release',
+])
+
 export function constantTimeEqual(left, right) {
   const a = Buffer.from(String(left))
   const b = Buffer.from(String(right))
@@ -61,7 +76,7 @@ export function signToken(payload, key, { issuer, audience, ttlSeconds }) {
   return `${header}.${body}.${signature}`
 }
 
-export function verifyToken(token, key, { issuer, audience, allowedRoles }) {
+export function verifyToken(token, key, { issuer, audience, allowedRoles, requiredScopes = [] }) {
   const [headerPart, payloadPart, signature] = String(token ?? '').split('.')
   if (!headerPart || !payloadPart || !signature) throw new Error('INVALID_TOKEN')
   const expected = createHmac('sha256', key).update(`${headerPart}.${payloadPart}`).digest('base64url')
@@ -80,5 +95,9 @@ export function verifyToken(token, key, { issuer, audience, allowedRoles }) {
   }
   if (payload.exp <= now) throw new Error('EXPIRED_TOKEN')
   if (!allowedRoles.includes(payload.role)) throw new Error('FORBIDDEN_ROLE')
+  if (!Array.isArray(payload.scopes) || payload.scopes.length === 0 || payload.scopes.some((scope) => typeof scope !== 'string' || !KNOWN_SCOPES.includes(scope))) {
+    throw new Error('INVALID_TOKEN')
+  }
+  if (requiredScopes.some((scope) => !payload.scopes.includes(scope))) throw new Error('INSUFFICIENT_SCOPE')
   return payload
 }

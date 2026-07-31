@@ -399,7 +399,7 @@ test('JWT expiration must be a valid future integer', async (t) => {
   // covered by the null case below.
   function mint(payload, key = SESSION_KEY) {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
-    const body = Buffer.from(JSON.stringify({ sub: 'test', role: 'owner', ...payload, iss: f.config.issuer, aud: 'motesart-os-staging-preview', iat: Math.floor(Date.now() / 1000) })).toString('base64url')
+    const body = Buffer.from(JSON.stringify({ sub: 'test', role: 'owner', scopes: ['work-orders:submit', 'work-orders:read', 'work-orders:retry'], ...payload, iss: f.config.issuer, aud: 'motesart-os-staging-preview', iat: Math.floor(Date.now() / 1000) })).toString('base64url')
     const signature = createHmac('sha256', key).update(`${header}.${body}`).digest('base64url')
     return `${header}.${body}.${signature}`
   }

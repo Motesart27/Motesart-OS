@@ -53,7 +53,7 @@ async function call(baseUrl, route, { token, head = HEAD, body = {}, method = 'P
 }
 
 function ownerToken(config, overrides = {}) {
-  return signToken({ sub: config.ownerId, role: 'owner', ...overrides }, SESSION_KEY, {
+  return signToken({ sub: config.ownerId, role: 'owner', scopes: ['work-orders:submit', 'work-orders:read', 'work-orders:retry'], ...overrides }, SESSION_KEY, {
     issuer: config.issuer,
     audience: 'motesart-os-staging-preview',
     ttlSeconds: overrides.ttlSeconds ?? 60,
