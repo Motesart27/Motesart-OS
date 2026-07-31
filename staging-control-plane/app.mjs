@@ -9,6 +9,7 @@ const OWNER_BODY_FIELDS = new Set(['owner_id', 'password'])
 const WORK_ORDER_FIELDS = new Set(['instruction', 'originating_surface', 'task_type', 'scope', 'priority', 'approval_class', 'executor', 'idempotency_key'])
 const ARTIFACT_FIELDS = new Set(['artifact_type', 'content_base64', 'sha256', 'byte_count', 'sensitivity_classification'])
 const COMPLETE_FIELDS = new Set(['result_artifact_id', 'evidence_artifact_id', 'decision_card_artifact_id'])
+const ORCA_ACTION_SCOPES = Object.freeze({ heartbeat: 'heartbeat', artifacts: 'artifact:return', complete: 'complete', block: 'block', release: 'release' })
 const MANUAL_RETRY_FIELDS = new Set(['idempotency_key'])
 
 export class StagingApiError extends Error {
@@ -17,6 +18,38 @@ export class StagingApiError extends Error {
     this.name = 'StagingApiError'
     this.code = code
     this.status = status
+  }
+}
+
+// Proxy-aware client identity. Forwarded headers are honored only when the
+// direct peer is an explicitly configured trusted proxy; the rightmost
+// X-Forwarded-For hop is used because that is the value the trusted proxy
+// itself appended (anything to its left may be client-spoofed). Without a
+// trusted peer the socket address is always the fallback.
+export function clientIdentity(request, trustedProxyIps) {
+  const socketAddress = request.socket.remoteAddress ?? 'unknown'
+  if (!Array.isArray(trustedProxyIps) || !trustedProxyIps.includes(socketAddress)) return socketAddress
+  const forwarded = request.headers['x-forwarded-for']
+  if (typeof forwarded !== 'string' || forwarded.length > 512) return socketAddress
+  const hops = forwarded.split(',').map((hop) => hop.trim()).filter(Boolean)
+  if (hops.length === 0) return socketAddress
+  return hops[hops.length - 1]
+}
+
+// Bounded login throttle: per-identity buckets with expiry sweep on every
+// insert, a hard cap on bucket count, and fail-closed rejection when full.
+export function createLoginThrottle({ now = () => Date.now(), limit = 5, windowMs = 60_000, maxBuckets = 1024 } = {}) {
+  const buckets = new Map()
+  return function throttle(identityKey) {
+    const current = now()
+    for (const [key, record] of buckets) {
+      if (record.resetAt <= current) buckets.delete(key)
+    }
+    if (!buckets.has(identityKey) && buckets.size >= maxBuckets) throw new StagingApiError('AUTH_RATE_LIMITED', 429)
+    const record = buckets.get(identityKey) ?? { count: 0, resetAt: current + windowMs }
+    if (record.count >= limit) throw new StagingApiError('AUTH_RATE_LIMITED', 429)
+    record.count += 1
+    buckets.set(identityKey, record)
   }
 }
 
@@ -113,7 +146,7 @@ function safePath(url) {
 }
 
 export function createStagingApi({ store, config, logger = console }) {
-  const loginAttempts = new Map()
+  const throttleLogin = createLoginThrottle({ now: typeof config.now === 'function' ? () => config.now() : undefined })
   const audit = (event, metadata = {}) => logger.info?.(JSON.stringify({ event, ...metadata }))
 
   function requirePreview(request) {
@@ -123,16 +156,17 @@ export function createStagingApi({ store, config, logger = console }) {
     return origin
   }
 
-  function requireRole(request, role) {
+  function requireRole(request, role, requiredScope = null) {
     const token = bearer(request)
     try {
       return verifyToken(token, role === 'owner' ? config.sessionSigningKey : config.orcaSigningKey, {
         issuer: config.issuer,
         audience: role === 'owner' ? 'motesart-os-staging-preview' : 'operator-bridge-staging-orca',
         allowedRoles: [role],
+        requiredScopes: requiredScope ? [requiredScope] : [],
       })
     } catch (error) {
-      if (error.message === 'FORBIDDEN_ROLE') throw new StagingApiError('FORBIDDEN_ROLE', 403)
+      if (error.message === 'FORBIDDEN_ROLE' || error.message === 'INSUFFICIENT_SCOPE') throw new StagingApiError(error.message, 403)
       throw new StagingApiError(error.message === 'EXPIRED_TOKEN' ? 'SESSION_EXPIRED' : 'AUTHENTICATION_INVALID', 401)
     }
   }
@@ -161,15 +195,9 @@ export function createStagingApi({ store, config, logger = console }) {
 
     if (request.method === 'POST' && pathname === '/v1/auth/session') {
       const previewOrigin = requirePreview(request)
-      const source = request.socket.remoteAddress ?? 'unknown'
-      const now = Date.now()
-      const record = loginAttempts.get(source) ?? { count: 0, resetAt: now + 60_000 }
-      if (record.resetAt <= now) Object.assign(record, { count: 0, resetAt: now + 60_000 })
-      if (record.count >= 5) throw new StagingApiError('AUTH_RATE_LIMITED', 429)
-      record.count += 1
-      loginAttempts.set(source, record)
       const body = await bodyJson(request, 16_000)
       exactFields(body, OWNER_BODY_FIELDS)
+      throttleLogin(`${clientIdentity(request, config.trustedProxyIps)}|${body.owner_id ?? ''}`)
       if (!constantTimeEqual(body.owner_id ?? '', config.ownerId) || !verifyPassword(body.password ?? '', config.ownerPasswordHash)) {
         audit('owner_session_rejected', { status: 401 })
         throw new StagingApiError('AUTHENTICATION_INVALID', 401)
@@ -202,7 +230,12 @@ export function createStagingApi({ store, config, logger = console }) {
 
     if (pathname.startsWith('/v1/work-orders')) {
       const previewOrigin = requirePreview(request)
-      const identity = requireRole(request, 'owner')
+      const ownerScope = request.method === 'POST' && pathname === '/v1/work-orders'
+        ? 'work-orders:submit'
+        : request.method === 'POST' && /^\/v1\/work-orders\/[A-Za-z0-9._:-]+\/manual-retry$/.test(pathname)
+          ? 'work-orders:retry'
+          : 'work-orders:read'
+      const identity = requireRole(request, 'owner', ownerScope)
       if (request.method === 'POST' && pathname === '/v1/work-orders') {
         const body = validateWorkOrder(await bodyJson(request))
         const created = await store.createWorkOrder(body)
@@ -239,7 +272,7 @@ export function createStagingApi({ store, config, logger = console }) {
     }
 
     if (request.method === 'POST' && pathname === '/v1/executors/orca/claim') {
-      const identity = requireRole(request, 'orca')
+      const identity = requireRole(request, 'orca', 'claim')
       const body = await bodyJson(request, 8_000)
       exactFields(body, new Set(['capabilities', 'lease_ttl_seconds']))
       if (!Array.isArray(body.capabilities) || body.capabilities.some((item) => typeof item !== 'string')) throw new StagingApiError('INVALID_CAPABILITIES')
@@ -250,7 +283,7 @@ export function createStagingApi({ store, config, logger = console }) {
 
     const orcaMatch = pathname.match(/^\/v1\/executors\/orca\/work-orders\/([A-Za-z0-9._:-]+)\/(heartbeat|artifacts|complete|block|release)$/)
     if (orcaMatch && request.method === 'POST') {
-      const identity = requireRole(request, 'orca')
+      const identity = requireRole(request, 'orca', ORCA_ACTION_SCOPES[orcaMatch[2]])
       const workOrderId = orcaMatch[1]
       const action = orcaMatch[2]
       const leaseToken = request.headers['x-lease-token']

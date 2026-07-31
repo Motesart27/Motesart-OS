@@ -22,6 +22,9 @@ const config = {
   issuer: 'mya-operator-bridge-staging-v1',
   ownerSessionTtlSeconds: 900,
   orcaSessionTtlSeconds: 900,
+  // Explicit proxy trust model: empty by default, so forwarded headers are
+  // never trusted unless the operator names the exact proxy peer addresses.
+  trustedProxyIps: (process.env.STAGING_TRUSTED_PROXY_IPS ?? '').split(',').map((value) => value.trim()).filter(Boolean),
 }
 
 const store = await new StagingStore({

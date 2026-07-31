@@ -51,9 +51,10 @@ function assertWorkOrder(order) {
 }
 
 export class FileWorkOrderLedger {
-  constructor({ root, clock = () => Date.now() }) {
+  constructor({ root, clock = () => Date.now(), artifactVerifier = null }) {
     this.root = root
     this.clock = clock
+    this.artifactVerifier = artifactVerifier
     this.statePath = path.join(root, 'ledger.json')
     this._tail = Promise.resolve()
   }
@@ -272,24 +273,61 @@ export class FileWorkOrderLedger {
     })
   }
 
-  async completeIdempotently(workOrderId, { actor, resultUri, resultHash, evidenceUri, evidenceHash, leaseToken }) {
-    const current = await this.get(workOrderId)
-    if (current.status === 'COMPLETED') {
-      if (current.result_hash === resultHash && current.evidence_hash === evidenceHash) return current
-      throw new WorkOrderError('COMPLETION_CONFLICT', 'Completed result differs')
+  async _verifyRequiredArtifacts(order, { resultHash, evidenceHash }) {
+    if (!Array.isArray(order.required_artifacts) || order.required_artifacts.length === 0) return
+    if (!this.artifactVerifier) {
+      throw new WorkOrderError('REQUIRED_ARTIFACT_UNVERIFIABLE', 'Required artifacts cannot be verified without an artifact verifier')
     }
-    return this.transition(workOrderId, 'COMPLETED', {
-      actor,
-      reason: 'IDEMPOTENT_COMPLETION',
-      leaseToken,
-      patch: {
+    const artifacts = await this.artifactVerifier(order.work_order_id)
+    if (!Array.isArray(artifacts)) throw new WorkOrderError('REQUIRED_ARTIFACT_UNVERIFIABLE', 'Artifact verifier returned an invalid result')
+    const owned = artifacts.filter((artifact) => artifact.work_order_id === order.work_order_id)
+    const presentTypes = new Set(owned.map((artifact) => artifact.artifact_type))
+    const missing = order.required_artifacts.filter((type) => !presentTypes.has(type))
+    if (missing.length) throw new WorkOrderError('REQUIRED_ARTIFACT_MISSING', `Missing required artifacts: ${missing.join(', ')}`)
+    const ownedHashes = new Set(owned.map((artifact) => artifact.sha256))
+    if (!ownedHashes.has(resultHash) || !ownedHashes.has(evidenceHash)) {
+      throw new WorkOrderError('ARTIFACT_REFERENCE_INVALID', 'Completion references artifacts that do not belong to this work order')
+    }
+  }
+
+  async completeIdempotently(workOrderId, { actor, resultUri, resultHash, evidenceUri, evidenceHash, leaseToken }) {
+    return this._exclusive(async () => {
+      const state = await this._read()
+      const order = state.work_orders[workOrderId]
+      if (!order) throw new WorkOrderError('WORK_ORDER_NOT_FOUND', 'Work order not found')
+      if (order.status === 'COMPLETED') {
+        if (order.result_hash === resultHash && order.evidence_hash === evidenceHash) return structuredClone(order)
+        throw new WorkOrderError('COMPLETION_CONFLICT', 'Completed result differs')
+      }
+      // Validation and the committed transition share this atomic write
+      // boundary: the lease/fencing identity and the required-artifact
+      // contract are revalidated against the state being committed.
+      if (!TRANSITIONS[order.status]?.has('COMPLETED')) {
+        throw new WorkOrderError('INVALID_TRANSITION', `${order.status} cannot transition to COMPLETED`)
+      }
+      if (order.lease_token && leaseToken !== order.lease_token) {
+        throw new WorkOrderError('LEASE_MISMATCH', 'Active lease token is required')
+      }
+      await this._verifyRequiredArtifacts(order, { resultHash, evidenceHash })
+      const prior = order.status
+      Object.assign(order, {
+        status: 'COMPLETED',
         result_uri: resultUri,
         result_hash: resultHash,
         evidence_uri: evidenceUri,
         evidence_hash: evidenceHash,
         blocker_code: null,
         next_action: 'HUMAN_REVIEW_COMPLETE',
-      },
+        lease_owner: null,
+        lease_token: null,
+        lease_expires_at: null,
+        heartbeat_at: null,
+        updated_at: iso(this.clock()),
+      })
+      assertWorkOrder(order)
+      state.events.push(this._event(order, prior, 'COMPLETED', 'IDEMPOTENT_COMPLETION', actor ?? 'system'))
+      await this._write(state)
+      return structuredClone(order)
     })
   }
 }
