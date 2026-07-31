@@ -735,3 +735,43 @@ test('F: benign nested payloads still reach the typed handlers', async () => {
   assert.equal(result.work_order_id, 'wo-ok')
   await assert.rejects(worker.execute({ action: 'execute_shell', payload: {} }), (error) => error.message === 'UNSUPPORTED_EXECUTOR_ACTION')
 })
+
+// ---------------------------------------------------------------------------
+// Adversarial-review fixes: lock-recovery revalidation + verifier scoping
+// ---------------------------------------------------------------------------
+
+test('A: a renamed lock is revalidated before recovery completes', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'hardening-lock-revalidate-'))
+  const store = new StagingStore({ root, lockWaitMs: 100, lockPollMs: 20 })
+  const ledgerDirectory = path.join(root, 'staging', 'ledger')
+  await mkdir(ledgerDirectory, { recursive: true })
+  const pid = deadPid()
+  const tombstone = path.join(ledgerDirectory, 'tombstone.json')
+  await writeFile(tombstone, JSON.stringify({ pid, created_at: '2026-07-30T00:00:00.000Z' }))
+  assert.equal(await store._revalidateRenamedLock(tombstone, pid), true)
+  assert.equal(await store._revalidateRenamedLock(tombstone, pid + 1), false)
+  await writeFile(tombstone, 'garbage{')
+  assert.equal(await store._revalidateRenamedLock(tombstone, pid), false)
+})
+
+test('A: recovery never tombstones a lock whose recorded holder is alive', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'hardening-lock-live-'))
+  const content = JSON.stringify({ pid: process.pid, created_at: '2026-07-30T00:00:00.000Z' })
+  const lockPath = await staleLock(root, content)
+  const store = new StagingStore({ root, lockWaitMs: 100, lockPollMs: 20 })
+  assert.equal(await store._recoverStaleLock(), false)
+  assert.equal(await readFile(lockPath, 'utf8'), content)
+})
+
+test('C: required-type presence ignores manifests foreign to the work order', async () => {
+  const verifier = async () => [
+    { artifact_type: 'pull_request_identity', sha256: 'a'.repeat(64), work_order_id: 'wo-foreign' },
+    { artifact_type: 'diff', sha256: 'b'.repeat(64), work_order_id: 'wo-foreign' },
+  ]
+  const { ledger, leaseToken } = await localLedgerFixture({ verifier })
+  await assert.rejects(
+    ledger.completeIdempotently('wo-hardening-1', { actor: 'control-plane', leaseToken, resultUri: 'r', resultHash: 'a'.repeat(64), evidenceUri: 'e', evidenceHash: 'b'.repeat(64) }),
+    (error) => error.code === 'REQUIRED_ARTIFACT_MISSING',
+  )
+  assert.equal((await ledger.get('wo-hardening-1')).status, 'VERIFYING')
+})

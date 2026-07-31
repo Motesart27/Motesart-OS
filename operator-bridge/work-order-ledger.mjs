@@ -280,10 +280,11 @@ export class FileWorkOrderLedger {
     }
     const artifacts = await this.artifactVerifier(order.work_order_id)
     if (!Array.isArray(artifacts)) throw new WorkOrderError('REQUIRED_ARTIFACT_UNVERIFIABLE', 'Artifact verifier returned an invalid result')
-    const presentTypes = new Set(artifacts.map((artifact) => artifact.artifact_type))
+    const owned = artifacts.filter((artifact) => artifact.work_order_id === order.work_order_id)
+    const presentTypes = new Set(owned.map((artifact) => artifact.artifact_type))
     const missing = order.required_artifacts.filter((type) => !presentTypes.has(type))
     if (missing.length) throw new WorkOrderError('REQUIRED_ARTIFACT_MISSING', `Missing required artifacts: ${missing.join(', ')}`)
-    const ownedHashes = new Set(artifacts.filter((artifact) => artifact.work_order_id === order.work_order_id).map((artifact) => artifact.sha256))
+    const ownedHashes = new Set(owned.map((artifact) => artifact.sha256))
     if (!ownedHashes.has(resultHash) || !ownedHashes.has(evidenceHash)) {
       throw new WorkOrderError('ARTIFACT_REFERENCE_INVALID', 'Completion references artifacts that do not belong to this work order')
     }

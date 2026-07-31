@@ -140,9 +140,25 @@ export class StagingStore {
     } catch (error) {
       return error.code === 'ENOENT' // another recoverer won the race; retry acquire
     }
+    // Re-validate the file actually renamed: between the staleness check and
+    // the rename a fresh holder may have acquired the lock. Never tombstone a
+    // live lock — restore it and fail closed.
+    if (!(await this._revalidateRenamedLock(tombstone, pid))) {
+      await rename(tombstone, this.lockPath).catch(() => undefined)
+      return false
+    }
     await unlink(tombstone).catch(() => undefined)
     await this._recordLockRecovery({ outcome: 'recovered_stale_lock', stale_pid: pid, stale_created_at: typeof metadata.created_at === 'string' ? metadata.created_at : null })
     return true
+  }
+
+  async _revalidateRenamedLock(tombstone, expectedPid) {
+    try {
+      const renamed = JSON.parse(await readFile(tombstone, 'utf8'))
+      return renamed?.pid === expectedPid
+    } catch {
+      return false
+    }
   }
 
   async _recordLockRecovery(entry) {

@@ -18,7 +18,7 @@ Scope: staging control plane and local Operator Bridge only. No production, auto
 
 - `FileWorkOrderLedger.completeIdempotently` enforces `required_artifacts` for every canonical completion: without a configured `artifactVerifier` it fails closed (`REQUIRED_ARTIFACT_UNVERIFIABLE`); missing types → `REQUIRED_ARTIFACT_MISSING`; result/evidence hashes foreign to the work order → `ARTIFACT_REFERENCE_INVALID`.
 - `LocalArtifactStore.listArtifacts(workOrderId)` returns only that work order's manifests and is the intended verifier source.
-- Boundary: the raw supervised `transition()` pathway used by operator-run review scripts is unchanged; canonical completion is the enforced path. Transition-level enforcement is deferred (requires evidence-pathway rewiring and requalification).
+- Boundary: the raw supervised `transition()` pathway used by operator-run review scripts is unchanged; canonical completion is the enforced path. Transition-level enforcement is deferred (requires evidence-pathway rewiring and requalification). Note the deferral also covers the edge worker's `release_or_block_work_order` passthrough of `payload.status` into `transition()`.
 
 ## D. Human-decision enforcement (staging-control-plane/store.mjs)
 
