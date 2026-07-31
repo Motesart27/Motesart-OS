@@ -368,3 +368,205 @@ test('E: complete, release, and retry scopes are independently enforced', async 
   assert.equal(retryDenied.response.status, 403)
   assert.equal(retryDenied.payload.error.code, 'INSUFFICIENT_SCOPE')
 })
+
+// ---------------------------------------------------------------------------
+// Item C: local-ledger required-artifact enforcement
+// ---------------------------------------------------------------------------
+
+import { LocalArtifactStore } from '../../operator-bridge/artifact-store.mjs'
+import { FileWorkOrderLedger } from '../../operator-bridge/work-order-ledger.mjs'
+
+async function localLedgerFixture({ verifier, requiredArtifacts = ['pull_request_identity', 'diff'] } = {}) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'hardening-ledger-'))
+  const ledger = await new FileWorkOrderLedger({ root, artifactVerifier: verifier }).init()
+  await ledger.create({
+    work_order_id: 'wo-hardening-1',
+    requested_by: 'hardening-test',
+    originating_surface: 'test',
+    task_type: 'github_pr_read_only_review',
+    scope: { repository: 'Synthetic/Fixture', pull_request: 1, read_only: true },
+    approval_class: 'READ_ONLY',
+    executor: 'ORCA',
+    required_artifacts: requiredArtifacts,
+    input_hashes: [],
+    status: 'QUEUED',
+    idempotency_key: 'hardening:artifacts:1',
+  })
+  const claimed = await ledger.claim('wo-hardening-1', { leaseOwner: 'orca-h' })
+  await ledger.transition('wo-hardening-1', 'RUNNING', { actor: 'orca-h', leaseToken: claimed.lease_token })
+  await ledger.transition('wo-hardening-1', 'VERIFYING', { actor: 'orca-h', leaseToken: claimed.lease_token })
+  return { ledger, leaseToken: claimed.lease_token }
+}
+
+test('C: completion without a verifier fails closed when artifacts are required', async () => {
+  const { ledger, leaseToken } = await localLedgerFixture()
+  await assert.rejects(
+    ledger.completeIdempotently('wo-hardening-1', { actor: 'control-plane', leaseToken, resultUri: 'r', resultHash: 'a'.repeat(64), evidenceUri: 'e', evidenceHash: 'b'.repeat(64) }),
+    (error) => error.code === 'REQUIRED_ARTIFACT_UNVERIFIABLE',
+  )
+  assert.equal((await ledger.get('wo-hardening-1')).status, 'VERIFYING')
+})
+
+test('C: completion is refused when a required artifact type is missing', async () => {
+  const verifier = async () => [{ artifact_type: 'pull_request_identity', sha256: 'a'.repeat(64), work_order_id: 'wo-hardening-1' }]
+  const { ledger, leaseToken } = await localLedgerFixture({ verifier })
+  await assert.rejects(
+    ledger.completeIdempotently('wo-hardening-1', { actor: 'control-plane', leaseToken, resultUri: 'r', resultHash: 'a'.repeat(64), evidenceUri: 'e', evidenceHash: 'a'.repeat(64) }),
+    (error) => error.code === 'REQUIRED_ARTIFACT_MISSING',
+  )
+  assert.equal((await ledger.get('wo-hardening-1')).status, 'VERIFYING')
+})
+
+test('C: completion is refused when result or evidence identity is foreign to the work order', async () => {
+  const verifier = async () => [
+    { artifact_type: 'pull_request_identity', sha256: 'a'.repeat(64), work_order_id: 'wo-hardening-1' },
+    { artifact_type: 'diff', sha256: 'b'.repeat(64), work_order_id: 'wo-hardening-1' },
+  ]
+  const { ledger, leaseToken } = await localLedgerFixture({ verifier })
+  await assert.rejects(
+    ledger.completeIdempotently('wo-hardening-1', { actor: 'control-plane', leaseToken, resultUri: 'r', resultHash: 'f'.repeat(64), evidenceUri: 'e', evidenceHash: 'b'.repeat(64) }),
+    (error) => error.code === 'ARTIFACT_REFERENCE_INVALID',
+  )
+  assert.equal((await ledger.get('wo-hardening-1')).status, 'VERIFYING')
+})
+
+test('C: artifact store lists only the target work-order artifacts with intact content addressing', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'hardening-artstore-'))
+  const store = await new LocalArtifactStore({ root }).init()
+  await store.putArtifact({ workOrderId: 'wo-a', artifactType: 'diff', content: 'alpha', producingExecutor: 'test', attempt: 1 })
+  await store.putArtifact({ workOrderId: 'wo-b', artifactType: 'diff', content: 'beta', producingExecutor: 'test', attempt: 1 })
+  await store.putArtifact({ workOrderId: 'wo-a', artifactType: 'test_log', content: 'log', producingExecutor: 'test', attempt: 1 })
+  const listed = await store.listArtifacts('wo-a')
+  assert.equal(listed.length, 2)
+  assert.ok(listed.every((manifest) => manifest.work_order_id === 'wo-a'))
+  for (const manifest of listed) await store.readArtifact(manifest)
+  assert.equal((await store.listArtifacts('wo-missing')).length, 0)
+})
+
+test('C: verifier wired to the real artifact store completes only with all required types present', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'hardening-parity-'))
+  const artifactStore = await new LocalArtifactStore({ root: path.join(root, 'artifacts') }).init()
+  const ledger = await new FileWorkOrderLedger({ root: path.join(root, 'ledger'), artifactVerifier: (id) => artifactStore.listArtifacts(id) }).init()
+  await ledger.create({
+    work_order_id: 'wo-hardening-2', requested_by: 'hardening-test', originating_surface: 'test',
+    task_type: 'github_pr_read_only_review', scope: { read_only: true }, approval_class: 'READ_ONLY', executor: 'ORCA',
+    required_artifacts: ['diff', 'test_log'], input_hashes: [], status: 'QUEUED', idempotency_key: 'hardening:artifacts:2',
+  })
+  const claimed = await ledger.claim('wo-hardening-2', { leaseOwner: 'orca-h' })
+  await ledger.transition('wo-hardening-2', 'RUNNING', { actor: 'orca-h', leaseToken: claimed.lease_token })
+  await ledger.transition('wo-hardening-2', 'VERIFYING', { actor: 'orca-h', leaseToken: claimed.lease_token })
+  const diff = await artifactStore.putArtifact({ workOrderId: 'wo-hardening-2', artifactType: 'diff', content: 'the-diff', producingExecutor: 'test', attempt: 1 })
+  await assert.rejects(
+    ledger.completeIdempotently('wo-hardening-2', { actor: 'control-plane', leaseToken: claimed.lease_token, resultUri: diff.immutable_relative_uri, resultHash: diff.sha256, evidenceUri: diff.immutable_relative_uri, evidenceHash: diff.sha256 }),
+    (error) => error.code === 'REQUIRED_ARTIFACT_MISSING',
+  )
+  const log = await artifactStore.putArtifact({ workOrderId: 'wo-hardening-2', artifactType: 'test_log', content: 'the-log', producingExecutor: 'test', attempt: 1 })
+  const completed = await ledger.completeIdempotently('wo-hardening-2', { actor: 'control-plane', leaseToken: claimed.lease_token, resultUri: diff.immutable_relative_uri, resultHash: diff.sha256, evidenceUri: log.immutable_relative_uri, evidenceHash: log.sha256 })
+  assert.equal(completed.status, 'COMPLETED')
+})
+
+// ---------------------------------------------------------------------------
+// Item D: human-decision flag enforcement
+// ---------------------------------------------------------------------------
+
+import { createDecisionCard } from '../../operator-bridge/decision-card.mjs'
+
+test('D: decision-card creation always disables every control', () => {
+  const card = createDecisionCard({
+    workOrder: { work_order_id: 'wo-x', status: 'COMPLETED', executor: 'ORCA', approval_class: 'READ_ONLY', lease_owner: null, lease_expires_at: null, blocker_code: null, next_action: 'HUMAN_REVIEW_COMPLETE' },
+    originatingInstruction: 'test',
+    artifacts: [],
+    kimiResult: null,
+    codexResult: null,
+    fableResult: { status: 'PASS' },
+  })
+  assert.equal(card.controls.approve.enabled, false)
+  assert.equal(card.controls.reject.enabled, false)
+  assert.equal(card.controls.revise.enabled, false)
+  assert.equal(card.human_decision_required, false)
+  const blockedCard = createDecisionCard({
+    workOrder: { work_order_id: 'wo-y', status: 'BLOCKED', executor: 'ORCA', approval_class: 'READ_ONLY', lease_owner: null, lease_expires_at: null, blocker_code: 'X', next_action: 'REVIEW' },
+    originatingInstruction: 'test', artifacts: [], kimiResult: null, codexResult: null, fableResult: { status: 'BLOCKED' },
+  })
+  assert.equal(blockedCard.human_decision_required, true)
+  assert.equal(blockedCard.controls.approve.enabled, false)
+})
+
+async function completableOrder(f, suffix, card) {
+  const ownerToken = mintOwner(f.config, OWNER_SCOPES)
+  const orcaToken = mintOrca(f.config, ['claim', 'heartbeat', 'artifact:return', 'complete'])
+  await post(f.baseUrl, '/v1/work-orders', { token: ownerToken, body: workOrderBody(suffix) })
+  const orders = await get(f.baseUrl, '/v1/work-orders', { token: ownerToken })
+  const workOrderId = orders.payload.work_orders.find((order) => order.idempotency_key === `hardening-test:${suffix}`).work_order_id
+  const claimed = await post(f.baseUrl, '/v1/executors/orca/claim', { token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+  const leaseToken = claimed.payload.claim.lease_token
+  await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/heartbeat`, { token: orcaToken, leaseToken, body: { lease_ttl_seconds: 60 } })
+  const upload = async (type, content) => {
+    const bytes = Buffer.from(content)
+    return post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/artifacts`, {
+      token: orcaToken, leaseToken,
+      body: { artifact_type: type, content_base64: bytes.toString('base64'), sha256: sha256(bytes), byte_count: bytes.length, sensitivity_classification: 'synthetic' },
+    })
+  }
+  const log = await upload('test_log', '{"passed":true}')
+  const cardArtifact = await upload('decision_card', JSON.stringify(card(workOrderId)))
+  const body = { result_artifact_id: log.payload.artifact.artifact_id, evidence_artifact_id: log.payload.artifact.artifact_id, decision_card_artifact_id: cardArtifact.payload.artifact.artifact_id }
+  return { ownerToken, orcaToken, leaseToken, workOrderId, body }
+}
+
+test('D: completion rejects a card with an enabled non-approve control', async (t) => {
+  const f = await apiFixture()
+  t.after(f.close)
+  const { ownerToken, orcaToken, leaseToken, workOrderId, body } = await completableOrder(f, 'control-enabled', (id) => ({
+    work_order_id: id,
+    human_decision_required: true,
+    controls: { approve: { enabled: false }, reject: { enabled: true }, revise: { enabled: false } },
+  }))
+  const completed = await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/complete`, { token: orcaToken, leaseToken, body })
+  assert.equal(completed.response.status, 409)
+  assert.equal(completed.payload.error.code, 'DECISION_CARD_INVALID')
+  const order = await get(f.baseUrl, `/v1/work-orders/${workOrderId}`, { token: ownerToken })
+  assert.equal(order.payload.work_order.status, 'BLOCKED')
+  assert.equal(order.payload.work_order.blocker_code, 'PROTECTED_CONTROL_ENABLED')
+})
+
+test('D: completion rejects a human-decision card whose controls are not all explicitly disabled', async (t) => {
+  const f = await apiFixture()
+  t.after(f.close)
+  const { ownerToken, orcaToken, leaseToken, workOrderId, body } = await completableOrder(f, 'control-unverified', (id) => ({
+    work_order_id: id,
+    human_decision_required: true,
+    controls: { approve: { enabled: false } },
+  }))
+  const completed = await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/complete`, { token: orcaToken, leaseToken, body })
+  assert.equal(completed.response.status, 409)
+  const order = await get(f.baseUrl, `/v1/work-orders/${workOrderId}`, { token: ownerToken })
+  assert.equal(order.payload.work_order.blocker_code, 'HUMAN_DECISION_CONTROL_UNVERIFIED')
+})
+
+test('D: a fully disabled human-decision card completes and is served read-only with no action path', async (t) => {
+  const f = await apiFixture()
+  t.after(f.close)
+  const { ownerToken, orcaToken, leaseToken, workOrderId, body } = await completableOrder(f, 'control-valid', (id) => ({
+    work_order_id: id,
+    human_decision_required: true,
+    controls: { approve: { enabled: false }, reject: { enabled: false }, revise: { enabled: false } },
+  }))
+  const completed = await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/complete`, { token: orcaToken, leaseToken, body })
+  assert.equal(completed.response.status, 200)
+  assert.equal(completed.payload.work_order.status, 'COMPLETED')
+  const card = await get(f.baseUrl, `/v1/work-orders/${workOrderId}/decision-card`, { token: ownerToken })
+  assert.equal(card.response.status, 200)
+  assert.equal(card.payload.decision_card.human_decision_required, true)
+  assert.equal(card.payload.decision_card.controls.approve.enabled, false)
+  for (const actionPath of ['approve', 'reject', 'execute', 'act']) {
+    const attempt = await post(f.baseUrl, `/v1/work-orders/${workOrderId}/${actionPath}`, { token: ownerToken, body: {} })
+    assert.equal(attempt.response.status, 404, `no programmatic action path may exist for ${actionPath}`)
+  }
+})
+
+test('D: staging UI source keeps every decision control disabled', async () => {
+  const source = await readFile(path.resolve('src/operator-bridge-staging/StagingOperatorBridgeApp.jsx'), 'utf8')
+  assert.equal(source.includes('enabled: true'), false)
+  assert.match(source, /disabled/)
+})

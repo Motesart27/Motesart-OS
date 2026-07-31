@@ -51,9 +51,10 @@ function assertWorkOrder(order) {
 }
 
 export class FileWorkOrderLedger {
-  constructor({ root, clock = () => Date.now() }) {
+  constructor({ root, clock = () => Date.now(), artifactVerifier = null }) {
     this.root = root
     this.clock = clock
+    this.artifactVerifier = artifactVerifier
     this.statePath = path.join(root, 'ledger.json')
     this._tail = Promise.resolve()
   }
@@ -272,12 +273,29 @@ export class FileWorkOrderLedger {
     })
   }
 
+  async _verifyRequiredArtifacts(order, { resultHash, evidenceHash }) {
+    if (!Array.isArray(order.required_artifacts) || order.required_artifacts.length === 0) return
+    if (!this.artifactVerifier) {
+      throw new WorkOrderError('REQUIRED_ARTIFACT_UNVERIFIABLE', 'Required artifacts cannot be verified without an artifact verifier')
+    }
+    const artifacts = await this.artifactVerifier(order.work_order_id)
+    if (!Array.isArray(artifacts)) throw new WorkOrderError('REQUIRED_ARTIFACT_UNVERIFIABLE', 'Artifact verifier returned an invalid result')
+    const presentTypes = new Set(artifacts.map((artifact) => artifact.artifact_type))
+    const missing = order.required_artifacts.filter((type) => !presentTypes.has(type))
+    if (missing.length) throw new WorkOrderError('REQUIRED_ARTIFACT_MISSING', `Missing required artifacts: ${missing.join(', ')}`)
+    const ownedHashes = new Set(artifacts.filter((artifact) => artifact.work_order_id === order.work_order_id).map((artifact) => artifact.sha256))
+    if (!ownedHashes.has(resultHash) || !ownedHashes.has(evidenceHash)) {
+      throw new WorkOrderError('ARTIFACT_REFERENCE_INVALID', 'Completion references artifacts that do not belong to this work order')
+    }
+  }
+
   async completeIdempotently(workOrderId, { actor, resultUri, resultHash, evidenceUri, evidenceHash, leaseToken }) {
     const current = await this.get(workOrderId)
     if (current.status === 'COMPLETED') {
       if (current.result_hash === resultHash && current.evidence_hash === evidenceHash) return current
       throw new WorkOrderError('COMPLETION_CONFLICT', 'Completed result differs')
     }
+    await this._verifyRequiredArtifacts(current, { resultHash, evidenceHash })
     return this.transition(workOrderId, 'COMPLETED', {
       actor,
       reason: 'IDEMPOTENT_COMPLETION',

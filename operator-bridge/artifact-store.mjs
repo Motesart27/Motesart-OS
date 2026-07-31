@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { chmod, copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { ARTIFACT_TYPES } from './constants.mjs'
@@ -98,6 +98,23 @@ export class LocalArtifactStore {
       throw new ArtifactIntegrityError('Artifact content failed verification')
     }
     return content
+  }
+
+  async listArtifacts(workOrderId) {
+    let entries
+    try {
+      entries = await readdir(path.join(this.root, 'manifests'))
+    } catch (error) {
+      if (error.code === 'ENOENT') return []
+      throw error
+    }
+    const manifests = []
+    for (const entry of entries.sort()) {
+      if (!entry.endsWith('.json')) continue
+      const manifest = JSON.parse(await readFile(path.join(this.root, 'manifests', entry), 'utf8'))
+      if (manifest.work_order_id === workOrderId) manifests.push(manifest)
+    }
+    return manifests
   }
 
   async copyVerifiedArtifact(manifest, destination) {

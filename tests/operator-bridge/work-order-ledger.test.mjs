@@ -97,7 +97,14 @@ test('offline ORCA creates a visible resumable block and reconnect requeues it',
 })
 
 test('idempotent completion accepts equal hashes and rejects divergent replay', async () => {
-  const ledger = await fixture()
+  const root = await mkdtemp(path.join(os.tmpdir(), 'operator-bridge-ledger-'))
+  const ledger = await new FileWorkOrderLedger({
+    root,
+    artifactVerifier: async () => [
+      { artifact_type: 'pull_request_identity', sha256: 'a'.repeat(64), work_order_id: 'wo-test-1' },
+      { artifact_type: 'diff', sha256: 'b'.repeat(64), work_order_id: 'wo-test-1' },
+    ],
+  }).init()
   await ledger.create(input({ status: 'QUEUED' }))
   const claimed = await ledger.claim('wo-test-1', { leaseOwner: 'orca-a' })
   await ledger.transition('wo-test-1', 'RUNNING', { actor: 'orca-a', leaseToken: claimed.lease_token })

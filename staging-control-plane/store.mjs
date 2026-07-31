@@ -529,10 +529,20 @@ export class StagingStore {
       const cardMetadata = state.artifacts[decisionCardArtifactId]
       if (cardMetadata.artifact_type !== 'decision_card') throw new StagingStoreError('DECISION_CARD_INVALID', 409)
       const cardContent = JSON.parse(await readFile(path.join(this.root, cardMetadata.immutable_uri), 'utf8'))
-      if (cardContent.work_order_id !== workOrderId || cardContent.controls?.approve?.enabled !== false) {
+      const controls = cardContent.controls ?? {}
+      // Server-side non-execution contract: a card with any enabled control is
+      // never completable, and a card marked human_decision_required must carry
+      // every control explicitly disabled. Protected actions stay disabled
+      // regardless of the flag; no path may convert a card into an action.
+      const controlViolation = cardContent.work_order_id !== workOrderId ? 'DECISION_CARD_INVALID'
+        : controls.approve?.enabled !== false ? 'EXECUTOR_SELF_APPROVAL_REJECTED'
+        : controls.reject?.enabled === true || controls.revise?.enabled === true ? 'PROTECTED_CONTROL_ENABLED'
+        : cardContent.human_decision_required === true && (controls.reject?.enabled !== false || controls.revise?.enabled !== false) ? 'HUMAN_DECISION_CONTROL_UNVERIFIED'
+        : null
+      if (controlViolation) {
         const prior = order.status
-        Object.assign(order, { status: 'BLOCKED', blocker_code: 'EXECUTOR_SELF_APPROVAL_REJECTED', next_action: 'INDEPENDENT_REVIEW_REQUIRED', lease_owner: null, lease_token_hash: null, lease_expires_at: null, heartbeat_at: null, updated_at: new Date(this.clock()).toISOString() })
-        this._appendEvent(state, { workOrderId, fromStatus: prior, toStatus: 'BLOCKED', code: 'EXECUTOR_SELF_APPROVAL_REJECTED', actor: leaseOwner })
+        Object.assign(order, { status: 'BLOCKED', blocker_code: controlViolation, next_action: 'INDEPENDENT_REVIEW_REQUIRED', lease_owner: null, lease_token_hash: null, lease_expires_at: null, heartbeat_at: null, updated_at: new Date(this.clock()).toISOString() })
+        this._appendEvent(state, { workOrderId, fromStatus: prior, toStatus: 'BLOCKED', code: controlViolation, actor: leaseOwner })
         await this._write(state)
         throw new StagingStoreError('DECISION_CARD_INVALID', 409)
       }
