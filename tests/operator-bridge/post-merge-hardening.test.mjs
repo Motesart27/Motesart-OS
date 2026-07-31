@@ -775,3 +775,77 @@ test('C: required-type presence ignores manifests foreign to the work order', as
   )
   assert.equal((await ledger.get('wo-hardening-1')).status, 'VERIFYING')
 })
+
+// ---------------------------------------------------------------------------
+// Transition-level completion enforcement
+// ---------------------------------------------------------------------------
+
+import { readdir } from 'node:fs/promises'
+
+test('T: raw transition to COMPLETED is rejected from VERIFYING and READY_FOR_APPROVAL', async () => {
+  const { ledger, leaseToken } = await localLedgerFixture({ verifier: async () => [] })
+  for (const target of ['VERIFYING', 'READY_FOR_APPROVAL']) {
+    if (target === 'READY_FOR_APPROVAL') await ledger.transition('wo-hardening-1', 'READY_FOR_APPROVAL', { actor: 'orca-h', leaseToken })
+    const before = await ledger.get('wo-hardening-1')
+    const eventsBefore = await ledger.events('wo-hardening-1')
+    await assert.rejects(
+      ledger.transition('wo-hardening-1', 'COMPLETED', { actor: 'orca-h', leaseToken, patch: { result_hash: 'f'.repeat(64) } }),
+      (error) => error.code === 'COMPLETION_REQUIRES_CANONICAL_PATH',
+    )
+    const after = await ledger.get('wo-hardening-1')
+    assert.equal(after.status, before.status)
+    assert.equal(after.result_hash, before.result_hash)
+    assert.deepEqual(await ledger.events('wo-hardening-1'), eventsBefore)
+  }
+})
+
+test('T: edge-worker release_or_block passthrough cannot request COMPLETED', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'hardening-edge-'))
+  const ledger = await new FileWorkOrderLedger({ root }).init()
+  await ledger.create({
+    work_order_id: 'wo-edge-1', requested_by: 'hardening-test', originating_surface: 'test',
+    task_type: 'github_pr_read_only_review', scope: { read_only: true }, approval_class: 'READ_ONLY', executor: 'ORCA',
+    required_artifacts: [], input_hashes: [], status: 'QUEUED', idempotency_key: 'hardening:edge:1',
+  })
+  const claimed = await ledger.claim('wo-edge-1', { leaseOwner: 'edge-hardening' })
+  const worker = new OrcaEdgeWorker({ workerId: 'edge-hardening', ledger, githubCollector: {}, kimiAdapter: {}, artifactStore: {} })
+  for (const status of ['COMPLETED', 'VERIFYING', 'READY_FOR_APPROVAL', 'RUNNING', 'FAILED']) {
+    await assert.rejects(
+      worker.execute({ action: 'release_or_block_work_order', payload: { work_order_id: 'wo-edge-1', status, lease_token: claimed.lease_token } }),
+      (error) => error.message === 'INVALID_RELEASE_OR_BLOCK_STATUS',
+    )
+  }
+  const order = await ledger.get('wo-edge-1')
+  assert.equal(order.status, 'CLAIMED')
+  assert.equal((await ledger.events('wo-edge-1')).filter((event) => event.to_status === 'COMPLETED').length, 0)
+})
+
+test('T: valid block and release behavior through the edge worker remains intact', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'hardening-edge-valid-'))
+  const ledger = await new FileWorkOrderLedger({ root }).init()
+  await ledger.create({
+    work_order_id: 'wo-edge-2', requested_by: 'hardening-test', originating_surface: 'test',
+    task_type: 'github_pr_read_only_review', scope: { read_only: true }, approval_class: 'READ_ONLY', executor: 'ORCA',
+    required_artifacts: [], input_hashes: [], status: 'QUEUED', idempotency_key: 'hardening:edge:2',
+  })
+  const claimed = await ledger.claim('wo-edge-2', { leaseOwner: 'edge-hardening' })
+  const worker = new OrcaEdgeWorker({ workerId: 'edge-hardening', ledger, githubCollector: {}, kimiAdapter: {}, artifactStore: {} })
+  const blocked = await worker.execute({ action: 'release_or_block_work_order', payload: { work_order_id: 'wo-edge-2', status: 'BLOCKED', blocker_code: 'LEASE_EXPIRED', next_action: 'REVIEW', lease_token: claimed.lease_token } })
+  assert.equal(blocked.status, 'BLOCKED')
+  assert.equal(blocked.blocker_code, 'LEASE_EXPIRED')
+  // Nested status fields are ignored; only the top-level typed status governs.
+  const reclaimed = await ledger.claim('wo-edge-2', { leaseOwner: 'edge-hardening' }).catch(() => null)
+  assert.equal(reclaimed, null) // BLOCKED orders are not claimable
+})
+
+test('T: no repository script or worker contains a raw transition to COMPLETED', async () => {
+  const scriptDir = path.resolve('scripts')
+  const sources = []
+  for (const file of await readdir(scriptDir)) {
+    if (file.endsWith('.mjs')) sources.push([`scripts/${file}`, await readFile(path.join(scriptDir, file), 'utf8')])
+  }
+  sources.push(['operator-bridge/orca-edge-worker.mjs', await readFile(path.resolve('operator-bridge/orca-edge-worker.mjs'), 'utf8')])
+  for (const [name, source] of sources) {
+    assert.equal(/transition\([^)]*'COMPLETED'/.test(source), false, `${name} must not contain a raw transition to COMPLETED`)
+  }
+})

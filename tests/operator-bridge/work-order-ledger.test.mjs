@@ -40,7 +40,7 @@ test('valid transitions proceed and invalid transitions are rejected', async () 
   assert.equal(running.status, 'RUNNING')
   await assert.rejects(
     ledger.transition('wo-test-1', 'COMPLETED', { actor: 'orca-1', leaseToken: claimed.lease_token }),
-    (error) => error.code === 'INVALID_TRANSITION',
+    (error) => error.code === 'COMPLETION_REQUIRES_CANONICAL_PATH',
   )
 })
 

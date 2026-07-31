@@ -162,6 +162,9 @@ export class FileWorkOrderLedger {
       const state = await this._read()
       const order = state.work_orders[workOrderId]
       if (!order) throw new WorkOrderError('WORK_ORDER_NOT_FOUND', 'Work order not found')
+      if (nextStatus === 'COMPLETED') {
+        throw new WorkOrderError('COMPLETION_REQUIRES_CANONICAL_PATH', 'COMPLETED requires completeIdempotently with canonical artifact verification')
+      }
       if (!TRANSITIONS[order.status]?.has(nextStatus)) {
         throw new WorkOrderError('INVALID_TRANSITION', `${order.status} cannot transition to ${nextStatus}`)
       }
