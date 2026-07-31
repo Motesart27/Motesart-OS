@@ -502,7 +502,7 @@ export class StagingStore {
       const order = state.work_orders[workOrderId]
       if (!order) throw new StagingStoreError('WORK_ORDER_NOT_FOUND', 404)
       if (order.status === 'COMPLETED') {
-        if (order.result_artifact_id === resultArtifactId && order.decision_card_artifact_id === decisionCardArtifactId) return publicOrder(order)
+        if (order.result_artifact_id === resultArtifactId && order.evidence_artifact_id === evidenceArtifactId && order.decision_card_artifact_id === decisionCardArtifactId) return publicOrder(order)
         throw new StagingStoreError('COMPLETION_CONFLICT', 409)
       }
       this._requireLease(order, leaseToken)

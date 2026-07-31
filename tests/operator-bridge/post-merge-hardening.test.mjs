@@ -570,3 +570,123 @@ test('D: staging UI source keeps every decision control disabled', async () => {
   assert.equal(source.includes('enabled: true'), false)
   assert.match(source, /disabled/)
 })
+
+// ---------------------------------------------------------------------------
+// Item G: completion-replay artifact identity
+// ---------------------------------------------------------------------------
+
+test('G: replay compares the complete canonical completion identity', async (t) => {
+  const f = await apiFixture()
+  t.after(f.close)
+  const ownerToken = mintOwner(f.config, OWNER_SCOPES)
+  const orcaToken = mintOrca(f.config, ['claim', 'heartbeat', 'artifact:return', 'complete'])
+  await post(f.baseUrl, '/v1/work-orders', { token: ownerToken, body: workOrderBody('replay-identity') })
+  const orders = await get(f.baseUrl, '/v1/work-orders', { token: ownerToken })
+  const workOrderId = orders.payload.work_orders[0].work_order_id
+  const claimed = await post(f.baseUrl, '/v1/executors/orca/claim', { token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+  const leaseToken = claimed.payload.claim.lease_token
+  await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/heartbeat`, { token: orcaToken, leaseToken, body: { lease_ttl_seconds: 60 } })
+  const upload = async (type, content) => {
+    const bytes = Buffer.from(content)
+    const result = await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/artifacts`, {
+      token: orcaToken, leaseToken,
+      body: { artifact_type: type, content_base64: bytes.toString('base64'), sha256: sha256(bytes), byte_count: bytes.length, sensitivity_classification: 'synthetic' },
+    })
+    return result.payload.artifact.artifact_id
+  }
+  const log1 = await upload('test_log', '{"passed":true,"n":1}')
+  const log2 = await upload('test_log', '{"passed":true,"n":2}')
+  const card = await upload('decision_card', JSON.stringify({ work_order_id: workOrderId, controls: { approve: { enabled: false }, reject: { enabled: false }, revise: { enabled: false } } }))
+  const body = { result_artifact_id: log1, evidence_artifact_id: log1, decision_card_artifact_id: card }
+  const completed = await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/complete`, { token: orcaToken, leaseToken, body })
+  assert.equal(completed.payload.work_order.status, 'COMPLETED')
+
+  const exactReplay = await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/complete`, { token: orcaToken, leaseToken, body })
+  assert.equal(exactReplay.response.status, 200)
+  assert.equal(exactReplay.payload.work_order.status, 'COMPLETED')
+
+  const divergentEvidence = await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/complete`, { token: orcaToken, leaseToken, body: { ...body, evidence_artifact_id: log2 } })
+  assert.equal(divergentEvidence.response.status, 409)
+  assert.equal(divergentEvidence.payload.error.code, 'COMPLETION_CONFLICT')
+
+  const divergentResult = await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/complete`, { token: orcaToken, leaseToken, body: { ...body, result_artifact_id: log2 } })
+  assert.equal(divergentResult.response.status, 409)
+
+  const divergentCard = await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/complete`, { token: orcaToken, leaseToken, body: { ...body, decision_card_artifact_id: log2 } })
+  assert.equal(divergentCard.response.status, 409)
+
+  const order = await get(f.baseUrl, `/v1/work-orders/${workOrderId}`, { token: ownerToken })
+  assert.equal(order.payload.work_order.status, 'COMPLETED')
+  assert.equal(order.payload.work_order.result_artifact_id, log1)
+  assert.equal(order.payload.work_order.evidence_artifact_id, log1)
+  assert.equal(order.payload.work_order.decision_card_artifact_id, card)
+})
+
+// ---------------------------------------------------------------------------
+// Item H: local-ledger completion TOCTOU
+// ---------------------------------------------------------------------------
+
+test('H: concurrent divergent completions produce exactly one canonical outcome', async () => {
+  const verifier = async () => [
+    { artifact_type: 'pull_request_identity', sha256: 'a'.repeat(64), work_order_id: 'wo-hardening-1' },
+    { artifact_type: 'diff', sha256: 'b'.repeat(64), work_order_id: 'wo-hardening-1' },
+  ]
+  const { ledger, leaseToken } = await localLedgerFixture({ verifier })
+  const first = ledger.completeIdempotently('wo-hardening-1', { actor: 'control-plane', leaseToken, resultUri: 'r1', resultHash: 'a'.repeat(64), evidenceUri: 'e1', evidenceHash: 'b'.repeat(64) })
+  const second = ledger.completeIdempotently('wo-hardening-1', { actor: 'control-plane', leaseToken, resultUri: 'r2', resultHash: 'c'.repeat(64), evidenceUri: 'e2', evidenceHash: 'd'.repeat(64) })
+  const [winner, loser] = await Promise.allSettled([first, second])
+  assert.equal(winner.status, 'fulfilled')
+  assert.equal(loser.status, 'rejected')
+  assert.equal(loser.reason.code, 'COMPLETION_CONFLICT')
+  const order = await ledger.get('wo-hardening-1')
+  assert.equal(order.status, 'COMPLETED')
+  assert.equal(order.result_uri, 'r1')
+  assert.equal(order.evidence_uri, 'e1')
+  const events = await ledger.events('wo-hardening-1')
+  assert.equal(events.filter((event) => event.to_status === 'COMPLETED').length, 1)
+})
+
+test('H: concurrent identical replays both return the same canonical record', async () => {
+  const verifier = async () => [
+    { artifact_type: 'pull_request_identity', sha256: 'a'.repeat(64), work_order_id: 'wo-hardening-1' },
+    { artifact_type: 'diff', sha256: 'b'.repeat(64), work_order_id: 'wo-hardening-1' },
+  ]
+  const { ledger, leaseToken } = await localLedgerFixture({ verifier })
+  const args = { actor: 'control-plane', leaseToken, resultUri: 'r', resultHash: 'a'.repeat(64), evidenceUri: 'e', evidenceHash: 'b'.repeat(64) }
+  const [first, second] = await Promise.all([
+    ledger.completeIdempotently('wo-hardening-1', args),
+    ledger.completeIdempotently('wo-hardening-1', args),
+  ])
+  assert.equal(first.updated_at, second.updated_at)
+  assert.equal(first.result_hash, second.result_hash)
+  const events = await ledger.events('wo-hardening-1')
+  assert.equal(events.filter((event) => event.to_status === 'COMPLETED').length, 1)
+})
+
+test('H: lease identity is revalidated at commit time', async () => {
+  const verifier = async () => [
+    { artifact_type: 'pull_request_identity', sha256: 'a'.repeat(64), work_order_id: 'wo-hardening-1' },
+    { artifact_type: 'diff', sha256: 'b'.repeat(64), work_order_id: 'wo-hardening-1' },
+  ]
+  const { ledger } = await localLedgerFixture({ verifier })
+  await assert.rejects(
+    ledger.completeIdempotently('wo-hardening-1', { actor: 'control-plane', leaseToken: 'forged-token', resultUri: 'r', resultHash: 'a'.repeat(64), evidenceUri: 'e', evidenceHash: 'b'.repeat(64) }),
+    (error) => error.code === 'LEASE_MISMATCH',
+  )
+  assert.equal((await ledger.get('wo-hardening-1')).status, 'VERIFYING')
+})
+
+test('H: completion from a state without a canonical COMPLETED transition fails closed', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'hardening-toctou-'))
+  const ledger = await new FileWorkOrderLedger({ root, artifactVerifier: async () => [] }).init()
+  await ledger.create({
+    work_order_id: 'wo-hardening-3', requested_by: 'hardening-test', originating_surface: 'test',
+    task_type: 'github_pr_read_only_review', scope: { read_only: true }, approval_class: 'READ_ONLY', executor: 'ORCA',
+    required_artifacts: [], input_hashes: [], status: 'QUEUED', idempotency_key: 'hardening:toctou:3',
+  })
+  await assert.rejects(
+    ledger.completeIdempotently('wo-hardening-3', { actor: 'control-plane', resultUri: 'r', resultHash: 'a'.repeat(64), evidenceUri: 'e', evidenceHash: 'b'.repeat(64) }),
+    (error) => error.code === 'INVALID_TRANSITION',
+  )
+  assert.equal((await ledger.get('wo-hardening-3')).status, 'QUEUED')
+})
