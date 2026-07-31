@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { chmod, mkdir, open, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { appendFile, chmod, mkdir, open, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { constantTimeEqual, sha256 } from './security.mjs'
@@ -49,15 +49,18 @@ function publicOrder(order) {
 }
 
 export class StagingStore {
-  constructor({ root, clock = () => Date.now(), retentionDays = 30 }) {
+  constructor({ root, clock = () => Date.now(), retentionDays = 30, lockWaitMs = 500, lockPollMs = 50 }) {
     this.root = root
     this.clock = clock
     this.retentionDays = retentionDays
+    this.lockWaitMs = lockWaitMs
+    this.lockPollMs = lockPollMs
     this.namespaceRoot = path.join(root, 'staging')
     this.ledgerDirectory = path.join(this.namespaceRoot, 'ledger')
     this.artifactDirectory = path.join(this.namespaceRoot, 'artifacts', 'sha256')
     this.statePath = path.join(this.ledgerDirectory, 'state.json')
     this.lockPath = path.join(this.ledgerDirectory, 'writer.lock')
+    this.recoveryLogPath = path.join(this.ledgerDirectory, 'lock-recovery.jsonl')
     this._tail = Promise.resolve()
     this._lockHandle = null
   }
@@ -65,13 +68,7 @@ export class StagingStore {
   async init() {
     await mkdir(this.ledgerDirectory, { recursive: true, mode: 0o700 })
     await mkdir(this.artifactDirectory, { recursive: true, mode: 0o700 })
-    try {
-      this._lockHandle = await open(this.lockPath, 'wx', 0o600)
-      await this._lockHandle.writeFile(JSON.stringify({ pid: process.pid, created_at: new Date(this.clock()).toISOString() }))
-    } catch (error) {
-      if (error.code === 'EEXIST') throw new StagingStoreError('STAGING_LEDGER_LOCKED', 503)
-      throw error
-    }
+    this._lockHandle = await this._acquireWriterLock()
     try {
       await readFile(this.statePath, 'utf8')
     } catch (error) {
@@ -90,6 +87,67 @@ export class StagingStore {
     }
     await this._readVerified()
     return this
+  }
+
+  // Writer-lock acquisition with bounded waiting and demonstrably-stale
+  // recovery. A lock is recovered only when its recorded holder PID is
+  // verifiably dead (ESRCH); a live, foreign-permission (EPERM), or malformed
+  // lock always fails closed with STAGING_LEDGER_LOCKED. Recovery moves the
+  // stale lock to a unique tombstone via atomic rename so that exactly one
+  // concurrent recoverer can win.
+  async _acquireWriterLock() {
+    const deadline = Date.now() + this.lockWaitMs
+    for (;;) {
+      try {
+        const handle = await open(this.lockPath, 'wx', 0o600)
+        await handle.writeFile(JSON.stringify({ pid: process.pid, created_at: new Date(this.clock()).toISOString() }))
+        return handle
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error
+        const recovered = await this._recoverStaleLock()
+        if (!recovered) {
+          if (Date.now() >= deadline) throw new StagingStoreError('STAGING_LEDGER_LOCKED', 503)
+          await new Promise((resolve) => setTimeout(resolve, this.lockPollMs))
+        }
+      }
+    }
+  }
+
+  async _recoverStaleLock() {
+    let metadata
+    try {
+      metadata = JSON.parse(await readFile(this.lockPath, 'utf8'))
+    } catch (error) {
+      if (error.code === 'ENOENT') return true // holder released between attempts; retry acquire
+      await this._recordLockRecovery({ outcome: 'malformed_lock_metadata' })
+      return false
+    }
+    const pid = metadata?.pid
+    if (!Number.isInteger(pid) || pid <= 0) {
+      await this._recordLockRecovery({ outcome: 'malformed_lock_metadata' })
+      return false
+    }
+    let holderAlive = true
+    try {
+      process.kill(pid, 0)
+    } catch (error) {
+      holderAlive = error.code === 'EPERM' // ESRCH means demonstrably dead; EPERM means alive but foreign
+    }
+    if (holderAlive) return false
+    const tombstone = `${this.lockPath}.stale-${process.pid}-${randomUUID()}`
+    try {
+      await rename(this.lockPath, tombstone)
+    } catch (error) {
+      return error.code === 'ENOENT' // another recoverer won the race; retry acquire
+    }
+    await unlink(tombstone).catch(() => undefined)
+    await this._recordLockRecovery({ outcome: 'recovered_stale_lock', stale_pid: pid, stale_created_at: typeof metadata.created_at === 'string' ? metadata.created_at : null })
+    return true
+  }
+
+  async _recordLockRecovery(entry) {
+    const line = JSON.stringify({ schema_version: 'motesart.operator_bridge.lock_recovery.v1', recorded_at: new Date(this.clock()).toISOString(), ...entry })
+    await appendFile(this.recoveryLogPath, `${line}\n`, { mode: 0o600 }).catch(() => undefined)
   }
 
   async close() {
