@@ -690,3 +690,48 @@ test('H: completion from a state without a canonical COMPLETED transition fails 
   )
   assert.equal((await ledger.get('wo-hardening-3')).status, 'QUEUED')
 })
+
+// ---------------------------------------------------------------------------
+// Item F: nested command-field guard parity (local edge worker)
+// ---------------------------------------------------------------------------
+
+import { OrcaEdgeWorker } from '../../operator-bridge/orca-edge-worker.mjs'
+
+function edgeWorker() {
+  const untouched = new Proxy({}, { get: () => { throw new Error('HANDLER_MUST_NOT_RUN') } })
+  return new OrcaEdgeWorker({ workerId: 'edge-hardening', ledger: untouched, githubCollector: untouched, kimiAdapter: untouched, artifactStore: untouched })
+}
+
+test('F: forbidden fields are rejected at every nested object and array depth', async () => {
+  const worker = edgeWorker()
+  const cases = [
+    { action: 'claim_work_order', payload: { work_order_id: 'wo', scope: { command: 'rm -rf /' } } },
+    { action: 'claim_work_order', payload: { work_order_id: 'wo', nested: [{ deep: { shell: 'sh' } }] } },
+    { action: 'invoke_kimi_analysis', payload: { sections: [{ text: 'x', script: 'evil()' }] } },
+    { action: 'run_local_tests', payload: { profile: 'p', wrapper: { argv: ['--evil'] } } },
+    { action: 'return_result', payload: { work_order_id: 'wo', result_patch: { meta: { executable: '/bin/sh' } } } },
+    { action: 'collect_github_read_only', payload: { repository: 'a/b', extras: { remote_command: 'x' } } },
+    { action: 'package_artifacts', payload: { work_order_id: 'wo', artifacts: [{ artifact_id: 'a', process: 'spawn' }] } },
+    { action: 'heartbeat', payload: { work_order_id: 'wo', lease_token: 't', remoteCommand: 'x' } },
+  ]
+  for (const request of cases) {
+    await assert.rejects(worker.execute(request), (error) => error.message === 'ARBITRARY_COMMAND_REJECTED')
+  }
+  await assert.rejects(worker.execute({ action: 'health', command: 'top-level' }), (error) => error.message === 'ARBITRARY_COMMAND_REJECTED')
+})
+
+test('F: benign nested payloads still reach the typed handlers', async () => {
+  const worker = new OrcaEdgeWorker({
+    workerId: 'edge-hardening',
+    ledger: {
+      claim: async (workOrderId, options) => ({ work_order_id: workOrderId, status: 'CLAIMED', options }),
+    },
+    githubCollector: {},
+    kimiAdapter: {},
+    artifactStore: {},
+  })
+  const result = await worker.execute({ action: 'claim_work_order', payload: { work_order_id: 'wo-ok', lease_ttl_ms: 1000, meta: { nested: [{ benign: true }] } } })
+  assert.equal(result.status, 'CLAIMED')
+  assert.equal(result.work_order_id, 'wo-ok')
+  await assert.rejects(worker.execute({ action: 'execute_shell', payload: {} }), (error) => error.message === 'UNSUPPORTED_EXECUTOR_ACTION')
+})

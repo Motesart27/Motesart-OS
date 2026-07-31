@@ -1,12 +1,20 @@
 import { EXECUTOR_ACTIONS } from './constants.mjs'
 import { createStoredZip } from './zip-package.mjs'
 
-const FORBIDDEN_REMOTE_FIELDS = new Set(['command', 'shell', 'script', 'argv', 'executable'])
+// Forbidden command-like fields, aligned with the canonical staging worker
+// and control-plane rejectForbidden sets. Applied recursively at every
+// nested object or array depth; typed handlers never interpret such fields.
+const FORBIDDEN_REMOTE_FIELDS = new Set(['command', 'shell', 'script', 'argv', 'executable', 'remote_command', 'remoteCommand', 'process'])
 
-function rejectFreeFormCommand(payload) {
-  if (!payload || typeof payload !== 'object') return
-  for (const key of Object.keys(payload)) {
+function rejectFreeFormCommand(value) {
+  if (!value || typeof value !== 'object') return
+  if (Array.isArray(value)) {
+    for (const item of value) rejectFreeFormCommand(item)
+    return
+  }
+  for (const [key, nested] of Object.entries(value)) {
     if (FORBIDDEN_REMOTE_FIELDS.has(key)) throw new Error('ARBITRARY_COMMAND_REJECTED')
+    rejectFreeFormCommand(nested)
   }
 }
 
@@ -25,7 +33,6 @@ export class OrcaEdgeWorker {
   async execute(request) {
     if (!request || !EXECUTOR_ACTIONS.includes(request.action)) throw new Error('UNSUPPORTED_EXECUTOR_ACTION')
     rejectFreeFormCommand(request)
-    rejectFreeFormCommand(request.payload)
     switch (request.action) {
       case 'health':
         return { ok: true, worker_id: this.workerId, connection_model: 'OUTBOUND_ONLY', started_at: this.startedAt }
