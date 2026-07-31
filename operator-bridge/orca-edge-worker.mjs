@@ -59,13 +59,19 @@ export class OrcaEdgeWorker {
           leaseToken: request.payload.lease_token,
           patch: request.payload.result_patch ?? {},
         })
-      case 'release_or_block_work_order':
+      case 'release_or_block_work_order': {
+        // Only the statuses genuinely supported by this handler's name and
+        // contract are accepted; COMPLETED must go through the canonical
+        // typed completion pathway (completeIdempotently), never through a
+        // generic payload.status passthrough.
+        if (!['BLOCKED', 'QUEUED'].includes(request.payload.status)) throw new Error('INVALID_RELEASE_OR_BLOCK_STATUS')
         return this.ledger.transition(request.payload.work_order_id, request.payload.status, {
           actor: this.workerId,
           reason: request.payload.blocker_code ?? 'WORK_RELEASED',
           leaseToken: request.payload.lease_token,
           patch: { blocker_code: request.payload.blocker_code ?? null, next_action: request.payload.next_action },
         })
+      }
       default:
         throw new Error('UNSUPPORTED_EXECUTOR_ACTION')
     }
