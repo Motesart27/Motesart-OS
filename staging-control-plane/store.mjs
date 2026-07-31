@@ -7,6 +7,14 @@ import { constantTimeEqual, sha256 } from './security.mjs'
 const EMPTY_HEAD = '0'.repeat(64)
 const ACTIVE_LEASE_STATES = new Set(['CLAIMED', 'RUNNING'])
 const MANUAL_RETRY_BLOCKERS = new Set(['KIMI_RESPONSE_UNAVAILABLE', 'KIMI_REASONING_ONLY_LENGTH'])
+// States from which a block operation is a valid transition. Mirrors the
+// canonical deny-by-default TRANSITIONS table in operator-bridge/constants.mjs
+// projected onto the BLOCKED target; terminal states (COMPLETED, FAILED,
+// CANCELLED, EXPIRED) and DRAFT/NEEDS_APPROVAL/BLOCKED are excluded. Kept
+// inline because the Railway Dockerfile deploy context contains only
+// staging-control-plane/*.mjs; the control-plane tests assert parity with the
+// canonical table.
+export const BLOCKABLE_STATES = new Set(['QUEUED', 'CLAIMED', 'RUNNING', 'VERIFYING', 'READY_FOR_APPROVAL'])
 
 export class StagingStoreError extends Error {
   constructor(code, status = 409) {
@@ -499,6 +507,7 @@ export class StagingStore {
       const state = await this._readVerified()
       const order = state.work_orders[workOrderId]
       if (!order) throw new StagingStoreError('WORK_ORDER_NOT_FOUND', 404)
+      if (!BLOCKABLE_STATES.has(order.status)) throw new StagingStoreError('INVALID_TRANSITION', 409)
       if (order.lease_token_hash) this._requireLease(order, leaseToken)
       if (order.lease_owner && order.lease_owner !== leaseOwner) throw new StagingStoreError('WRONG_LEASE_OWNER', 403)
       const prior = order.status

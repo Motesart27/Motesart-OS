@@ -75,9 +75,10 @@ export function verifyToken(token, key, { issuer, audience, allowedRoles }) {
     throw new Error('INVALID_TOKEN')
   }
   const now = Math.floor(Date.now() / 1000)
-  if (header.alg !== 'HS256' || payload.iss !== issuer || payload.aud !== audience || payload.exp <= now) {
-    throw new Error(payload.exp <= now ? 'EXPIRED_TOKEN' : 'INVALID_TOKEN')
+  if (header.alg !== 'HS256' || payload.iss !== issuer || payload.aud !== audience || !Number.isInteger(payload.exp)) {
+    throw new Error('INVALID_TOKEN')
   }
+  if (payload.exp <= now) throw new Error('EXPIRED_TOKEN')
   if (!allowedRoles.includes(payload.role)) throw new Error('FORBIDDEN_ROLE')
   return payload
 }
