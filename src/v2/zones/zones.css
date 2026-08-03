@@ -120,6 +120,74 @@
 .v2-countdowns__name { min-width: 0; overflow: hidden; color: var(--text-2); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
 .v2-countdowns__value { flex: 0 0 auto; color: var(--info-t); font: 11px var(--mono); }
 
+/* Z3 pulse rows (stat tile row, §10: hover −2px + brighten; tab-skipped) —
+   Chip tone always paired with its text label, never color-alone */
+.v2-pulse-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.v2-pulse-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 30px; padding: 4px 8px; border-radius: var(--r-s);
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.v2-pulse-row:hover { transform: translateY(-2px); background: rgba(255,255,255,.045); }
+.v2-pulse-row__count { flex: 0 0 auto; color: var(--text-1); font: 12px var(--mono); }
+
+/* Z3 FM stats — FIXTURE demonstration renderer only (§3.8 pre-B2: the live
+   tile is the ruled b2-pending quiet line and never mounts this markup) */
+.v2-fm-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.v2-fm-stat { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.v2-fm-stat__label { color: var(--text-3); font-size: 11px; }
+.v2-fm-stat__value { color: var(--text-1); font: 600 15px var(--mono); }
+
+/* Z3 SOM count — FIXTURE demonstration renderer only (G2: live tile is the
+   ruled quiet-empty line) */
+.v2-som-count { display: flex; align-items: baseline; gap: 8px; margin: 0; }
+.v2-som-count__value { color: var(--text-1); font: 600 15px var(--mono); }
+.v2-som-count__label { color: var(--text-3); font-size: 12px; }
+
+/* Z3 revenue chart (G4 FIXTURE-only component) — range tablist, hand-rolled
+   SVG area + crosshairs, zero-anchored scale labels, FIXTURE tag */
+.v2-chart { display: flex; flex-direction: column; gap: 8px; }
+.v2-chart__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.v2-chart__ranges {
+  display: inline-flex; gap: 2px; padding: 2px;
+  border: 1px solid var(--stroke-1); border-radius: 999px;
+}
+.v2-chart__range {
+  padding: 3px 10px; border: 0; border-radius: 999px; background: transparent;
+  color: var(--text-3); font: 600 11px var(--font); cursor: pointer;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.v2-chart__range.is-active { background: rgba(255,255,255,.06); color: var(--text-1); }
+.v2-chart__range:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.v2-chart__fixture {
+  padding: 2px 8px; border: 1px solid var(--stroke-1); border-radius: 999px;
+  color: var(--warn-t); font: 600 9.5px var(--font); letter-spacing: .08em; text-transform: uppercase;
+}
+.v2-chart__plot { position: relative; border-radius: var(--r-s); }
+.v2-chart__plot:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.v2-chart__svg { display: block; width: 100%; height: auto; overflow: visible; }
+.v2-chart__baseline { stroke: var(--stroke-2); stroke-width: 1; }
+.v2-chart__area { fill: var(--info-d); animation: v2-z3-fade .9s var(--ease) .2s both; }
+.v2-chart__line {
+  fill: none; stroke: var(--info); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1; animation: v2-z3-draw .9s var(--ease) .2s forwards;
+}
+.v2-chart__crosshair line { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 2 3; }
+.v2-chart__crosshair circle { fill: var(--info); }
+.v2-chart__scale { position: absolute; left: 4px; color: var(--text-3); font: 9px var(--mono); pointer-events: none; }
+.v2-chart__scale--max { top: 2px; }
+.v2-chart__scale--min { bottom: 0; }
+.v2-chart__tooltip {
+  position: absolute; display: flex; flex-direction: column; gap: 2px; padding: 6px 8px;
+  border: 1px solid var(--stroke-2); border-radius: var(--r-s); background: var(--bg-2);
+  transform: translate(-50%, -130%); pointer-events: none; white-space: nowrap;
+}
+.v2-chart__tooltip-date { color: var(--text-3); font-size: 10px; }
+.v2-chart__tooltip-value { color: var(--text-1); font: 600 12px var(--mono); }
+
+@keyframes v2-z3-draw { to { stroke-dashoffset: 0; } }
+@keyframes v2-z3-fade { from { opacity: 0; } to { opacity: 1; } }
+
 /* Z4 personal tasks (G3 restricted set) — display-only rows: title + due tag */
 .v2-personal-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
 .v2-personal-row {
@@ -131,8 +199,11 @@
 .v2-personal-row__due { flex: 0 0 auto; color: var(--text-3); font: 11px var(--mono); }
 
 @media (prefers-reduced-motion: reduce) {
-  .v2-signal-row, .v2-signal-row__arrow, .v2-agenda-slot, .v2-zone-link, .v2-personal-row {
+  .v2-signal-row, .v2-signal-row__arrow, .v2-agenda-slot, .v2-zone-link, .v2-personal-row,
+  .v2-pulse-row, .v2-chart__range, .v2-chart__tooltip {
     transition-duration: .01ms !important;
   }
   .v2-signal-row:hover, .v2-signal-row:focus-visible { transform: none; }
+  .v2-pulse-row:hover { transform: none; }
+  .v2-chart__line, .v2-chart__area { animation-duration: .01ms !important; animation-delay: 0ms !important; }
 }
