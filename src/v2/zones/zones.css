@@ -120,8 +120,18 @@
 .v2-countdowns__name { min-width: 0; overflow: hidden; color: var(--text-2); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
 .v2-countdowns__value { flex: 0 0 auto; color: var(--info-t); font: 11px var(--mono); }
 
+/* Z4 personal tasks (G3 restricted set) — display-only rows: title + due tag */
+.v2-personal-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.v2-personal-row {
+  display: flex; align-items: baseline; gap: 12px; min-height: 30px; padding: 4px 8px;
+  border-radius: var(--r-s); transition: background var(--t-fast) var(--ease);
+}
+.v2-personal-row:hover { background: rgba(255,255,255,.045); }
+.v2-personal-row__title { flex: 1; min-width: 0; overflow: hidden; color: var(--text-2); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.v2-personal-row__due { flex: 0 0 auto; color: var(--text-3); font: 11px var(--mono); }
+
 @media (prefers-reduced-motion: reduce) {
-  .v2-signal-row, .v2-signal-row__arrow, .v2-agenda-slot, .v2-zone-link {
+  .v2-signal-row, .v2-signal-row__arrow, .v2-agenda-slot, .v2-zone-link, .v2-personal-row {
     transition-duration: .01ms !important;
   }
   .v2-signal-row:hover, .v2-signal-row:focus-visible { transform: none; }
