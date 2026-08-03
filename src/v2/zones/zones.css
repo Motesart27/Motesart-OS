@@ -55,3 +55,74 @@
     transition-duration: .01ms !important;
   }
 }
+
+/* ─── Z1/Z2 zone layouts (PLAN §8, §10) — tokens only ────────────────────── */
+
+.v2-zone__body { display: flex; flex-direction: column; gap: 18px; margin-top: 16px; }
+
+/* zone "Open ‹module› →" link (§10: nav only; persists through tile states) */
+.v2-zone-link {
+  align-self: flex-start; margin-top: auto; color: var(--info-t);
+  font-size: 12px; font-weight: 600; text-decoration: none;
+  transition: color var(--t-fast) var(--ease);
+}
+.v2-zone-link:hover { color: var(--text-1); }
+.v2-zone-link:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+
+/* Z1 signal feed — row: hover wash + 2px translateX + arrow reveal;
+   click/Enter routes to the owning module L2 (9.4); severity is a text Chip */
+.v2-signal-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.v2-signal-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px;
+  padding: 4px 8px; border: 0; border-radius: var(--r-s); background: transparent;
+  color: var(--text-1); font-size: 13px; text-align: left; cursor: pointer;
+  transition: background var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+}
+.v2-signal-row:hover, .v2-signal-row:focus-visible { background: rgba(255,255,255,.045); transform: translateX(2px); }
+.v2-signal-row:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.v2-signal-row .v2-chip { flex: 0 0 auto; }
+.v2-signal-row__summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v2-signal-row__arrow { flex: 0 0 auto; color: var(--text-3); opacity: 0; transition: opacity var(--t-fast) var(--ease); }
+.v2-signal-row:hover .v2-signal-row__arrow, .v2-signal-row:focus-visible .v2-signal-row__arrow { opacity: 1; }
+
+/* Z1 agenda — display-only rows (tab-skipped): mono time + sanitized title */
+.v2-agenda-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.v2-agenda-slot {
+  display: flex; align-items: baseline; gap: 12px; min-height: 30px; padding: 4px 8px;
+  border-radius: var(--r-s); transition: background var(--t-fast) var(--ease);
+}
+.v2-agenda-slot:hover { background: rgba(255,255,255,.045); }
+.v2-agenda-slot__time { flex: 0 0 64px; color: var(--text-3); font: 11px var(--mono); }
+.v2-agenda-slot__title { min-width: 0; overflow: hidden; color: var(--text-2); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Z1 handled-log digest — one quiet line; hidden in every non-content state */
+.v2-handled-log { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--text-3); font-size: 12.5px; }
+
+/* Z2 project cards — hover .lift recipe only (v2-card--lift); display-only */
+.v2-project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.v2-project-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.v2-project-card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.v2-project-card__head strong { font-size: 13px; letter-spacing: .04em; }
+.v2-project-card__ratio { color: var(--text-3); font: 10px var(--mono); }
+.v2-project-card__counts { color: var(--text-3); font-size: 11px; }
+
+/* Z2 Book task-lane info (G1) — task-based copy only */
+.v2-book-info { display: flex; flex-direction: column; gap: 8px; }
+.v2-book-info__count { margin: 0; color: var(--text-2); font-size: 12.5px; }
+.v2-book-info__list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.v2-book-info__list li { overflow: hidden; color: var(--text-3); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Z2 countdowns — client-derived; quiet-absent when nothing is dated */
+.v2-countdowns { display: flex; flex-direction: column; gap: 8px; }
+.v2-countdowns__label { font-size: 10px; }
+.v2-countdowns__list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.v2-countdowns__row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 26px; }
+.v2-countdowns__name { min-width: 0; overflow: hidden; color: var(--text-2); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.v2-countdowns__value { flex: 0 0 auto; color: var(--info-t); font: 11px var(--mono); }
+
+@media (prefers-reduced-motion: reduce) {
+  .v2-signal-row, .v2-signal-row__arrow, .v2-agenda-slot, .v2-zone-link {
+    transition-duration: .01ms !important;
+  }
+  .v2-signal-row:hover, .v2-signal-row:focus-visible { transform: none; }
+}
