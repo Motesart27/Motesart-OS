@@ -198,12 +198,33 @@
 .v2-personal-row__title { flex: 1; min-width: 0; overflow: hidden; color: var(--text-2); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .v2-personal-row__due { flex: 0 0 auto; color: var(--text-3); font: 11px var(--mono); }
 
+/* Z5 quick actions (§10 qbtn recipe — desktop mockup port, tokens only):
+   column icon+label tile, --bg-2, --stroke-1, radius --r-m; hover −3px +
+   scale(1.02) on --spring with icon tinting ai-t; press scale(.97). Native
+   buttons, never disabled (DB-G8 stays Button-only). */
+.v2-qa { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+@media (max-width: 1380px) { .v2-qa { grid-template-columns: repeat(3, 1fr); } }
+.v2-qbtn {
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  min-height: 44px; padding: 18px 8px 14px;
+  border: 1px solid var(--stroke-1); border-radius: var(--r-m); background: var(--bg-2);
+  color: var(--text-2); font: 600 12px var(--font); cursor: pointer;
+  transition: transform var(--t-med) var(--spring), border-color var(--t-med) var(--spring),
+    box-shadow var(--t-med) var(--spring), color var(--t-med) var(--spring);
+}
+.v2-qbtn svg { width: 20px; height: 20px; color: var(--text-3); transition: color var(--t-med) var(--ease); }
+.v2-qbtn:hover { transform: translateY(-3px) scale(1.02); border-color: var(--stroke-2); box-shadow: var(--e2); color: var(--text-1); }
+.v2-qbtn:hover svg { color: var(--ai-t); }
+.v2-qbtn:active { transform: scale(.97); }
+.v2-qbtn:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+
 @media (prefers-reduced-motion: reduce) {
   .v2-signal-row, .v2-signal-row__arrow, .v2-agenda-slot, .v2-zone-link, .v2-personal-row,
-  .v2-pulse-row, .v2-chart__range, .v2-chart__tooltip {
+  .v2-pulse-row, .v2-chart__range, .v2-chart__tooltip, .v2-qbtn, .v2-qbtn svg {
     transition-duration: .01ms !important;
   }
   .v2-signal-row:hover, .v2-signal-row:focus-visible { transform: none; }
   .v2-pulse-row:hover { transform: none; }
+  .v2-qbtn:hover, .v2-qbtn:active { transform: none; }
   .v2-chart__line, .v2-chart__area { animation-duration: .01ms !important; animation-delay: 0ms !important; }
 }
