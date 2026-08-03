@@ -49,6 +49,12 @@ export const BLOCKER_CODES = Object.freeze({
   KIMI_TIMEOUT_BEFORE_FIRST_TOKEN: 'KIMI_TIMEOUT_BEFORE_FIRST_TOKEN',
   KIMI_TIMEOUT_PARTIAL: 'KIMI_TIMEOUT_PARTIAL',
   ARTIFACT_INTEGRITY_FAILURE: 'ARTIFACT_INTEGRITY_FAILURE',
+  ORDER_EXECUTION_TIMEOUT: 'ORDER_EXECUTION_TIMEOUT',
+  ORDER_EXECUTION_FAILED: 'ORDER_EXECUTION_FAILED',
+  SESSION_TIME_EXHAUSTED: 'SESSION_TIME_EXHAUSTED',
+  WORKER_SHUTDOWN_RESUMABLE: 'BLOCKED_WORKER_SHUTDOWN_RESUMABLE',
+  TASK_TYPE_NOT_ALLOWLISTED: 'TASK_TYPE_NOT_ALLOWLISTED',
+  APPROVAL_CLASS_NOT_EXECUTABLE: 'APPROVAL_CLASS_NOT_EXECUTABLE',
 })
 
 export const APPROVAL_CLASSES = Object.freeze({
@@ -75,4 +81,45 @@ export const ARTIFACT_TYPES = Object.freeze([
   'verifier_identity',
   'verifier_qualification',
   'verifier_verdict',
+])
+
+// ---------------------------------------------------------------------------
+// Bounded worker contract (fix/operator-bridge-bounded-worker-pilot)
+// ---------------------------------------------------------------------------
+
+// The only environment a bounded worker may execute against. Anything else
+// (production, development, unspecified) is rejected before any work begins.
+export const STAGING_ENVIRONMENT = 'staging'
+export const WORKER_ENVIRONMENTS = Object.freeze([STAGING_ENVIRONMENT])
+
+// Executor-side execution allowlist. A bounded worker claims and runs only
+// work orders whose task_type and approval_class appear here. Protected
+// approval classes are never executable by the worker.
+export const DEFAULT_EXECUTION_ALLOWLIST = Object.freeze({
+  taskTypes: Object.freeze(['github_pr_read_only_review']),
+  approvalClasses: Object.freeze(['READ_ONLY']),
+})
+
+// Hard session bounds. These defaults are the contracted ceiling values:
+// at most 3 orders per session, at most 30 minutes total runtime, at most
+// 15 minutes per order, and automatic exit after 2 minutes without work.
+export const BOUNDED_SESSION_DEFAULTS = Object.freeze({
+  maxOrdersPerSession: 3,
+  sessionBudgetMs: 30 * 60_000,
+  perOrderBudgetMs: 15 * 60_000,
+  idleExitMs: 2 * 60_000,
+  pollMs: 5_000,
+})
+
+// Every session termination carries exactly one of these reasons in its exit
+// evidence. Exit evidence is written on every result, including signals,
+// timeouts, and abnormal exits.
+export const SESSION_EXIT_REASONS = Object.freeze([
+  'ORDER_CAP_REACHED',
+  'SESSION_TIME_EXHAUSTED',
+  'IDLE_EXIT',
+  'SIGNAL_SHUTDOWN',
+  'WORKER_LOCK_UNAVAILABLE',
+  'WORKER_ENVIRONMENT_REJECTED',
+  'ABNORMAL_EXIT',
 ])

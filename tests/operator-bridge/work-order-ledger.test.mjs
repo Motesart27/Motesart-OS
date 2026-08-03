@@ -96,6 +96,137 @@ test('offline ORCA creates a visible resumable block and reconnect requeues it',
   assert.equal(queued.blocker_code, null)
 })
 
+test('arbitrary initial-status creation is rejected; only DRAFT and QUEUED are creatable', async () => {
+  const ledger = await fixture()
+  for (const status of ['CLAIMED', 'RUNNING', 'VERIFYING', 'READY_FOR_APPROVAL', 'COMPLETED', 'BLOCKED', 'FAILED', 'CANCELLED', 'EXPIRED']) {
+    await assert.rejects(
+      ledger.create(input({ work_order_id: `wo-init-${status.toLowerCase()}`, idempotency_key: `init:${status}`, status })),
+      (error) => error.code === 'INVALID_INITIAL_STATUS',
+      `${status} must not be creatable`,
+    )
+  }
+  const draft = await ledger.create(input({ work_order_id: 'wo-init-draft', idempotency_key: 'init:draft' }))
+  assert.equal(draft.status, 'DRAFT')
+  const queued = await ledger.create(input({ work_order_id: 'wo-init-queued', idempotency_key: 'init:queued', status: 'QUEUED' }))
+  assert.equal(queued.status, 'QUEUED')
+  assert.equal((await ledger.list({ statuses: ['QUEUED'] })).length, 1)
+})
+
+test('expired lease cannot transition or complete; fencing enforces lease_expires_at', async () => {
+  let now = Date.parse('2026-07-25T00:00:00Z')
+  const root = await mkdtemp(path.join(os.tmpdir(), 'operator-bridge-ledger-'))
+  const ledger = await new FileWorkOrderLedger({
+    root,
+    clock: () => now,
+    artifactVerifier: async () => [
+      { artifact_type: 'pull_request_identity', sha256: 'a'.repeat(64), work_order_id: 'wo-test-1' },
+      { artifact_type: 'diff', sha256: 'b'.repeat(64), work_order_id: 'wo-test-1' },
+    ],
+  }).init()
+  await ledger.create(input({ status: 'QUEUED' }))
+  const claimed = await ledger.claim('wo-test-1', { leaseOwner: 'orca-a', leaseTtlMs: 1000 })
+  await ledger.transition('wo-test-1', 'RUNNING', { actor: 'orca-a', leaseToken: claimed.lease_token })
+  await ledger.transition('wo-test-1', 'VERIFYING', { actor: 'orca-a', leaseToken: claimed.lease_token })
+  now += 1001 // lease now expired
+  await assert.rejects(
+    ledger.transition('wo-test-1', 'READY_FOR_APPROVAL', { actor: 'orca-a', leaseToken: claimed.lease_token }),
+    (error) => error.code === 'LEASE_EXPIRED',
+  )
+  await assert.rejects(
+    ledger.transition('wo-test-1', 'BLOCKED', { actor: 'orca-a', leaseToken: claimed.lease_token }),
+    (error) => error.code === 'LEASE_EXPIRED',
+  )
+  await assert.rejects(
+    ledger.completeIdempotently('wo-test-1', {
+      actor: 'orca-a',
+      leaseToken: claimed.lease_token,
+      resultUri: 'objects/sha256/result',
+      resultHash: 'a'.repeat(64),
+      evidenceUri: 'objects/sha256/evidence',
+      evidenceHash: 'b'.repeat(64),
+    }),
+    (error) => error.code === 'LEASE_EXPIRED',
+  )
+  // The expired order is unchanged: still VERIFYING, still leased to orca-a.
+  const stuck = await ledger.get('wo-test-1')
+  assert.equal(stuck.status, 'VERIFYING')
+  assert.equal(stuck.lease_owner, 'orca-a')
+})
+
+test('a wrong fencing token on a live lease still reports LEASE_MISMATCH', async () => {
+  let now = Date.parse('2026-07-25T00:00:00Z')
+  const root = await mkdtemp(path.join(os.tmpdir(), 'operator-bridge-ledger-'))
+  const ledger = await new FileWorkOrderLedger({
+    root,
+    clock: () => now,
+    artifactVerifier: async () => [
+      { artifact_type: 'pull_request_identity', sha256: 'a'.repeat(64), work_order_id: 'wo-test-1' },
+      { artifact_type: 'diff', sha256: 'b'.repeat(64), work_order_id: 'wo-test-1' },
+    ],
+  }).init()
+  await ledger.create(input({ status: 'QUEUED' }))
+  const claimed = await ledger.claim('wo-test-1', { leaseOwner: 'orca-a', leaseTtlMs: 1000 })
+  await ledger.transition('wo-test-1', 'RUNNING', { actor: 'orca-a', leaseToken: claimed.lease_token })
+  await ledger.transition('wo-test-1', 'VERIFYING', { actor: 'orca-a', leaseToken: claimed.lease_token })
+  await assert.rejects(
+    ledger.transition('wo-test-1', 'READY_FOR_APPROVAL', { actor: 'orca-a', leaseToken: 'wrong-token' }),
+    (error) => error.code === 'LEASE_MISMATCH',
+  )
+  await assert.rejects(
+    ledger.completeIdempotently('wo-test-1', {
+      actor: 'orca-a',
+      leaseToken: 'wrong-token',
+      resultUri: 'objects/sha256/result',
+      resultHash: 'a'.repeat(64),
+      evidenceUri: 'objects/sha256/evidence',
+      evidenceHash: 'b'.repeat(64),
+    }),
+    (error) => error.code === 'LEASE_MISMATCH',
+  )
+})
+
+test('claim reconciles expired leases inline: no manual reclaim call is required', async () => {
+  let now = Date.parse('2026-07-25T00:00:00Z')
+  const ledger = await fixture(() => now)
+  await ledger.create(input({ status: 'QUEUED' }))
+  const first = await ledger.claim('wo-test-1', { leaseOwner: 'orca-a', leaseTtlMs: 1000 })
+  assert.equal(first.attempt_count, 1)
+  now += 1001
+  // No reclaimExpired() call: claim() itself reclaims the expired lease.
+  const second = await ledger.claim('wo-test-1', { leaseOwner: 'orca-b', leaseTtlMs: 1000 })
+  assert.equal(second.attempt_count, 2)
+  assert.equal(second.lease_owner, 'orca-b')
+  const events = await ledger.events('wo-test-1')
+  assert.ok(events.some((event) => event.reason_code === 'LEASE_EXPIRED_RECLAIMED'))
+})
+
+test('valid leased transitions and completions still work within the lease window', async () => {
+  let now = Date.parse('2026-07-25T00:00:00Z')
+  const root = await mkdtemp(path.join(os.tmpdir(), 'operator-bridge-ledger-'))
+  const ledger = await new FileWorkOrderLedger({
+    root,
+    clock: () => now,
+    artifactVerifier: async () => [
+      { artifact_type: 'pull_request_identity', sha256: 'a'.repeat(64), work_order_id: 'wo-test-1' },
+      { artifact_type: 'diff', sha256: 'b'.repeat(64), work_order_id: 'wo-test-1' },
+    ],
+  }).init()
+  await ledger.create(input({ status: 'QUEUED' }))
+  const claimed = await ledger.claim('wo-test-1', { leaseOwner: 'orca-a', leaseTtlMs: 1000 })
+  await ledger.transition('wo-test-1', 'RUNNING', { actor: 'orca-a', leaseToken: claimed.lease_token })
+  now += 500
+  await ledger.transition('wo-test-1', 'VERIFYING', { actor: 'orca-a', leaseToken: claimed.lease_token })
+  const completed = await ledger.completeIdempotently('wo-test-1', {
+    actor: 'control-plane',
+    leaseToken: claimed.lease_token,
+    resultUri: 'objects/sha256/result',
+    resultHash: 'a'.repeat(64),
+    evidenceUri: 'objects/sha256/evidence',
+    evidenceHash: 'b'.repeat(64),
+  })
+  assert.equal(completed.status, 'COMPLETED')
+})
+
 test('idempotent completion accepts equal hashes and rejects divergent replay', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'operator-bridge-ledger-'))
   const ledger = await new FileWorkOrderLedger({

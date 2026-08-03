@@ -1,3 +1,4 @@
+import { STAGING_ENVIRONMENT } from './constants.mjs'
 import { sha256 } from '../staging-control-plane/security.mjs'
 
 const ALLOWED_ACTIONS = new Set(['health', 'claim', 'heartbeat', 'upload_artifact', 'complete', 'block', 'release'])
@@ -21,7 +22,11 @@ function rejectForbidden(value) {
 }
 
 export class OrcaStagingWorker {
-  constructor({ baseUrl, workerId, bootstrapTokenProvider, fetchImpl = globalThis.fetch }) {
+  constructor({ baseUrl, workerId, bootstrapTokenProvider, fetchImpl = globalThis.fetch, environment = STAGING_ENVIRONMENT }) {
+    // Exact-host pin: the worker may only ever target the staging control
+    // plane. The explicit environment guard rejects any non-staging intent
+    // even before the host pin is evaluated.
+    if (environment !== STAGING_ENVIRONMENT) throw new OrcaStagingWorkerError('WORKER_ENVIRONMENT_REJECTED')
     if (!/^https:\/\/operator-bridge-control-plane-staging\.up\.railway\.app$/.test(baseUrl)) {
       throw new OrcaStagingWorkerError('STAGING_SERVICE_IDENTITY_INVALID')
     }
@@ -29,6 +34,7 @@ export class OrcaStagingWorker {
     this.workerId = workerId
     this.bootstrapTokenProvider = bootstrapTokenProvider
     this.fetchImpl = fetchImpl
+    this.environment = environment
     this.sessionToken = null
   }
 
@@ -61,7 +67,7 @@ export class OrcaStagingWorker {
   async execute({ action, payload = {} }) {
     if (!ALLOWED_ACTIONS.has(action)) throw new OrcaStagingWorkerError('UNSUPPORTED_STAGING_ACTION')
     rejectForbidden(payload)
-    if (action === 'health') return { ok: true, connection_model: 'OUTBOUND_ONLY', worker_id: this.workerId, typed_actions_only: true }
+    if (action === 'health') return { ok: true, connection_model: 'OUTBOUND_ONLY', worker_id: this.workerId, environment: this.environment, typed_actions_only: true }
     if (!this.sessionToken) await this.authenticate()
     if (action === 'claim') return this._request('/v1/executors/orca/claim', { body: { capabilities: payload.capabilities ?? [], lease_ttl_seconds: payload.lease_ttl_seconds ?? 60 } })
     if (!payload.work_order_id || !payload.lease_token) throw new OrcaStagingWorkerError('WORK_ORDER_AND_LEASE_REQUIRED')

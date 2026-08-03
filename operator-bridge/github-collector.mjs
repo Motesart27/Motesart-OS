@@ -1,20 +1,38 @@
 import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 
-import { sha256 } from './artifact-store.mjs'
+import { sanitizeUnifiedDiff } from './redaction.mjs'
 
-const execFileAsync = promisify(execFile)
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
 const SAFE_FILE_PATTERN = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9_./ -]+$/
+const DEFAULT_COMMAND_TIMEOUT_MS = 60_000
 
-async function defaultRunner(args) {
-  try {
-    const result = await execFileAsync('gh', args, { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 })
-    return { stdout: result.stdout, exitCode: 0 }
-  } catch (error) {
-    if (typeof error.stdout === 'string') return { stdout: error.stdout, exitCode: error.code ?? 1 }
-    throw new Error('GitHub read-only command failed')
-  }
+// Every gh invocation is a bounded child process: it carries an explicit
+// wall-clock timeout (SIGTERM kill), and it is registered with the worker
+// resource registry so no child survives any worker exit path.
+async function defaultRunner(args, { timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS, processRegistry = null } = {}) {
+  return new Promise((resolve, reject) => {
+    let child
+    try {
+      child = execFile(
+        'gh',
+        args,
+        { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: timeoutMs, killSignal: 'SIGTERM' },
+        (error, stdout) => {
+          if (processRegistry) processRegistry.untrackChild(child)
+          if (error) {
+            if (error.killed || error.signal) return reject(new Error('GITHUB_READ_ONLY_COMMAND_TERMINATED'))
+            if (typeof error.stdout === 'string') return resolve({ stdout: error.stdout, exitCode: error.code ?? 1 })
+            return reject(new Error('GitHub read-only command failed'))
+          }
+          return resolve({ stdout, exitCode: 0 })
+        },
+      )
+    } catch {
+      return reject(new Error('GitHub read-only command failed'))
+    }
+    if (processRegistry) processRegistry.trackChild(child)
+    return undefined
+  })
 }
 
 function assertTarget(repository, pullRequest) {
@@ -22,37 +40,14 @@ function assertTarget(repository, pullRequest) {
   if (!Number.isSafeInteger(pullRequest) || pullRequest < 1) throw new TypeError('Invalid pull-request number')
 }
 
-export function sanitizeUnifiedDiff(diff) {
-  let redactionCount = 0
-  const sanitized = diff.split(/\r?\n/).map((line) => {
-    let next = line
-    const assignment = /^([+-](?!--|\+\+).*?(?:password|passwd|secret|token|credential|api[_-]?key)\b[^=:\n]{0,80}[=:]\s*)(['"])([^'"]{8,})(\2)/i
-    if (assignment.test(next)) {
-      next = next.replace(assignment, '$1$2[REDACTED_POTENTIAL_SECRET]$4')
-      redactionCount += 1
-    }
-    const patterns = [
-      /Bearer\s+[A-Za-z0-9._-]{16,}/gi,
-      /\bsk-[A-Za-z0-9_-]{20,}\b/g,
-      /\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g,
-      /\bAKIA[0-9A-Z]{16}\b/g,
-    ]
-    for (const pattern of patterns) {
-      next = next.replace(pattern, () => {
-        redactionCount += 1
-        return '[REDACTED_POTENTIAL_SECRET]'
-      })
-    }
-    return next
-  }).join('\n')
-  return { sanitized, redactionCount, sourceSha256: sha256(diff) }
-}
+export { sanitizeUnifiedDiff }
 
 export class GitHubReadOnlyCollector {
-  constructor({ artifactStore, runner = defaultRunner, executor = 'orca-edge-worker' }) {
+  constructor({ artifactStore, runner = null, executor = 'orca-edge-worker', timeoutMs = DEFAULT_COMMAND_TIMEOUT_MS, processRegistry = null } = {}) {
     this.artifactStore = artifactStore
-    this.runner = runner
+    this.runner = runner ?? ((args) => defaultRunner(args, { timeoutMs, processRegistry }))
     this.executor = executor
+    this.timeoutMs = timeoutMs
   }
 
   async _run(args) {

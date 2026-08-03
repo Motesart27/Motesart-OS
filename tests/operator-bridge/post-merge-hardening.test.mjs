@@ -838,13 +838,21 @@ test('T: valid block and release behavior through the edge worker remains intact
   assert.equal(reclaimed, null) // BLOCKED orders are not claimable
 })
 
-test('T: no repository script or worker contains a raw transition to COMPLETED', async () => {
-  const scriptDir = path.resolve('scripts')
+test('T: no repository script or worker module contains a raw transition to COMPLETED', async () => {
+  // Coverage is intentionally broad: every operator-bridge module and every
+  // repository script is scanned, not just the edge worker. A raw
+  // transition(..., 'COMPLETED') must never appear outside the canonical
+  // completeIdempotently pathway, regardless of which module gains new code.
   const sources = []
+  const scriptDir = path.resolve('scripts')
   for (const file of await readdir(scriptDir)) {
     if (file.endsWith('.mjs')) sources.push([`scripts/${file}`, await readFile(path.join(scriptDir, file), 'utf8')])
   }
-  sources.push(['operator-bridge/orca-edge-worker.mjs', await readFile(path.resolve('operator-bridge/orca-edge-worker.mjs'), 'utf8')])
+  const bridgeDir = path.resolve('operator-bridge')
+  for (const file of await readdir(bridgeDir)) {
+    if (file.endsWith('.mjs')) sources.push([`operator-bridge/${file}`, await readFile(path.join(bridgeDir, file), 'utf8')])
+  }
+  assert.ok(sources.length >= 10, 'source scan must cover the full module and script set')
   for (const [name, source] of sources) {
     assert.equal(/transition\([^)]*'COMPLETED'/.test(source), false, `${name} must not contain a raw transition to COMPLETED`)
   }

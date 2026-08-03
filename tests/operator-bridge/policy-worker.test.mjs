@@ -10,6 +10,7 @@ import { APPROVAL_CLASSES } from '../../operator-bridge/constants.mjs'
 import { createDecisionCard } from '../../operator-bridge/decision-card.mjs'
 import { FableAdapter } from '../../operator-bridge/fable-adapter.mjs'
 import { OrcaEdgeWorker } from '../../operator-bridge/orca-edge-worker.mjs'
+import { FileWorkOrderLedger } from '../../operator-bridge/work-order-ledger.mjs'
 
 test('approval policy allows supervised read-only work and disables protected writes', () => {
   const policy = new ApprovalPolicy()
@@ -35,7 +36,7 @@ test('Fable adapter returns an honest resumable machine-readable block', async (
 })
 
 test('ORCA worker rejects unsupported and arbitrary shell actions', async () => {
-  const worker = new OrcaEdgeWorker({ workerId: 'orca-test' })
+  const worker = new OrcaEdgeWorker({ workerId: 'orca-test', environment: 'staging' })
   await assert.rejects(worker.execute({ action: 'execute_shell', payload: {} }), /UNSUPPORTED_EXECUTOR_ACTION/)
   await assert.rejects(
     worker.execute({ action: 'health', payload: { command: 'rm -rf anything' } }),
@@ -43,6 +44,45 @@ test('ORCA worker rejects unsupported and arbitrary shell actions', async () => 
   )
   const health = await worker.execute({ action: 'health', payload: {} })
   assert.equal(health.connection_model, 'OUTBOUND_ONLY')
+  assert.equal(health.environment, 'staging')
+})
+
+test('ORCA worker refuses to run outside the staging environment', () => {
+  assert.throws(() => new OrcaEdgeWorker({ workerId: 'orca-test', environment: 'production' }), /WORKER_ENVIRONMENT_REJECTED/)
+  assert.throws(() => new OrcaEdgeWorker({ workerId: 'orca-test', environment: 'development' }), /WORKER_ENVIRONMENT_REJECTED/)
+  assert.ok(new OrcaEdgeWorker({ workerId: 'orca-test', environment: 'staging' }))
+})
+
+test('executor-side task-type allowlist refuses non-allowlisted claims', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'operator-bridge-allowlist-'))
+  const ledger = await new FileWorkOrderLedger({ root }).init()
+  await ledger.create({
+    work_order_id: 'wo-allow-1', requested_by: 'test', originating_surface: 'test',
+    task_type: 'execute_arbitrary_shell', scope: { read_only: true }, approval_class: 'READ_ONLY',
+    executor: 'ORCA', required_artifacts: [], input_hashes: [], idempotency_key: 'allow:1', status: 'QUEUED',
+  })
+  await ledger.create({
+    work_order_id: 'wo-allow-2', requested_by: 'test', originating_surface: 'test',
+    task_type: 'github_pr_read_only_review', scope: { read_only: true }, approval_class: 'PROTECTED_WRITE',
+    executor: 'ORCA', required_artifacts: [], input_hashes: [], idempotency_key: 'allow:2', status: 'QUEUED',
+  })
+  const worker = new OrcaEdgeWorker({
+    workerId: 'orca-test',
+    ledger,
+    environment: 'staging',
+    executionAllowlist: { taskTypes: ['github_pr_read_only_review'], approvalClasses: ['READ_ONLY'] },
+  })
+  await assert.rejects(
+    worker.execute({ action: 'claim_work_order', payload: { work_order_id: 'wo-allow-1' } }),
+    /TASK_TYPE_NOT_ALLOWLISTED/,
+  )
+  await assert.rejects(
+    worker.execute({ action: 'claim_work_order', payload: { work_order_id: 'wo-allow-2' } }),
+    /APPROVAL_CLASS_NOT_EXECUTABLE/,
+  )
+  // Neither order was claimed: no lease, no attempt increment.
+  assert.equal((await ledger.get('wo-allow-1')).attempt_count, 0)
+  assert.equal((await ledger.get('wo-allow-2')).attempt_count, 0)
 })
 
 test('package action verifies artifacts before emitting a valid immutable ZIP', async () => {

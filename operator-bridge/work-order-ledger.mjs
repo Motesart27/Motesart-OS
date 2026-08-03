@@ -29,6 +29,12 @@ const REQUIRED_FIELDS = [
   'updated_at',
 ]
 
+// A work order may only be *created* in DRAFT or QUEUED. Every other state is
+// reachable solely through the canonical transition/claim/completion
+// pathways; arbitrary initial-status creation (e.g. directly into RUNNING,
+// VERIFYING, COMPLETED, or BLOCKED) is rejected.
+export const CREATABLE_STATUSES = Object.freeze(['DRAFT', 'QUEUED'])
+
 export class WorkOrderError extends Error {
   constructor(code, message) {
     super(message)
@@ -91,6 +97,10 @@ export class FileWorkOrderLedger {
       const state = await this._read()
       const existingId = state.idempotency[input.idempotency_key]
       if (existingId) return structuredClone(state.work_orders[existingId])
+      const requestedStatus = input.status ?? 'DRAFT'
+      if (!CREATABLE_STATUSES.includes(requestedStatus)) {
+        throw new WorkOrderError('INVALID_INITIAL_STATUS', `Work orders cannot be created directly in ${requestedStatus}`)
+      }
       const now = iso(this.clock())
       const workOrder = {
         work_order_id: input.work_order_id ?? randomUUID(),
@@ -102,7 +112,7 @@ export class FileWorkOrderLedger {
         executor: input.executor,
         required_artifacts: input.required_artifacts ?? [],
         input_hashes: input.input_hashes ?? [],
-        status: input.status ?? 'DRAFT',
+        status: requestedStatus,
         lease_owner: null,
         lease_token: null,
         lease_expires_at: null,
@@ -150,11 +160,36 @@ export class FileWorkOrderLedger {
     return structuredClone(order)
   }
 
+  // Read-only listing used by the bounded worker session to discover work.
+  // Never mutates state; results are defensive copies ordered by creation.
+  async list({ statuses = null } = {}) {
+    const state = await this._read()
+    return Object.values(state.work_orders)
+      .filter((order) => !statuses || statuses.includes(order.status))
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((order) => structuredClone(order))
+  }
+
   async events(workOrderId) {
     const state = await this._read()
     return state.events
       .filter((event) => event.work_order_id === workOrderId)
       .map((event) => structuredClone(event))
+  }
+
+  // Fencing gate shared by transition() and completeIdempotently(): a leased
+  // mutation requires the exact fencing token AND a lease that has not
+  // expired. An expired lease fails closed with LEASE_EXPIRED; the order is
+  // returned to QUEUED only through reclaimExpired(), never by honoring a
+  // stale holder's mutation.
+  _requireActiveLease(order, leaseToken) {
+    if (!order.lease_token) return
+    if (leaseToken !== order.lease_token) {
+      throw new WorkOrderError('LEASE_MISMATCH', 'Active lease token is required')
+    }
+    if (Date.parse(order.lease_expires_at) <= this.clock()) {
+      throw new WorkOrderError('LEASE_EXPIRED', 'Lease has expired')
+    }
   }
 
   async transition(workOrderId, nextStatus, { actor, reason = 'STATE_TRANSITION', patch = {}, leaseToken } = {}) {
@@ -168,9 +203,7 @@ export class FileWorkOrderLedger {
       if (!TRANSITIONS[order.status]?.has(nextStatus)) {
         throw new WorkOrderError('INVALID_TRANSITION', `${order.status} cannot transition to ${nextStatus}`)
       }
-      if (order.lease_token && leaseToken !== order.lease_token) {
-        throw new WorkOrderError('LEASE_MISMATCH', 'Active lease token is required')
-      }
+      this._requireActiveLease(order, leaseToken)
       const prior = order.status
       Object.assign(order, patch, { status: nextStatus, updated_at: iso(this.clock()) })
       if (TERMINAL_STATES.has(nextStatus) || ['QUEUED', 'BLOCKED', 'READY_FOR_APPROVAL'].includes(nextStatus)) {
@@ -186,12 +219,19 @@ export class FileWorkOrderLedger {
     })
   }
 
-  async claim(workOrderId, { leaseOwner, leaseTtlMs = 60_000 }) {
+  async claim(workOrderId, { leaseOwner, leaseTtlMs = 60_000 } = {}) {
     return this._exclusive(async () => {
       const state = await this._read()
+      // Reclaim demonstrably expired leases before evaluating claimability so
+      // a stale holder never blocks a fresh claim. This wires the reclaim
+      // pathway into the only caller path that needs it.
+      const reclaimed = this._reconcileExpiredState(state, 'lease-reclaimer')
       const order = state.work_orders[workOrderId]
       if (!order) throw new WorkOrderError('WORK_ORDER_NOT_FOUND', 'Work order not found')
-      if (order.status !== 'QUEUED') throw new WorkOrderError('NOT_CLAIMABLE', 'Work order is not queued')
+      if (order.status !== 'QUEUED') {
+        if (reclaimed.length) await this._write(state)
+        throw new WorkOrderError('NOT_CLAIMABLE', 'Work order is not queued')
+      }
       const prior = order.status
       const now = this.clock()
       order.status = 'CLAIMED'
@@ -230,25 +270,34 @@ export class FileWorkOrderLedger {
     })
   }
 
+  // Shared reconcile pass: any CLAIMED/RUNNING order whose lease expiry has
+  // passed is returned to QUEUED with its lease cleared and a visible
+  // LEASE_EXPIRED reclaim event. Operates on an already-read state inside an
+  // _exclusive boundary; callers persist via _write.
+  _reconcileExpiredState(state, actor) {
+    const reclaimed = []
+    const now = this.clock()
+    for (const order of Object.values(state.work_orders)) {
+      if (!['CLAIMED', 'RUNNING'].includes(order.status) || Date.parse(order.lease_expires_at) > now) continue
+      const prior = order.status
+      order.status = 'QUEUED'
+      order.lease_owner = null
+      order.lease_token = null
+      order.lease_expires_at = null
+      order.heartbeat_at = null
+      order.blocker_code = BLOCKER_CODES.LEASE_EXPIRED
+      order.next_action = 'RECLAIM_BY_EXECUTOR'
+      order.updated_at = iso(now)
+      state.events.push(this._event(order, prior, 'QUEUED', 'LEASE_EXPIRED_RECLAIMED', actor))
+      reclaimed.push(structuredClone(order))
+    }
+    return reclaimed
+  }
+
   async reclaimExpired({ actor = 'lease-reclaimer' } = {}) {
     return this._exclusive(async () => {
       const state = await this._read()
-      const reclaimed = []
-      const now = this.clock()
-      for (const order of Object.values(state.work_orders)) {
-        if (!['CLAIMED', 'RUNNING'].includes(order.status) || Date.parse(order.lease_expires_at) > now) continue
-        const prior = order.status
-        order.status = 'QUEUED'
-        order.lease_owner = null
-        order.lease_token = null
-        order.lease_expires_at = null
-        order.heartbeat_at = null
-        order.blocker_code = BLOCKER_CODES.LEASE_EXPIRED
-        order.next_action = 'RECLAIM_BY_EXECUTOR'
-        order.updated_at = iso(now)
-        state.events.push(this._event(order, prior, 'QUEUED', 'LEASE_EXPIRED_RECLAIMED', actor))
-        reclaimed.push(structuredClone(order))
-      }
+      const reclaimed = this._reconcileExpiredState(state, actor)
       if (reclaimed.length) await this._write(state)
       return reclaimed
     })
@@ -308,9 +357,7 @@ export class FileWorkOrderLedger {
       if (!TRANSITIONS[order.status]?.has('COMPLETED')) {
         throw new WorkOrderError('INVALID_TRANSITION', `${order.status} cannot transition to COMPLETED`)
       }
-      if (order.lease_token && leaseToken !== order.lease_token) {
-        throw new WorkOrderError('LEASE_MISMATCH', 'Active lease token is required')
-      }
+      this._requireActiveLease(order, leaseToken)
       await this._verifyRequiredArtifacts(order, { resultHash, evidenceHash })
       const prior = order.status
       Object.assign(order, {
