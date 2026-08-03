@@ -7,18 +7,19 @@
 | Field | Value |
 |---|---|
 | **Title** | MOSV2-C Current-main PLAN, source/auth matrix and Home zones |
-| **Version** | **1.1** (amended to record founder rulings; supersedes v1.0) |
+| **Version** | **1.1.1** — the **final pre-implementation PLAN revision** (supersedes the unapproved v1.1 draft and v1.0) |
+| **Filename** | `docs/vault/MOSV2_C_CURRENT_MAIN_PLAN_v1.1.1.md` — filename and document version are intentionally identical at this revision; this is the only Phase C PLAN file |
 | **Date** | August 2, 2026 |
 | **Status** | **PLAN GATE — FOR DENARIUS EXACT-HEAD APPROVAL** |
 | **Workstream** | **MOSV2-C** (single workstream per ADR-IMP2; nothing else mixed in) |
 | **Repository** | `Motesart27/Motesart-OS` · **PR** #25 (draft) |
 | **Current-main baseline (verified)** | `2f0c3f45ec5a60e85d7e4b36fcab74a8081f0c6e` — confirmed equal to `origin/main` |
 | **Packet baseline (superseded)** | `72a2984b78be18863d4e2076ec8d22f9d1ad5510` (23 commits behind current main; drift in §2) |
-| **Governing packet** | `docs/vault/MOSV2_PHASE_C_EXECUTION_PACKET_v1.0.md` (byte-identical on current main to the PR #15 mirror) |
+| **Governing packet** | `docs/vault/MOSV2_PHASE_C_EXECUTION_PACKET_v1.0.md` (filename unchanged; byte-identical on current main to the PR #15 mirror) |
 | **Branch** | `feat/mosv2-c-zones` (isolated worktree; zero implementation commits) |
 | **Backend audited ref** | `Motesart27/Deployable-python-codebase-som` `origin/main` = `15e4889b9a2ce9334755d471843e5bdf39faf430` (2026-07-24, "KIMI-MANUAL-001") |
 | **Classification** | Architecture (documentation only) |
-| **Amendment record** | v1.0 — initial current-main PLAN (head `b333db0`). v1.1 — records founder rulings G1, G2, G3, G4, G7, G8, the mock-data ruling, the same-origin data rule, and the live field-verification gate; updates gap register, connector trust table, per-tile plans, implementation sequence, test plan, proof package, stop conditions. Documentation only. |
+| **Amendment record** | v1.0 — initial current-main PLAN (head `b333db0`). v1.1 — recorded founder rulings G1–G4, G7, G8, mock-data ruling, same-origin rule, live field-verification gate (head `c41bf31`; reviewed, never approved). **v1.1.1 — final pre-implementation revision; supersedes the unapproved v1.1 draft; resolves the three independent-review findings: document identity (filename = version), unambiguous live-audit destination (PR #25 itself, §3.7), and deterministic fail-closed pre-B2 FM behavior (§3.8). Documentation only.** |
 
 **NO PHASE C IMPLEMENTATION HAS BEGUN.** This PR contains exactly one file (this document). No component, adapter, endpoint, or configuration was created or modified.
 
@@ -26,11 +27,11 @@
 
 **Data classification law (applies to every statement in this plan and to every tile at implementation):** the plan and the UI must always distinguish, and never blur, five classes —
 1. **LIVE** — data served by a verified same-origin `/api/*` endpoint whose fields passed the live field-verification gate (§3.4);
-2. **UNAVAILABLE-LIVE** — a lawful endpoint exists but its data may not be presented yet (B2-gated FM, founder-deferred SOM); renders quiet-empty or explicit unavailability, never a production-connected claim;
-3. **FIXTURE** — deterministic Gallery data, visibly labeled as fixture, used to demonstrate components and states; Gallery performs zero network calls (9.6);
+2. **UNAVAILABLE-LIVE** — a lawful endpoint exists but its data may not be presented yet (pre-B2 FM, founder-deferred SOM); renders explicit unavailability or quiet-empty, never a production-connected claim;
+3. **FIXTURE** — deterministic Gallery data, visibly labeled FIXTURE, used to demonstrate components and states; Gallery performs zero network calls (9.6);
 4. **MOCK** — backend payloads carrying `"status":"mock"`; **never valid populated data**, always forced into the adapter's unavailable/error state (§3.6);
 5. **DEFERRED** — sources with no endpoint (Book BK_* model, VitalStack/Life, canonical daily revenue series, SOM `/api/*` route); owned by later backend workstreams, never improvised inside Phase C.
-No quiet-empty deferred tile may be marked or styled as production-connected.
+No quiet-empty or unavailable deferred tile may be marked or styled as production-connected.
 
 ---
 
@@ -114,7 +115,7 @@ Before the first implementation commit that wires any live endpoint:
 2. Record safe response keys and shapes.
 3. Compare live fields against this PLAN (§4).
 4. Do not print credentials or sensitive record contents.
-5. Add the live-schema field audit to PR #25's implementation PR.
+5. Add the live-schema field audit directly to PR #25, as it evolves from its approved PLAN gate into the Phase C implementation PR (destination law in §3.7).
 6. **Stop that tile's implementation** for: missing field · changed case · unexpected mock response · authentication failure · unexpected response shape · provider error.
 7. A failure in one tile must not block lawful implementation of unrelated tiles.
 
@@ -130,9 +131,43 @@ Phase C browser code may use **only**: (a) current same-origin `/api/*` routes t
 - The UI may not hide or remove the mock marker and display the values.
 - Deterministic Gallery fixtures remain separate and visibly classified as fixtures.
 
+### 3.7 · IMPLEMENTATION EVIDENCE DESTINATION (founder-ruled; unambiguous)
+
+1. After exact-head founder approval, **PR #25 remains open and draft**.
+2. PR #25 transitions from PLAN-only to Phase C implementation on the **same branch** `feat/mosv2-c-zones`.
+3. Before the first commit that wires each live endpoint, the §3.4 live field-verification gate is run for that endpoint.
+4. The safe endpoint/field audit is added **directly to PR #25**.
+5. The audit must be present in the PR body or an explicitly linked governed evidence document on the same branch **before that tile is considered wired**.
+6. **No separate implementation PR is assumed.**
+7. A separate implementation PR would require a **new founder ruling**.
+8. FM-PAT-B2 remains a **separate backend repository and PR** and is **not mixed into PR #25**.
+
+Every reference in this plan to implementation evidence, audits, proof, or wiring commits means: **PR #25, as it evolves from its approved PLAN gate into the Phase C implementation PR.**
+
+### 3.8 · PRE-B2 / POST-B2 FM RULE (founder-ruled; deterministic, fail-closed — supersedes every earlier disjunctive FM statement)
+
+**BEFORE FM-PAT-B2 IS DEPLOYED AND INDEPENDENT LIVE READS ARE GREEN:**
+1. No FM-derived value may render as populated live cockpit data.
+2. No FM-derived signal may appear in the live Z1 signal feed.
+3. No FM summary or statistic may appear as a live Z3 value.
+4. The live FM tiles render an explicit unavailable or quiet-empty state.
+5. Approved copy: `Financial data unavailable — verification pending.`
+6. Gallery fixtures may demonstrate FM component states but must be visibly labeled FIXTURE and perform zero network calls.
+7. Any payload with `"status":"mock"` remains an error/unavailable result (§3.6).
+8. Monthly revenue data remains prohibited as a substitute for a daily series (G4).
+
+**AFTER FM-PAT-B2 IS DEPLOYED AND INDEPENDENT LIVE READS ARE GREEN:**
+1. The verified FM summary/stat endpoints may be wired.
+2. The §3.4 live-field gate must still pass before rendering.
+3. FM-derived Z1 signals may be introduced only from verified non-mock data.
+4. The revenue chart remains unavailable until a canonical daily series exists.
+5. B2 approval alone does not create or authorize a daily revenue series.
+
+This rule replaces all earlier "suppressed or caveat-rendered", "suppressed or ≤warn", "fixture-fed or live with caveat", and "live but unverified" phrasing. The packet's A3 ≤warn-severity interim regime is **superseded** by this fail-closed rule for Phase C.
+
 ---
 
-## 4 · NINE-DOMAIN SOURCE/AUTH MATRIX (verified against current main + backend `15e4889`; amended per §3.2)
+## 4 · NINE-DOMAIN SOURCE/AUTH MATRIX (verified against current main + backend `15e4889`; amended per §3.2, §3.7, §3.8)
 
 Legend — Availability: **AV** available · **CON** constrained · **MISS** missing · **DEFER** deferred by founder ruling. "Phase C legal" = usable under packet §4/§5 and the §3 rulings. All frontend reads go **same-origin only** through the Netlify proxy `/api/* → https://deployable-python-codebase-som-production.up.railway.app/api/:splat` (§3.5); the frontend sends `Authorization: Bearer <som_token>` (JWT in localStorage, `src/services/api.js:4-6`) but does not claim server-side enforcement where none exists (§3.3). **No client-side Airtable/PAT anywhere — confirmed and remains law.**
 
@@ -218,14 +253,14 @@ Legend — Availability: **AV** available · **CON** constrained · **MISS** mis
 | Authentication | None server-side (verified; §3.3 truthful-claim rule applies) |
 | Exact fields (case-verified) | Bills: `Bill_Name, Amount, Due_Day, Frequency, Entity, Account, Auto_Pay, Status, Last_Paid_Date, Notes, Confirmed_By_Denarius` · Savings: `Stash_Name, Goal_Amount, Current_Balance, Monthly_Target, Last_Deposit_Date, Last_Deposit_Amount, Status, Priority, Notes` · Accounts: `Account_Name, Entity, Account_Type, Institution, Last_4, Current_Balance, Credit_Limit, Status` · Monthly: `Month, Entity, Total_Income, Total_Expenses, Net, Expense_Ratio, Savings_Deposited, Flag_Notes` (`fm_airtable.py:129-160, 280-291`) — **PascalCase, opposite of MASTER_TASKS convention; verbatim or nothing** |
 | Response shape | Lists → `{"count", "bills|stashes|accounts|months": [{"id", ...fields}]}` · Summary → `{"status": "live"|"mock", "source", "as_of", "ytd": {income, expenses, net, expense_ratio}, "monthly": [...], "savings"|"top_categories", "flags"}` |
-| Trust classification | **connected-not-production-trusted until FM-PAT-B2 is deployed and independently green** (ADR-PR3 + ruling G8 req. 10) |
-| Freshness | 900s + mandatory `as of` tag; permanent caveat tag `unverified — FM fix pending` until B2 green |
-| Failure behavior | Per-tile degrade; FM-born signals cap at ≤warn severity (packet A3); **`"status":"mock"` payload ⇒ adapter unavailable/error state, never rendered (§3.6)** |
-| Availability | **CON — B2-gated (G8); UNAVAILABLE-LIVE until then** |
+| Trust classification | **connected-not-production-trusted until FM-PAT-B2 is deployed and independent live reads are green** (ADR-PR3 + ruling G8 req. 10 + §3.8) |
+| Freshness | 900s (9.3) once wired post-B2; pre-B2 there is nothing to refresh — tiles render the ruled unavailable state |
+| Failure behavior | Per-tile degrade; **`"status":"mock"` payload ⇒ adapter unavailable/error state, never rendered (§3.6)** |
+| Availability | **CON — B2-gated (G8); UNAVAILABLE-LIVE until B2 deploy + independent green (§3.8, fail-closed)** |
 | Production-trusted | **No** |
 | New connector required | No — but the B2 backend PR is required (G8; separate repo/branch/PR; §16) |
-| Phase C legal | **Yes, caveated and gated:** FM summary/stat tiles build against FIXTURES; wire live only after B2 deploy + independent green proof (G4 req. 7, G8 req. 10). FM overdue signals for Z1: same gate, ≤warn severity meanwhile. The monthly series may **not** feed the 7D/30D chart (G4) |
-| Unknowns / required proof | (a) PAT defect confirmed at `fm_airtable.py:23` and replicated in `airtable_client.py:12-13`, `morning_brief.py:32`, `piano.py:89`, `travel.py:13-14` — all five in B2 scope per G8. (b) **Mock-fallback hazard:** `/api/fm/summary` silently serves hardcoded numbers with `"status":"mock"` (`fm_airtable.py:372-421`) — handled by §3.6. (c) No FM revenue/invoice/overdue-specific endpoint exists; overdue-bills derive from `GET /api/fm/bills?status=` + `Due_Day` client-side. Proof: post-B2 §3.4 live read with `status:"live"` |
+| Phase C legal | **Pre-B2 (deterministic, §3.8):** no FM-derived value renders as populated live data; no FM-derived signal in the live Z1 feed; FM tiles render explicit unavailability with copy `Financial data unavailable — verification pending.`; fixtures only, visibly labeled FIXTURE, zero network. **Post-B2 + independent green + §3.4 gate:** the verified summary/stat endpoints may wire; FM-derived Z1 signals only from verified non-mock data; the monthly series never feeds the 7D/30D chart (G4); B2 does not create or authorize a daily series |
+| Unknowns / required proof | (a) PAT defect confirmed at `fm_airtable.py:23` and replicated in `airtable_client.py:12-13`, `morning_brief.py:32`, `piano.py:89`, `travel.py:13-14` — all five in B2 scope per G8. (b) **Mock-fallback hazard:** `/api/fm/summary` silently serves hardcoded numbers with `"status":"mock"` (`fm_airtable.py:372-421`) — handled by §3.6. (c) No FM revenue/invoice/overdue-specific endpoint exists; post-B2 overdue-bills derive from `GET /api/fm/bills?status=` + `Due_Day` client-side. Proof: post-B2 §3.4 live read with `status:"live"` |
 
 ### Domain 6 — School of Motesart
 
@@ -272,13 +307,13 @@ Legend — Availability: **AV** available · **CON** constrained · **MISS** mis
 | Authentication | None server-side on all (verified) |
 | Exact fields | As cited per endpoint; monthly series `Month, Total_Income` verified (Domain 5) |
 | Response shape | Per-endpoint envelopes as cited |
-| Trust classification | pulse: production-trusted · FM: B2-gated · piano: prohibited substitute · daily revenue series: **does not exist** |
+| Trust classification | pulse: production-trusted · FM: B2-gated, fail-closed pre-B2 (§3.8) · piano: prohibited substitute · daily revenue series: **does not exist** |
 | Freshness | 900s (9.3) |
 | Failure behavior | Per-tile degrade; revenue chart renders explicit unavailability, not error |
-| Availability | **CON (pulse/FM stats) · DEFER (daily revenue series, G4)** |
+| Availability | **CON (pulse; FM stats post-B2 only) · DEFER (daily revenue series, G4)** |
 | Production-trusted | Only `/api/pulse` |
 | New connector required | A canonical daily revenue-series source — **DEFERRED** backend workstream (G4) |
-| Phase C legal | **Yes for:** pulse tile (LIVE candidate) and FM summary/stat tiles (B2-gated, G4 req. 7). **The Z3 revenue area chart:** component + all interaction/accessibility behavior built on deterministic Gallery FIXTURES demonstrating 7D/30D/QTD, both crosshairs, and all five data states; the **live chart stays quiet-empty/unavailable** with copy `Revenue trend unavailable — daily source not connected.` until a canonical daily source is verified. **Prohibited (G4):** interpolating/duplicating/subdividing monthly values into daily points; silently substituting invoice totals or piano revenue; representing monthly data as a 7D/30D series |
+| Phase C legal | **Yes for:** pulse tile (LIVE candidate) and FM summary/stat tiles (post-B2-green only, §3.8). **The Z3 revenue area chart:** component + all interaction/accessibility behavior built on deterministic Gallery FIXTURES demonstrating 7D/30D/QTD, both crosshairs, and all five data states; the **live chart stays quiet-empty/unavailable** with copy `Revenue trend unavailable — daily source not connected.` until a canonical daily source is verified. **Prohibited (G4):** interpolating/duplicating/subdividing monthly values into daily points; silently substituting invoice totals or piano revenue; representing monthly data as a 7D/30D series |
 | Unknowns / required proof | What the canonical daily revenue source will be — owned by the deferred backend workstream |
 
 ### Domain 9 — create_task_core dispatch
@@ -324,15 +359,15 @@ Legend — Availability: **AV** available · **CON** constrained · **MISS** mis
 | G1 | **Book Manager reads missing** (Domain 4) | **RULED — approved with task-lane fallback:** `GET /api/tasks?business=Book` only; no BK_* claims; quiet-empty when no Book tasks; dedicated Book reads = later backend workstream | One tile only (Z2 Book info), now resolved by ruling |
 | G2 | **`/students/*` outside `/api` proxy + unauthenticated** (Domain 6) | **RULED — live SOM tile DEFERRED:** quiet-empty `SOM data connection pending.`; direct URL / proxy bypass / CORS workaround / netlify.toml change / backend auth change all prohibited in Phase C; future authenticated same-origin `/api/*` route required | One tile only (Z3 SOM student count), deferred |
 | G3 | **VitalStack/Life absent** (Domain 7) | **RULED — restricted tile set approved:** Personal task lane + personal-calendar events only; no VitalStack, no mock travel/people, no invented metrics; quiet-empty, never error, for absent optional sources | Z4 tile contents resolved by ruling |
-| G4 | **No canonical revenue series** (Domain 8) | **RULED:** chart component + interactions built on deterministic Gallery fixtures (7D/30D/QTD, both crosshairs, all states); live chart quiet-empty `Revenue trend unavailable — daily source not connected.`; no monthly-as-daily, no interpolation, no piano/invoice substitution; FM stat tiles live only post-B2-green | Live revenue-series adapter only — not the chart component, fixtures, or post-B2 FM stat tiles |
+| G4 | **No canonical revenue series** (Domain 8) | **RULED:** chart component + interactions built on deterministic Gallery fixtures (7D/30D/QTD, both crosshairs, all states); live chart quiet-empty `Revenue trend unavailable — daily source not connected.`; no monthly-as-daily, no interpolation, no piano/invoice substitution; FM stat tiles live only post-B2-green (§3.8) | Live revenue-series adapter only — not the chart component, fixtures, or post-B2 FM stat tiles |
 | G5 | **Base-ID conflict `app4GKdk1AqmiOyKx`** (Book base per packet vs MASTER_TASKS base per backend) | Treat backend code as ground truth: MASTER_TASKS lives under `AIRTABLE_MASTER_TASKS_BASE_ID` env; do not assert the Book base ID anywhere in Phase C. Architect seat to reconcile docs post-C | Nothing (documentation hygiene) |
-| G6 | **`FIELDS.md` absent; zero live-schema field verification** | **Superseded by founder gate §3.4:** one authorized live read per endpoint before its wiring commit; audit added to the implementation PR; per-tile stop conditions; failures isolated per tile | Nothing in planning; implementation gate per-endpoint |
+| G6 | **`FIELDS.md` absent; zero live-schema field verification** | **Superseded by founder gate §3.4:** one authorized live read per endpoint before its wiring commit; audit added directly to PR #25, as it evolves from its approved PLAN gate into the Phase C implementation PR (§3.7); per-tile stop conditions; failures isolated per tile | Nothing in planning; implementation gate per-endpoint |
 | G7 | **Read endpoints unauthenticated server-side** | **RULED — separate security follow-up:** stays recorded; Phase C does not reopen or modify auth; frontend sends its JWT but never claims enforcement that source disproves | Nothing in Phase C |
-| G8 | **FM-PAT-B2 scope** — same `.lstrip("=")` defect in 5 files | **RULED — broader five-file correction authorized** as a separate backend PR (`fm_airtable.py`, `airtable_client.py`, `morning_brief.py`, `piano.py`, `travel.py`) with tests, secret scan, exact-head review; no merge/deploy without later founder authorization | Live-wiring of FM tiles only |
+| G8 | **FM-PAT-B2 scope** — same `.lstrip("=")` defect in 5 files | **RULED — broader five-file correction authorized** as a separate backend PR (`fm_airtable.py`, `airtable_client.py`, `morning_brief.py`, `piano.py`, `travel.py`) with tests, secret scan, exact-head review; no merge/deploy without later founder authorization; pre-B2 FM behavior deterministic fail-closed per §3.8 | Live-wiring of FM tiles only |
 | G9 | **`result_summary` never written** (Domain 3) | Handled-log tile renders `response_text` with `result_summary` preferred when non-null; writer mismatch recorded as a backend FOLLOW-UP | Nothing (rendering rule) |
 | G10 | **Zone label mismatch** (shell Z5 "Mya" vs packet "Quick Actions") | Relabel the Z5 container heading during implementation under allowed `src/v2/*` scope; no behavior change | Nothing (cosmetic) |
 
-**Verdict:** no gap blocks this PLAN. G1–G4 and G8 are now founder-ruled; G6 is superseded by the founder's live field-verification gate; G7 is a recorded follow-up. Remaining gaps block at most one tile each, and per §3.4 req. 7 a tile-level failure never blocks unrelated tiles.
+**Verdict:** no gap blocks this PLAN. G1–G4 and G8 are founder-ruled; G6 is superseded by the founder's live field-verification gate; G7 is a recorded follow-up. Remaining gaps block at most one tile each, and per §3.4 req. 7 a tile-level failure never blocks unrelated tiles.
 
 ---
 
@@ -345,10 +380,10 @@ Legend — Availability: **AV** available · **CON** constrained · **MISS** mis
 | Google Calendar | Production-trusted (ADR-DC2) | Endpoint + server-side sanitizer verified | **LIVE candidate** — §3.4 gate |
 | Mya audit log | Write-trusted; read same base | Read endpoint exists, JWT-enforced, `result_summary` null defect (G9) | **LIVE candidate** — fallback rendering |
 | Book base | "Same Airtable discipline" | **No read path exists** | **DEFERRED (G1)** — task-lane fallback is LIVE candidate; no BK_* claims |
-| FM routes | B2-gated | PAT defect confirmed (5 files); mock fallback confirmed | **UNAVAILABLE-LIVE until B2 green (G4/G8)** — FIXTURES meanwhile; `"status":"mock"` always rejected (§3.6) |
+| FM routes | B2-gated | PAT defect confirmed (5 files); mock fallback confirmed | **PRE-B2: UNAVAILABLE-LIVE, fail-closed (§3.8)** — no FM value, signal, or statistic renders live; explicit unavailability copy `Financial data unavailable — verification pending.`; FIXTURES only, labeled, zero network. **POST-B2 + independent green + §3.4 gate:** summary/stat endpoints may wire; Z1 FM signals only from verified non-mock data |
 | SOM routes | Unknown pending inventory | Routes exist; proxy/auth constrained | **DEFERRED (G2)** — quiet-empty `SOM data connection pending.`; fixtures may demo states |
 | VitalStack/Life | Unverified; absence lawful | **Absent** | **DEFERRED (G3)** — restricted set: Personal tasks + personal calendar only |
-| Daily revenue series | (unnamed in packet) | **Does not exist** | **DEFERRED (G4)** — chart on FIXTURES; live chart explicitly unavailable |
+| Daily revenue series | (unnamed in packet) | **Does not exist** | **DEFERRED (G4)** — chart on FIXTURES; live chart explicitly unavailable; B2 does not create or authorize this source (§3.8) |
 | `create_task_core` dispatch | Production-trusted write | Verified; approval semantics verified | **LIVE candidate** — only write, implemented last |
 | Drive connector | Architecturally-approved-not-configured | Unchanged | **Not in Phase C** |
 
@@ -359,16 +394,16 @@ Legend — Availability: **AV** available · **CON** constrained · **MISS** mis
 Adopted from packet §10, re-verified against current main, amended per §3 rulings:
 
 - **Components:** one per zone — `Z1Today`, `Z2Projects`, `Z3Business`, `Z4Personal`, `Z5QuickActions` — composed on `/v2/home` inside the existing `v2-zone--1..5` containers (`shell/index.jsx:198-220`); tiles are child components. Phase A/B primitives consumed, never re-implemented: `Card`, `Panel`, `Chip`, `StatCard`, `Sparkline`, `ProgressBar`, `ProgressRing`, `Toast`, `Button`, `Kbd` (`src/v2/components/index.jsx`). Tokens from `src/v2/tokens.css` verbatim.
-- **Adapters:** one per canonical source — `tasks`, `calendar`, `auditLog`, `fm`, `personal`, `book` (task-lane only, G1), `dispatch` — thin fetch layer over the verified §4 endpoints, exposing one uniform per-tile contract `{status, data, lastGood, updatedAt, error, retry}`. Zones never fetch directly; adapters never render. **No `som` adapter is built in Phase C** (G2 deferral); **no revenue-series adapter is built in Phase C** (G4 deferral) — the chart consumes fixtures only.
+- **Adapters:** one per canonical source — `tasks`, `calendar`, `auditLog`, `personal`, `book` (task-lane only, G1), `dispatch` — thin fetch layer over the verified §4 endpoints, exposing one uniform per-tile contract `{status, data, lastGood, updatedAt, error, retry}`. Zones never fetch directly; adapters never render. **No `som` adapter is built in Phase C** (G2 deferral); **no revenue-series adapter is built in Phase C** (G4 deferral) — the chart consumes fixtures only. **The `fm` adapter is not wired to live rendering pre-B2** (§3.8): FM tiles render the ruled unavailable state from a fixture-fed demonstration path only; the adapter's live path activates solely after B2 deploy + independent green + §3.4 gate.
 - **Same-origin law (§3.5):** adapters call same-origin `/api/*` only. No absolute backend/provider URLs, no new proxy rules, no CORS reliance. Local/client-derived values (clock, countdowns) need no endpoint.
 - **Mock rejection law (§3.6):** every adapter inspects payloads for `"status":"mock"`; a mock payload transitions the tile to unavailable/error, is never rendered as data, and the marker is never stripped.
 - **State:** per-tile, local; **no global store** (cross-tile cascades structurally impossible). Last-good retained **in memory only**; **zero new localStorage keys** (documented "none" in PR).
-- **Refresh:** each adapter owns its cadence timer per 9.3 (60s/300s/900s tiers), **pauses on `visibilitychange`**, silent refresh (no skeleton replay).
+- **Refresh:** each adapter owns its cadence timer per 9.3 (60s/300s/900s tiers), **pauses on `visibilitychange`**, silent refresh (no skeleton replay). Pre-B2 FM tiles hold no cadence — there is no live FM fetch to schedule (§3.8).
 - **Cancellation:** `AbortController` per fetch; abort on unmount and superseded range change.
 - **Errors:** one React error boundary per zone; zone crash renders that zone's error state, never the shell or siblings.
 - **Auth:** all requests send Bearer `som_token`; **401/403 tile-local, never global logout** (9.5); the UI never claims server-side enforcement that source disproves (§3.3).
 - **Routes:** Phase C mounts under `/v2/home` only; module L2 routes stay skeletons; legacy routes untouched.
-- **Gallery:** imports zone/tile components with **fixture adapters** rendering every state as labeled specimens, **visibly classified as fixtures** (§3.6); **zero network calls** (9.6) — the existing Gallery already makes zero network calls and this invariant is preserved.
+- **Gallery:** imports zone/tile components with **fixture adapters** rendering every state as labeled specimens, **visibly classified FIXTURE** (§3.6/§3.8); **zero network calls** (9.6) — the existing Gallery already makes zero network calls and this invariant is preserved.
 - **Flag:** `VITE_MOS_V2` env + `window.MOS_V2` override (`src/App.jsx:14`); production remains **false**; flag-off = zero v2 network requests (lazy chunk never loads).
 - **API base:** `VITE_API_URL || ''` same-origin proxy (`api.js:1`); **zero localhost fallback** — verified clean under `src/` today (the one hardcoded production-Railway fallback lives in legacy `MyaDispatchPanel.jsx`, out of scope; no equivalent may be introduced in v2 — §3.5).
 
@@ -376,14 +411,14 @@ Adopted from packet §10, re-verified against current main, amended per §3 ruli
 
 ## 8 · PER-TILE PLAN (mandatory content for every tile; amended per rulings)
 
-State language for every tile (packet §7 + approved 9.1 designs): `idle → loading → populated | empty | error`; `populated → stale → populated`; `populated → partial`; `error → loading` on retry. **Loading:** static skeleton reserving exact final geometry (zero CLS; no shimmer). **Empty:** one quiet line + good-t dot (suggests, never begs). **Error:** crit-t dot + "‹Source› unreachable" + "Retry ↻" link. **Stale:** last-good fully rendered + mono `as of HH:MM` tag + warn-t dot. **Partial:** em-dash for absent values + scope-naming tag. **401/403:** tile-local "sign-in needed" error subtype, never global logout (9.5). **Retry:** user retry link re-enters loading; otherwise next cadence tick; no auto-retry storms. **Last-good:** populated data never regresses to skeleton/empty on failed refresh — it goes stale. **A11y:** tile status line is a polite live region (`role="status"`); severity never color-alone; focus ring 2px `--info`. **Reduced motion:** draw-ins render final state; lifts/washes instant. **Classification:** every tile is labeled below as LIVE candidate / UNAVAILABLE-LIVE / FIXTURE-only / DEFERRED per the §0 law; no DEFERRED tile is ever styled or described as production-connected.
+State language for every tile (packet §7 + approved 9.1 designs): `idle → loading → populated | empty | error`; `populated → stale → populated`; `populated → partial`; `error → loading` on retry. **Loading:** static skeleton reserving exact final geometry (zero CLS; no shimmer). **Empty:** one quiet line + good-t dot (suggests, never begs). **Error:** crit-t dot + "‹Source› unreachable" + "Retry ↻" link. **Stale:** last-good fully rendered + mono `as of HH:MM` tag + warn-t dot. **Partial:** em-dash for absent values + scope-naming tag. **401/403:** tile-local "sign-in needed" error subtype, never global logout (9.5). **Retry:** user retry link re-enters loading; otherwise next cadence tick; no auto-retry storms. **Last-good:** populated data never regresses to skeleton/empty on failed refresh — it goes stale. **A11y:** tile status line is a polite live region (`role="status"`); severity never color-alone; focus ring 2px `--info`. **Reduced motion:** draw-ins render final state; lifts/washes instant. **Classification:** every tile is labeled below as LIVE candidate / UNAVAILABLE-LIVE / FIXTURE-only / DEFERRED per the §0 law; no DEFERRED or UNAVAILABLE-LIVE tile is ever styled or described as production-connected.
 
 ### Z1 — Today
 
 | Tile | Component | Source · Endpoint · Fields | Classification | Adapter · Cadence · Hidden-tab | States / fixtures / evidence |
 |---|---|---|---|---|---|
 | Greeting + date | `Z1Greeting` | Client clock; no endpoint | LIVE (client-derived) | none · 30s tick · pauses hidden | No network states; gallery specimen static; evidence: 1440px screenshot + reduced-motion pass |
-| Signal feed (max 6, ranked crit>exec>ai>warn>info>good) | `Z1SignalFeed` | MASTER_TASKS `GET /api/tasks` fields `title,status,priority,business,assigned_agent,due_date,requires_approval` · FM overdue `GET /api/fm/bills` fields `Bill_Name,Amount,Due_Day,Status` (**UNAVAILABLE-LIVE until B2 green**; ≤warn severity meanwhile) | LIVE candidate (tasks) + UNAVAILABLE-LIVE (FM) | `tasks` + `fm` · 60s · paused hidden | All six states via fixtures; ranking proof with known-severity fixture; row click routes to owning module L2 (9.4); FM rows suppressed or caveat-tagged until B2; evidence: fixture-order screenshot + nav walkthrough |
+| Signal feed (max 6, ranked crit>exec>ai>warn>info>good) | `Z1SignalFeed` | MASTER_TASKS `GET /api/tasks` fields `title,status,priority,business,assigned_agent,due_date,requires_approval` · FM overdue `GET /api/fm/bills` fields `Bill_Name,Amount,Due_Day,Status` (**post-B2 only, §3.8**) | LIVE candidate (tasks) · FM signals: UNAVAILABLE-LIVE pre-B2 | `tasks` · 60s · paused hidden (`fm` joins only post-B2) | All six states via fixtures; ranking proof with known-severity fixture; row click routes to owning module L2 (9.4); **pre-B2 deterministic rule: no FM-derived signal appears in the live feed at all (§3.8); post-B2 FM signals only from verified non-mock data after the §3.4 gate**; evidence: fixture-order screenshot + nav walkthrough |
 | Today agenda | `Z1Agenda` | Calendar `GET /api/mya/calendar/events?days_ahead=1` fields `title,start,end` (sanitized server-side) | LIVE candidate | `calendar` · 300s · paused hidden | Non-interactive rows; empty "Nothing scheduled today."; sanitized-title raw-vs-rendered spot-check in PR |
 | Handled-log digest | `Z1HandledLog` | Audit `GET /api/mya/audit/handled?limit=3` fields `timestamp,route,result_summary,response_text` — **JWT endpoint; 401 tile-local** | LIVE candidate | `auditLog` · 300s · paused hidden | Hidden while loading; hidden on error (quiet); `result_summary` null ⇒ `response_text` fallback (G9); evidence: null-field fixture specimen |
 
@@ -399,10 +434,10 @@ State language for every tile (packet §7 + approved 9.1 designs): `idle → loa
 
 | Tile | Component | Source · Endpoint · Fields | Classification | Adapter · Cadence · Hidden-tab | States / fixtures / evidence |
 |---|---|---|---|---|---|
-| Revenue area chart (ruled G4) | `Z3RevenueChart` | **No live source in Phase C.** Component and all interaction/accessibility behavior built against **deterministic Gallery FIXTURES** demonstrating 7D, 30D, QTD, pointer crosshair, keyboard crosshair, loading, empty, stale, partial, error | **FIXTURE-only component; live data DEFERRED** | **No revenue-series adapter built**; live chart renders explicit unavailability | Live cockpit copy: `Revenue trend unavailable — daily source not connected.` · **Prohibited:** monthly-as-daily representation, interpolation/duplication/subdivision of monthly values, piano/invoice substitution (G4) · Hand-rolled SVG + crosshair tooltip; range control = `role="tablist"`; keyboard crosshair per 9.1 (plot `tabindex=0`, `role="img"`, arrows step, Home/End endpoints, polite per-step "‹date› — ‹value›"); draw-in on mount + range change only, never refresh/resize (DB-C7/D5); scale-truthfulness labels; fixtures visibly labeled as fixtures |
-| FM stat tiles (ruled G4 req. 7 + G8) | `Z3FMStats` | `GET /api/fm/summary` fields `status,as_of,ytd.{income,expenses,net}` — **`"status":"mock"` ⇒ unavailable/error state, never rendered (§3.6)** | **UNAVAILABLE-LIVE until FM-PAT-B2 deployed + independently green**; FIXTURES meanwhile | `fm` · 900s · paused hidden | StatCard primitives; partial state renders em-dash per absent field; permanent caveat tag `unverified — FM fix pending` until B2; live only after post-B2 §3.4 read proves `status:"live"` |
+| Revenue area chart (ruled G4) | `Z3RevenueChart` | **No live source in Phase C.** Component and all interaction/accessibility behavior built against **deterministic Gallery FIXTURES** demonstrating 7D, 30D, QTD, pointer crosshair, keyboard crosshair, loading, empty, stale, partial, error | **FIXTURE-only component; live data DEFERRED** | **No revenue-series adapter built**; live chart renders explicit unavailability | Live cockpit copy: `Revenue trend unavailable — daily source not connected.` · **Prohibited:** monthly-as-daily representation, interpolation/duplication/subdivision of monthly values, piano/invoice substitution (G4) · Hand-rolled SVG + crosshair tooltip; range control = `role="tablist"`; keyboard crosshair per 9.1 (plot `tabindex=0`, `role="img"`, arrows step, Home/End endpoints, polite per-step "‹date› — ‹value›"); draw-in on mount + range change only, never refresh/resize (DB-C7/D5); scale-truthfulness labels; fixtures visibly labeled FIXTURE · **B2 approval does not change this tile (§3.8 post-B2 req. 4–5)** |
+| FM stat tiles (ruled §3.8 + G8) | `Z3FMStats` | `GET /api/fm/summary` fields `status,as_of,ytd.{income,expenses,net}` — **`"status":"mock"` ⇒ unavailable/error state, never rendered (§3.6)** | **UNAVAILABLE-LIVE pre-B2 (fail-closed); LIVE only post-B2 + independent green + §3.4 gate** | `fm` · 900s · paused hidden — **only once activated post-B2**; no live FM fetch pre-B2 | **Pre-B2 deterministic state:** explicit unavailability with copy `Financial data unavailable — verification pending.` — no FM value renders as populated live data · Gallery fixtures demonstrate all component states, visibly labeled FIXTURE, zero network · **Post-B2:** wire only after B2 deploy + independent green live reads + §3.4 gate pass; partial state renders em-dash per absent field |
 | Business pulse tile | `Z3Pulse` | `GET /api/pulse` fields `urgent,overdue,blocked,approval,done_today,stale` | LIVE candidate | `tasks` · 60s · paused hidden | Production-trusted source; all states via fixtures |
-| SOM student count (ruled G2 — DEFERRED) | `Z3SOMCount` | **No live call.** `/students/*` use prohibited (direct URL, proxy bypass, unauthenticated access, CORS workaround, netlify.toml change, backend auth change) | **DEFERRED — quiet-empty** | **No `som` adapter built** | Live tile renders quiet-empty with truthful copy `SOM data connection pending.`; Gallery FIXTURES may demonstrate the eventual loading/populated/empty/error/stale/partial states, visibly labeled as fixtures; live data requires a future authenticated same-origin `/api/*` route from a separate backend workstream |
+| SOM student count (ruled G2 — DEFERRED) | `Z3SOMCount` | **No live call.** `/students/*` use prohibited (direct URL, proxy bypass, unauthenticated access, CORS workaround, netlify.toml change, backend auth change) | **DEFERRED — quiet-empty** | **No `som` adapter built** | Live tile renders quiet-empty with truthful copy `SOM data connection pending.`; Gallery FIXTURES may demonstrate the eventual loading/populated/empty/error/stale/partial states, visibly labeled FIXTURE; live data requires a future authenticated same-origin `/api/*` route from a separate backend workstream |
 | Book pre-orders | deferred/quiet-empty | No endpoint exists (Domain 4/8) | DEFERRED | — | Quiet-empty; recorded, not improvised; never styled as production-connected |
 
 ### Z4 — Life (ruled G3 — restricted tile set)
@@ -421,20 +456,20 @@ State language for every tile (packet §7 + approved 9.1 designs): `idle → loa
 
 ---
 
-## 9 · STATE MAP (complete — adopted from packet §7, approved 9.1)
+## 9 · STATE MAP (complete — adopted from packet §7, approved 9.1; amended per §3.6/§3.8)
 
-**Canonical machine:** `idle → loading → populated | empty | error`; `populated → stale → populated`; `populated → partial`; `error → loading` (retry). Additions approved at 9.1: *retrying* (= loading re-entered; no distinct visual), *permission-denied* (error subtype for 401/403, tile-local), *offline* (stale-with-marker when last-good exists, else error). Founder amendment (§3.6): **mock-rejected** is an unavailable/error entry — any payload carrying `"status":"mock"` transitions the tile to error/unavailable regardless of HTTP success.
+**Canonical machine:** `idle → loading → populated | empty | error`; `populated → stale → populated`; `populated → partial`; `error → loading` (retry). Additions approved at 9.1: *retrying* (= loading re-entered; no distinct visual), *permission-denied* (error subtype for 401/403, tile-local), *offline* (stale-with-marker when last-good exists, else error). Founder amendments: **mock-rejected** is an unavailable/error entry (§3.6); **b2-pending** is the deterministic pre-B2 FM state — explicit unavailability with copy `Financial data unavailable — verification pending.`, entered without any fetch (§3.8).
 
 | Aspect | Rule |
 |---|---|
-| Entry events | Mount (idle→loading) · cadence tick or range change (populated→loading, silent) · retry click (error→loading) · fetch resolve (→populated/empty/partial; **→error if payload is mock**) · fetch reject (→error; →stale if last-good) · freshness expiry (populated→stale) |
-| Exit events | Unmount aborts in-flight fetch · flag off unmounts all |
-| Visible UI | loading = static skeleton, exact final geometry, zero CLS · empty = quiet one-liner + good-t dot · error = crit-t dot + one line + retry link · stale = last-good + mono `as of HH:MM` + warn-t dot · partial = em-dash + scope tag · FM caveat tag `unverified — FM fix pending` until B2 · deferred tiles = quiet-empty with ruled copy, never production-connected styling |
+| Entry events | Mount (idle→loading, or idle→b2-pending for FM tiles pre-B2) · cadence tick or range change (populated→loading, silent) · retry click (error→loading) · fetch resolve (→populated/empty/partial; **→error if payload is mock**) · fetch reject (→error; →stale if last-good) · freshness expiry (populated→stale) |
+| Exit events | Unmount aborts in-flight fetch · flag off unmounts all · B2-green proof transitions FM tiles from b2-pending into the normal machine via the §3.4 gate |
+| Visible UI | loading = static skeleton, exact final geometry, zero CLS · empty = quiet one-liner + good-t dot · error = crit-t dot + one line + retry link · stale = last-good + mono `as of HH:MM` + warn-t dot · partial = em-dash + scope tag · **b2-pending = explicit unavailability, `Financial data unavailable — verification pending.`** · deferred tiles = quiet-empty with ruled copy, never production-connected styling |
 | Announced a11y state | Polite live region per tile (`role="status"`); populated data does not re-announce on refresh |
 | Retry | One retry link per tile error; re-enters loading; no automatic rapid retry loops |
 | Fallback | Last-good always preferred over blanking |
 | Persistence | None. In-memory last-good only; zero new `localStorage` keys; backend state untouched by reads |
-| Forbidden transitions | populated→empty on refresh failure · cross-tile cascade · skeleton replay on passive refresh · chart draw-in on refresh or resize · error→populated without a fetch · **mock payload → populated (always error/unavailable)** · **deferred source → any live-data presentation** |
+| Forbidden transitions | populated→empty on refresh failure · cross-tile cascade · skeleton replay on passive refresh · chart draw-in on refresh or resize · error→populated without a fetch · **mock payload → populated (always error/unavailable)** · **deferred source → any live-data presentation** · **FM-derived value, signal, or statistic → populated before B2 deploy + independent green + §3.4 gate (§3.8)** |
 | Hidden-tab behavior | All cadence timers pause on `visibilitychange` (9.3); resume on visible without burst |
 
 ---
@@ -456,44 +491,44 @@ State language for every tile (packet §7 + approved 9.1 designs): `idle → loa
 | Zone "Open ‹module› →" link | Click routes to module L2 skeleton | Tab; Enter | Ring | n/a | n/a | Persists | Persists | Hover color instant | Link, named per module | Active (nav only) |
 | Toast (Z5 result/error) | Auto-dismiss ~3s | Not focus-stealing | Never steals focus | n/a | n/a | n/a | Error variant (crit dot) | In/out opacity only | Container `aria-live="polite"` (Phase A component) | Active |
 
-**Forbidden in C:** tile collapse/drag/reorder · manual global refresh control · any feed-row action other than 9.4 routing · palette result interactions (Phase D) · any write other than the Z5 dispatch · any live chart interaction on the deferred revenue series (the live chart is an unavailability display, not an interactive plot).
+**Forbidden in C:** tile collapse/drag/reorder · manual global refresh control · any feed-row action other than 9.4 routing · palette result interactions (Phase D) · any write other than the Z5 dispatch · any live chart interaction on the deferred revenue series (the live chart is an unavailability display, not an interactive plot) · any FM-derived live value, signal, or statistic before B2-green (§3.8).
 
 ---
 
 ## 11 · PROPOSED BRANCH/FILE SCOPE
 
 - **Branch:** `feat/mosv2-c-zones` — cut from current main `2f0c3f4` in an isolated worktree. PR #25 title: `DRAFT — MOSV2-C: Current-main PLAN, source/auth matrix and Home zones`.
-- **This PR changes exactly one file:** `docs/vault/MOSV2_C_CURRENT_MAIN_PLAN_v1.0.md` (this document).
-- **Implementation phase will touch only:** new `src/v2/zones/*` and `src/v2/data/*` (adapters + gallery fixtures) · `/v2/home` composition in `src/v2/shell/index.jsx` · `src/v2/Gallery.jsx` (state specimens).
+- **This PR currently changes exactly one file:** `docs/vault/MOSV2_C_CURRENT_MAIN_PLAN_v1.1.1.md` (this document; filename matches document version 1.1.1; no second plan file exists).
+- **Implementation phase (post-approval, same branch, same PR — §3.7) will touch only:** new `src/v2/zones/*` and `src/v2/data/*` (adapters + gallery fixtures) · `/v2/home` composition in `src/v2/shell/index.jsx` · `src/v2/Gallery.jsx` (state specimens).
 - **Forbidden:** anything outside `src/v2/*` (+ this doc) · `index.html` · `src/main.jsx` · legacy routes/components · `package.json`/lockfile (no new runtime dependency — hand-rolled SVG only) · `netlify.toml`/deploy config (G2 and §3.5 rule around it) · env files/values · `design/v2/*` · Airtable schemas (read-only law) · voice pipeline · auth systems (G7) · `operator-bridge/` and `staging-control-plane/` (separate workstream — not mixed in) · the backend repo (FM-PAT-B2 is its own PR, §16) · any direct browser call to a provider or backend origin (§3.5).
 - **Protected-systems register checked:** SOM auth · Mya voice pipeline · payment/invoicing · Airtable schemas · production env vars · deployment config · legacy dashboard — none touched by this plan; G2/§3.5 explicitly route around deployment config and backend auth.
 
 ---
 
-## 12 · IMPLEMENTATION SEQUENCE (after exact-head PLAN approval only)
+## 12 · IMPLEMENTATION SEQUENCE (after exact-head PLAN approval only; all on PR #25 per §3.7)
 
-0. **FM-PAT-B2 dispatched first** (G8): backend repo, own branch/PR, five-file scope per §16; independent green-proof before any FM tile wires live. Not part of this PR.
-1. **Live field-verification gate (§3.4) executed per endpoint before its first wiring commit:** one authorized live read → safe keys/shapes recorded → compared against §4 → audit appended to the implementation PR. A tile failing the gate stops; unrelated tiles proceed (§3.4 req. 7).
-2. `src/v2/data/*` adapters for the **LIVE-candidate sources only** (`tasks`, `calendar`, `auditLog`, `personal`, `book`-task-lane, `dispatch`) with the uniform hook contract, mock-rejection (§3.6) built into every adapter, plus the fixture module (gallery-only injection, zero network, visibly classified). **No `som` adapter. No revenue-series adapter. The `fm` adapter ships fixture-fed and gated.**
-3. Z1 tiles (tasks/calendar/audit adapters) — read-only, no FM dependency; FM-born signals suppressed or ≤warn-caveated until B2.
+0. **FM-PAT-B2 dispatched first** (G8): backend repo, own branch/PR, five-file scope per §16; independent green-proof before any FM tile wires live. Not part of PR #25.
+1. **Live field-verification gate (§3.4) executed per endpoint before its first wiring commit:** one authorized live read → safe keys/shapes recorded → compared against §4 → audit added directly to PR #25, as it evolves from its approved PLAN gate into the Phase C implementation PR (present in the PR body or an explicitly linked governed evidence document on the same branch before that tile is considered wired). A tile failing the gate stops; unrelated tiles proceed (§3.4 req. 7).
+2. `src/v2/data/*` adapters for the **LIVE-candidate sources only** (`tasks`, `calendar`, `auditLog`, `personal`, `book`-task-lane, `dispatch`) with the uniform hook contract, mock-rejection (§3.6) built into every adapter, plus the fixture module (gallery-only injection, zero network, visibly labeled FIXTURE). **No `som` adapter. No revenue-series adapter. The `fm` adapter ships with its live path inactive (§3.8).**
+3. Z1 tiles (tasks/calendar/audit adapters) — read-only; **pre-B2: zero FM-derived signals in the live feed (§3.8, deterministic)**.
 4. Z2 tiles (project grouping, Book task-lane with G1 quiet-empty, countdowns).
-5. Z3: pulse tile; FM stat tiles fixture-fed with caveat tag; **revenue chart fixture-only** with live unavailability copy (G4); **SOM tile quiet-empty** (G2).
+5. Z3: pulse tile; **FM stat tiles render the ruled pre-B2 unavailability** (`Financial data unavailable — verification pending.`) with FIXTURE-only demonstrations in the Gallery; **revenue chart fixture-only** with live unavailability copy (G4); **SOM tile quiet-empty** (G2).
 6. Z4 tiles per the G3 restricted set.
 7. **Z5 quick actions LAST** — the only write; `requires_approval` behavior verified on preview before merge request.
-8. Gallery specimens for every component in every §9 state, fixtures visibly labeled.
-9. **FM live-wiring (post-B2 only):** after B2 deploys and an independent live read proves green, FM stat tiles and FM-born signals wire live in a follow-up commit on the implementation PR, caveat tag retired by proof.
-10. Proof package (§14) assembled; PR moved from draft to ready only by founder instruction.
+8. Gallery specimens for every component in every §9 state, fixtures visibly labeled FIXTURE.
+9. **FM live-wiring (post-B2 only, §3.8):** after B2 deploys and independent live reads prove green, and after the §3.4 gate passes on each FM endpoint: FM summary/stat endpoints may wire (commit on PR #25, same branch); FM-derived Z1 signals may be introduced only from verified non-mock data; **the revenue chart remains unavailable** — B2 does not create or authorize a daily series.
+10. Proof package (§14) assembled in PR #25; the PR remains draft throughout; any transition out of draft, any merge, and any separate implementation PR occur only by explicit founder ruling.
 
 ---
 
 ## 13 · TEST PLAN (amended per rulings)
 
-- **Unit-level (node:test, the repo's only runner — dev-deps allowed per AGENTS.md):** adapter contract tests (status machine transitions incl. forbidden-transition guards) · **mock-rejection tests for every adapter** (`"status":"mock"` ⇒ unavailable/error; marker never stripped; values never rendered — §3.6) · signal ranking comparator (crit>exec>ai>warn>info>good, max 6) · countdown derivation · sanitized-title passthrough · dedupe/`deduped:true` handling on dispatch response · **same-origin guard test**: static check that no v2 source contains an absolute backend/provider URL (§3.5).
-- **Component-level:** gallery forced-state specimens render every §9 state per tile, **fixtures visibly labeled as fixtures**; revenue chart demonstrates 7D/30D/QTD + both crosshairs + all five data states on fixtures (G4); zero-network assertion on `/v2/gallery` (network-tab evidence).
-- **Flag behavior:** flag-off build loads zero v2 chunk and fires zero v2 requests; flag-on request inventory matches §4 same-origin endpoints exactly, no third-party calls.
+- **Unit-level (node:test, the repo's only runner — dev-deps allowed per AGENTS.md):** adapter contract tests (status machine transitions incl. forbidden-transition guards) · **mock-rejection tests for every adapter** (`"status":"mock"` ⇒ unavailable/error; marker never stripped; values never rendered — §3.6) · **pre-B2 FM fail-closed tests**: FM tiles render `Financial data unavailable — verification pending.` with no fetch issued; no FM-derived fixture or payload can reach a populated live state pre-B2 (§3.8) · signal ranking comparator (crit>exec>ai>warn>info>good, max 6) · countdown derivation · sanitized-title passthrough · dedupe/`deduped:true` handling on dispatch response · **same-origin guard test**: static check that no v2 source contains an absolute backend/provider URL (§3.5).
+- **Component-level:** gallery forced-state specimens render every §9 state per tile, **fixtures visibly labeled FIXTURE**; revenue chart demonstrates 7D/30D/QTD + both crosshairs + all five data states on fixtures (G4); zero-network assertion on `/v2/gallery` (network-tab evidence).
+- **Flag behavior:** flag-off build loads zero v2 chunk and fires zero v2 requests; flag-on request inventory matches §4 same-origin endpoints exactly, no third-party calls; **pre-B2 flag-on inventory contains zero `/api/fm/*` requests** (§3.8).
 - **Auth behavior:** expired `som_token` ⇒ audit tile shows tile-local "sign-in needed"; no global logout, no redirect (9.5); no UI copy claims server-side enforcement the source disproves (§3.3).
 - **Hidden-tab:** timers pause (instrumented); no request burst on refocus.
-- **Deferred-tile truthfulness:** SOM tile renders `SOM data connection pending.` and the live chart renders `Revenue trend unavailable — daily source not connected.` — asserted in tests so a future regression cannot silently present them as connected.
+- **Deferred/unavailable-tile truthfulness:** SOM tile renders `SOM data connection pending.`, the live chart renders `Revenue trend unavailable — daily source not connected.`, and pre-B2 FM tiles render `Financial data unavailable — verification pending.` — asserted in tests so a future regression cannot silently present them as connected.
 - **Legacy isolation:** `/` and `/os` byte-identical spot-check; `index.html` untouched.
 - **Existing suites:** `npm run test:operator-bridge` untouched and still green (no intersection); `npm run build` clean with new bundle hash recorded.
 
@@ -501,23 +536,23 @@ State language for every tile (packet §7 + approved 9.1 designs): `idle → loa
 
 ## 14 · ACCEPTANCE CRITERIA AND PROOF PACKAGE (amended per rulings)
 
-**Acceptance additions (founder-ruled):** no monthly-as-daily or interpolated chart data (G4) · no mock payload ever rendered (§3.6) · no direct browser call to any backend/provider origin (§3.5) · SOM and revenue tiles quiet-empty with ruled copy (G2/G4) · Book tile task-lane only with no BK_* claims (G1) · Z4 restricted set only (G3) · FM tiles live only post-B2-green (G4 req. 7, G8 req. 10) · live-schema field audit present for every wired endpoint (§3.4) · per-tile stop conditions honored with failures isolated per tile (§3.4 req. 6–7).
+**Acceptance additions (founder-ruled):** no monthly-as-daily or interpolated chart data (G4) · no mock payload ever rendered (§3.6) · no direct browser call to any backend/provider origin (§3.5) · SOM and revenue tiles quiet-empty with ruled copy (G2/G4) · Book tile task-lane only with no BK_* claims (G1) · Z4 restricted set only (G3) · **pre-B2: zero FM-derived values, signals, or statistics on any live cockpit surface — deterministic, fail-closed (§3.8)** · FM tiles live only after B2 deploy + independent green live reads + §3.4 gate pass (§3.8) · live-schema field audit present in PR #25 (body or linked governed evidence document on the same branch) for every wired endpoint before that tile is considered wired (§3.4/§3.7) · per-tile stop conditions honored with failures isolated per tile (§3.4 req. 6–7).
 
-**Proof package (assembled at implementation PR, per packet §14 — contract committed here):** deploy-preview URL @ head SHA · branch/head/rollback SHAs · approved PLAN link + recorded rulings (§3.1–§3.6) · **1440px screenshots:** populated Z1–Z5; each tile's loading/empty/error/stale/partial from the gallery fixture harness with fixtures visibly labeled; range control in all three states with draw-in evidence (mount + range change) and refresh WITHOUT draw-in; Z5 dispatch toast (success + failure); gallery page with all Phase C specimens · **deferred-tile evidence:** SOM quiet-empty and revenue-unavailability screenshots · **network evidence:** flag-off zero-requests capture; gallery zero-requests capture; flag-on request inventory matching §4 same-origin endpoints · **live-schema field-audit table (§3.4):** one authorized live read per wired endpoint, safe keys/shapes, raw-vs-rendered comparison, recorded stop-condition outcomes · **mock-rejection evidence:** a `"status":"mock"` payload shown entering the error/unavailable state · ranking-order proof (known-severity fixture → rendered order) · sanitized-title spot-check (raw vs rendered) · reduced-motion runtime observations · headless console report ×3 routes (`/v2/home`, `/v2/gallery`, one module route) · CLS numbers across state transitions via the shipped `__MOSV2_PHASE_B_PERF__` observer · bundle hash + delta against the 80KB gz ceiling (current cumulative v2: 13.41 kB gz per DEPLOY_LEDGER Phase B entry) · keyboard walkthrough incl. chart value stepping (fixtures) and Z5 dispatch · FM-PAT-B2 PR link + post-deploy independent green proof, or recorded DEFER with caveat-capped FM evidence · legacy spot-check statement · `localStorage` line ("none — no new keys") · phone screenshots NOT required (Phase F) · voice-health NOT required (no Mya surface touched).
+**Proof package (assembled in PR #25, as it evolves from its approved PLAN gate into the Phase C implementation PR — contract committed here):** deploy-preview URL @ head SHA · branch/head/rollback SHAs · approved PLAN link + recorded rulings (§3.1–§3.8) · **1440px screenshots:** populated Z1–Z5; each tile's loading/empty/error/stale/partial from the gallery fixture harness with fixtures visibly labeled FIXTURE; range control in all three states with draw-in evidence (mount + range change) and refresh WITHOUT draw-in; Z5 dispatch toast (success + failure); gallery page with all Phase C specimens · **deferred/unavailable-tile evidence:** SOM quiet-empty, revenue-unavailability, and pre-B2 FM-unavailability screenshots · **network evidence:** flag-off zero-requests capture; gallery zero-requests capture; flag-on request inventory matching §4 same-origin endpoints; **pre-B2 flag-on inventory showing zero `/api/fm/*` requests** · **live-schema field-audit table (§3.4/§3.7):** one authorized live read per wired endpoint, safe keys/shapes, raw-vs-rendered comparison, recorded stop-condition outcomes — present in the PR body or an explicitly linked governed evidence document on the same branch · **mock-rejection evidence:** a `"status":"mock"` payload shown entering the error/unavailable state · ranking-order proof (known-severity fixture → rendered order) · sanitized-title spot-check (raw vs rendered) · reduced-motion runtime observations · headless console report ×3 routes (`/v2/home`, `/v2/gallery`, one module route) · CLS numbers across state transitions via the shipped `__MOSV2_PHASE_B_PERF__` observer · bundle hash + delta against the 80KB gz ceiling (current cumulative v2: 13.41 kB gz per DEPLOY_LEDGER Phase B entry) · keyboard walkthrough incl. chart value stepping (fixtures) and Z5 dispatch · FM-PAT-B2 PR link + post-deploy independent green proof before any FM live-wiring (§3.8) · legacy spot-check statement · `localStorage` line ("none — no new keys") · phone screenshots NOT required (Phase F) · voice-health NOT required (no Mya surface touched).
 
 ---
 
 ## 15 · ROLLBACK
 
 - Production `VITE_MOS_V2` is **false** and stays false — Phase C ships dark regardless.
-- This PLAN PR rollback: close PR, delete branch — zero runtime surface.
+- PLAN-stage rollback: close PR, delete branch — zero runtime surface.
 - Implementation rollback (future): single-branch revert to named SHA (the merge-base against main at implementation time) + flag off. `DEPLOY_LEDGER.md` entry on merge per ADR-IMP11.
 
 ---
 
 ## 16 · FM-PAT-B2 SEPARATE WORKSTREAM (ruled G8 — exact proposed scope)
 
-FM-PAT-B2 is a **separate workstream in a separate repository**, never mixed into the MOSV2-C PR (cross-repo workstream isolation, packet A2/ADR-IMP2).
+FM-PAT-B2 is a **separate workstream in a separate repository**, never mixed into PR #25 (cross-repo workstream isolation, packet A2/ADR-IMP2; §3.7 req. 8).
 
 | Attribute | Ruled value |
 |---|---|
@@ -530,32 +565,34 @@ FM-PAT-B2 is a **separate workstream in a separate repository**, never mixed int
 | Secret scan | Required on the PR; no credential values in code, tests, logs, or PR text |
 | Review | Exact-head independent review before any merge consideration |
 | Merge/deploy | **No merge or deployment without later founder authorization** |
-| Trust lift | FM tiles remain **untrusted and caveated** until post-deployment live reads are independently green; the lift is verified independently, never assumed. Until then: FM stat tiles FIXTURE-fed, FM-born signals ≤warn severity, permanent caveat tag (ADR-PR3) |
+| Trust lift | FM tiles remain **fail-closed and unavailable** (§3.8) until B2 is deployed **and** independent live reads are green **and** the §3.4 gate passes per endpoint. Post-B2: summary/stat endpoints may wire; Z1 FM signals only from verified non-mock data; the revenue chart remains unavailable — **B2 approval alone does not create or authorize a daily revenue series**. The lift is verified independently, never assumed |
 
 ---
 
 ## 17 · STOP CONDITIONS (implementation halts and reports on any of these)
 
-1. Any §3.4 gate failure on a tile: missing field · changed case · unexpected mock response · authentication failure · unexpected response shape · provider error → that tile stops; unrelated tiles proceed; BLOCKED note recorded.
+1. Any §3.4 gate failure on a tile: missing field · changed case · unexpected mock response · authentication failure · unexpected response shape · provider error → that tile stops; unrelated tiles proceed; BLOCKED note recorded in PR #25.
 2. Any situation requiring a direct browser call to a backend/provider origin, a proxy change, a CORS workaround, or a netlify.toml edit → STOP; founder ruling required (§3.5, G2).
 3. Any pull toward representing monthly FM data as 7D/30D, interpolating daily points, or substituting piano/invoice revenue → STOP; G4 prohibits; the chart stays fixture-only/unavailable.
-4. Any FM live-wiring pressure before B2 deploy + independent green proof → STOP; G8 req. 10.
+4. Any FM-derived value, signal, or statistic reaching a live populated surface before B2 deploy + independent green live reads + §3.4 gate pass → **defect; STOP the tile** (§3.8, fail-closed). Any pressure to wire FM earlier → STOP; G8 req. 10.
 5. Any request to modify auth, Airtable schemas, env values, deploy config, legacy routes, voice pipeline, or `operator-bridge/` inside Phase C → STOP; protected register; BLOCKED note.
 6. Any `"status":"mock"` payload reaching a render path → defect; STOP the tile (§3.6).
 7. Any seventh signal in the Z1 feed → defect (six-signal law is structural).
 8. Any deferred source (Book BK_*, VitalStack/Life, SOM live, daily revenue) presented as live or production-connected → defect; STOP.
+9. Any assumption of a separate implementation PR, or any move of implementation evidence off PR #25, without a new founder ruling → STOP (§3.7).
 
 ---
 
 ## 18 · STANDING CONFIRMATIONS
 
 - **NO PHASE C IMPLEMENTATION HAS BEGUN** — this PR adds one documentation file and nothing else.
+- **PR #25 remains open and draft** — before and after PLAN approval; it is the single destination for Phase C implementation and evidence (§3.7).
 - Production V2 remains **false**.
 - No Railway or Netlify change performed or proposed in this PR.
 - No worker, loop, scheduler, or Operator Bridge process activated or modified.
 - Approvals, protected actions, and Mya autonomy remain **off**.
 - Phase C phone work is not Phase F; no phone surface is touched.
-- This PLAN stops here. Implementation begins only on Denarius's explicit **exact-head "Approved — PLAN"** for the v1.1 head SHA.
+- This PLAN stops here. Implementation begins only on Denarius's explicit **exact-head "Approved — PLAN"** for the v1.1.1 head SHA.
 
 ---
 
