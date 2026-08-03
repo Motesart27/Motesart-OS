@@ -1,0 +1,57 @@
+/* zones.css — MOSV2-C tile-state visuals (PLAN §8/§9). Tokens from
+   src/v2/tokens.css verbatim — no new values invented. Static skeleton fills
+   use rgba(255,255,255,.03) per PLAN §7.1 (allowed literal). Motion is
+   transform/opacity only and collapses under prefers-reduced-motion. */
+
+.v2-tile { position: relative; display: flex; flex-direction: column; gap: 8px; min-height: 44px; }
+
+.v2-tile__sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* loading — static skeleton reserving final geometry; no shimmer, no pulse */
+.v2-tile__skeleton { display: grid; gap: 10px; padding: 4px 0; }
+.v2-tile__skeleton i { display: block; width: 72%; height: 8px; border-radius: 999px; background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px var(--stroke-1); }
+.v2-tile__skeleton i:nth-child(2) { width: 88%; }
+.v2-tile__skeleton i:nth-child(3) { width: 48%; }
+.v2-tile__skeleton i:nth-child(n+4) { width: 64%; }
+
+/* empty — quiet one-liner + good-t dot (suggests, never begs) */
+/* b2-pending / unavailable — same quiet geometry, warn tone, ruled copy */
+.v2-tile__quiet { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--text-3); font-size: 12.5px; }
+.v2-tile__dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; }
+.v2-tile__dot--good { background: var(--good-t); }
+.v2-tile__dot--crit { background: var(--crit-t); }
+.v2-tile__dot--warn { background: var(--warn-t); }
+
+/* error — crit dot + one line + 11.5px info-t retry link */
+.v2-tile__error { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.v2-tile__retry {
+  padding: 0; border: 0; background: transparent; color: var(--info-t);
+  font: 600 11.5px var(--font); cursor: pointer;
+  transition: color var(--t-fast) var(--ease);
+}
+.v2-tile__retry:hover { color: var(--text-1); }
+.v2-tile__retry:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+
+/* stale / offline-with-content — last-good rendered in full + mono as-of tag
+   + 5px warn dot pinned top-right */
+.v2-tile__stale { position: relative; display: flex; flex-direction: column; gap: 8px; }
+.v2-tile__stale-dot { position: absolute; top: 0; right: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--warn-t); }
+.v2-tile__asof { align-self: flex-start; color: var(--text-3); font: 10px var(--mono); }
+
+/* partial — em-dash for absent values + scope-naming tag */
+.v2-tile__partial { display: flex; flex-direction: column; gap: 8px; }
+.v2-tile__dash { color: var(--text-3); }
+.v2-tile__scope {
+  align-self: flex-start; padding: 2px 8px; border: 1px solid var(--stroke-1); border-radius: 999px;
+  color: var(--text-3); font: 600 9.5px var(--font); letter-spacing: .08em; text-transform: uppercase;
+}
+
+/* zone error boundary fallback keeps the zone's own error geometry */
+.v2-zone-error { display: flex; flex-direction: column; min-height: 120px; justify-content: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .v2-tile, .v2-tile__retry, .v2-tile__quiet, .v2-tile__stale, .v2-tile__partial {
+    animation: none !important;
+    transition-duration: .01ms !important;
+  }
+}
