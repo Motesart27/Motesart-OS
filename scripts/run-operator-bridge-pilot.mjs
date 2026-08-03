@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { LocalArtifactStore } from '../operator-bridge/artifact-store.mjs'
-import { APPROVAL_CLASSES } from '../operator-bridge/constants.mjs'
+import { APPROVAL_CLASSES, DEFAULT_EXECUTION_ALLOWLIST } from '../operator-bridge/constants.mjs'
 import { createDecisionCard } from '../operator-bridge/decision-card.mjs'
 import { FableAdapter } from '../operator-bridge/fable-adapter.mjs'
 import { GitHubReadOnlyCollector } from '../operator-bridge/github-collector.mjs'
@@ -83,6 +83,8 @@ async function main() {
     githubCollector,
     kimiAdapter,
     artifactStore,
+    environment: 'staging',
+    executionAllowlist: DEFAULT_EXECUTION_ALLOWLIST,
   })
   const fableAdapter = new FableAdapter()
 
