@@ -94,7 +94,7 @@ export function Toast({ visible, tone = 'good', children }) {
 
   return (
     <div className="v2-toast-region" aria-live="polite" aria-atomic="true">
-      {mounted && <div className={`v2-toast v2-toast--${tone}${leaving ? ' v2-toast--leaving' : ''}`}><span className="v2-toast__dot" />{children}</div>}
+      {mounted && <div className={`v2-toast v2-toast--${tone}${leaving ? ' v2-toast--leaving' : ''}`}><span className="v2-toast__dot" aria-hidden="true" />{children}</div>}
     </div>
   )
 }

@@ -150,7 +150,7 @@
   .v2-boot { display: none; }
   .v2-orb, .v2-system-dot, .v2-boot__orb { animation: none; }
   .v2-zone { opacity: 1; transform: none; animation: none; }
-  .v2-rail, .v2-rail__label, .v2-rail__brand-text, .v2-search-pill, .v2-exec-button, .v2-mya-bar, .v2-palette-veil, .v2-palette { animation-duration: .01ms !important; animation-delay: 0ms !important; transition-duration: .01ms !important; }
+  .v2-rail, .v2-rail__link, .v2-rail__label, .v2-rail__brand-text, .v2-search-pill, .v2-focus-switcher button, .v2-exec-button, .v2-bell, .v2-mya-bar, .v2-palette-veil, .v2-palette { animation-duration: .01ms !important; animation-delay: 0ms !important; transition-duration: .01ms !important; }
   .v2-rail__label, .v2-rail__brand-text { transform: none; }
   .v2-mya-bar:hover { transform: translateX(calc(-50% + 32px)); }
   .v2-mya-bar--preview:hover { transform: none; }

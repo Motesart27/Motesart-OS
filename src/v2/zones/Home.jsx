@@ -28,8 +28,8 @@ export default function Home() {
       <Z1Greeting />
       <div className="v2-stage-grid">
         {zones.map((zone, index) => (
-          <section className={`v2-zone v2-zone--${zone.order}`} key={zone.label} style={{ '--zone-order': index }}>
-            <div className="v2-zone__label"><span>{zone.label}</span><i /></div>
+          <section className={`v2-zone v2-zone--${zone.order}`} key={zone.label} style={{ '--zone-order': index }} aria-labelledby={`v2-zone-label-${zone.order}`}>
+            <div className="v2-zone__label"><span id={`v2-zone-label-${zone.order}`}>{zone.label}</span><i /></div>
             <ZoneErrorBoundary zone={zone.name}>{zone.content}</ZoneErrorBoundary>
           </section>
         ))}
