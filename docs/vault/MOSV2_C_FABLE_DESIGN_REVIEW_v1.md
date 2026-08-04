@@ -63,3 +63,40 @@ No placeholders introduced; no production source modified by this stage; no git 
 ---
 
 *— MOSV2-C Fable design-fidelity review · exact-head `84f65b5` · evidence for PR #25 · Motesart Execution Engine*
+
+---
+
+## ADDENDUM · RE-REVIEW AT EXACT HEAD `dd3fe20` (2026-08-04)
+
+**Reviewed head SHA (exact-head pin):** `dd3fe208bada2f7ea25b9da078bbb381f86a554b` — confirmed via `git rev-parse HEAD`; tree clean before this addendum; branch `feat/mosv2-c-zones`. Scope of the re-review: closure of FR-1 and FR-2 (repaired in `dd3fe20` after owner approval), plus a regression sweep of the earlier notes against the regenerated evidence (full harness re-run, all 15 PNGs + `report.json`). Every verdict below references evidence from this head only.
+
+### FR-1 — CLOSED (verified at code, runtime-measurement, and pixel level)
+
+- **Code:** the Toast region now portals to `document.body` via `createPortal` (`src/v2/components/index.jsx`, Toast return) — the mockup's own structure (body-level `#toasts`, `desktop.html:342,610`), immune to any ancestor containing-block trigger by construction. `.v2-toast-region` keeps `position: fixed; right: 22px; bottom: 22px` (`components.css:66`).
+- **Runtime measurement:** `report.json → scenarios.keyboard-walkthrough.toastViewportAnchor`: `portaledToBody: true`, rect right **1418** / bottom **878** at viewport 1440×900 with `scrollY: 0` — exactly the mockup's 22px/22px viewport inset; `atViewportCorner: true`.
+- **Pixels:** regenerated `05-z5-toast-success.png` is the **unscrolled** populated home (topbar and stage heading visible); the toast renders at the true viewport bottom-right, fully in-frame, with the ruled copy "Brain dump → routed to MYA", good-tone dot, and the focus ring still on the dispatching qbtn. The zone-anchoring evidence from `84f65b5` is gone.
+- **Regression coverage:** `tests/mosv2-c/a11y.test.js` — portal assertion + region position assertion.
+
+### FR-2 — CLOSED (verified at code and pixel level)
+
+- **Code:** the reset is now `:where(.v2-shell) button/input { font: inherit; }` / `:where(.v2-shell) button { color: inherit; }` (`src/v2/shell/shell.css:7-10`) — specificity 0-0-1, so it still neutralizes UA button defaults but loses to every `.v2-*` class rule. Correct minimal repair; no component rule was touched.
+- **Pixels (re-measured against the unaffected 12px `Open Work →` link, cap ≈8.5px):**
+  - `.v2-qbtn` labels (`02-home-populated.png`): cap height ≈8–9px → **12px**, and now the dimmer `--text-2` — matches the mockup `.qbtn` (`desktop.html:263-269`). Was ~16px `--text-1`.
+  - `.v2-tile__retry` (`06-home-error.png`): "Retry ↻" now renders **small and `--info-t` blue**, cap ≈8px → 11.5px — the §8/§10 error recipe. Was ~16px `--text-1`.
+  - `.v2-signal-row` (`02`): feed summaries cap ≈9px → **13px** (mockup `.feed` 13.5px). Was ~16px.
+  - `.v2-chart__range`: unmounted under D1; closure is code-certain (same cascade) and pinned by test.
+- **Regression coverage:** two new `a11y.test.js` tests pin the `:where()` specificity and the four controls' ruled typography/colors.
+
+### Regression sweep of prior notes at `dd3fe20`
+
+- **O-1 (qa grid)** unchanged — `repeat(3,1fr)`, all five actions fully rendered in `02`; note stands as recorded.
+- **O-2 (plan-sanctioned divergences)** unchanged — grid spans, G10 labels, severity Chips, ruled unavailability tiles all as before in the regenerated `02/06/07/09/10/11`.
+- **O-3 (agenda time format)** unchanged — `6:30 AM` in `02`; nit stands.
+- **Collateral from the `:where()` change:** Phase A/B surfaces re-checked — `03-palette-open.png` (input, mic, footer, MYA · READY) and `12-gallery-full.png` (785-byte delta ≈ identical) show no typography shift; gallery, module, legacy, flag-off, stale, permission, mock-rejection, and reduced-motion shots regenerated with no new deviations observed. Suite re-run by the repair stage: **247 mosv2-c pass / 0 fail**, build clean (not re-run here — tree clean, head unmoved).
+- **Validation doc:** F7 entry now carries the RE-OPENED (FR-1) / RE-RESOLVED history — consistent with this review's record.
+
+### Final verdict at `dd3fe20`
+
+**APPROVED.** Both HIGH flags are verifiably closed — FR-1 by body-level portal with measured viewport anchoring, FR-2 by a zero-specificity reset with pixel-confirmed 12px/11.5px/13px control typography. The remaining notes (O-1, O-2, O-3) are owner-approved or plan-sanctioned divergences, not defects. The head matches the locked mockups in tokens, layout, choreography, typography, color, copy, and state visuals across every reviewable surface; the D1-unmounted fixture renderers remain code-level-approved only. No production code was modified by this re-review; this addendum is left uncommitted per stage rules.
+
+*— Re-review addendum · exact-head `dd3fe20` · MOSV2-C Fable design-fidelity review · PR #25*
