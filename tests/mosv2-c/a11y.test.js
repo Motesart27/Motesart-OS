@@ -289,15 +289,20 @@ describe('reduced motion · every animation/transition collapses', () => {
   })
 })
 
-// ─── Runtime-validation regressions — F7 toast anchor + F8 qa grid ──────────
+// ─── Runtime-validation regressions — F7/FR-1 toast anchor + F8 qa grid ─────
 
-describe('validation regressions · F7 toast containing block + F8 qa grid', () => {
-  it('F7 — the zone entrance fill holds transform: none, so fixed toasts anchor to the viewport', () => {
-    assert.match(shellCss, /@keyframes v2-zone-in \{ to \{ opacity: 1; transform: none; \} \}/)
-    assert.equal(
-      /@keyframes v2-zone-in \{ to \{ opacity: 1; transform: translateY/.test(shellCss), false,
-      'a retained non-none transform makes the zone a containing block for fixed descendants (toast below fold)',
+describe('validation regressions · F7/FR-1 toast anchor + F8 qa grid', () => {
+  it('F7/FR-1 — the toast region portals to document.body, so no ancestor containing-block can trap it', () => {
+    // The zone entrance animation (.v2-zone, fill forwards on transform) is a
+    // containing-block trigger for fixed descendants at runtime even with a
+    // transform:none fill — the keyframe-only F7 fix did not hold. The Toast
+    // region therefore mounts at body level, like the mockup's #toasts.
+    assert.match(componentsSource, /import \{ createPortal \} from 'react-dom'/)
+    assert.match(
+      componentsSource,
+      /return createPortal\(\s*<div className="v2-toast-region" aria-live="polite" aria-atomic="true">[\s\S]*?document\.body,?\s*\)/,
     )
+    assert.match(componentsCss, /\.v2-toast-region \{ position: fixed; right: 22px; bottom: 22px;/)
   })
 
   it('F8 — quick actions are 3-up: a span-3 zone never admits five min-content columns', () => {
@@ -306,5 +311,25 @@ describe('validation regressions · F7 toast containing block + F8 qa grid', () 
       /repeat\(5, 1fr\)/.test(zonesCss), false,
       'five columns clip inside the span-3 zone at every viewport (max zone content ~336px < 384px needed)',
     )
+  })
+})
+
+// ─── Design-review regression — FR-2 shell reset vs .v2-* control type ──────
+
+describe('design-review regression · FR-2 button reset never overrides Phase C controls', () => {
+  it('the button/input reset is zero-specificity via :where() (loses to every class rule)', () => {
+    assert.match(shellCss, /:where\(\.v2-shell\) button, :where\(\.v2-shell\) input \{ font: inherit; \}/)
+    assert.match(shellCss, /:where\(\.v2-shell\) button \{ color: inherit; \}/)
+    assert.equal(
+      /^\.v2-shell (button|input)/m.test(shellCss), false,
+      'an unscoped 0-1-1 reset silently overrides every 0-1-0 .v2-* control rule (retry, qbtn, signal-row, chart-range)',
+    )
+  })
+
+  it('the four FR-2-affected Phase C controls keep their ruled typography and colors', () => {
+    assert.match(zonesCss, /\.v2-tile__retry \{[\s\S]*?color: var\(--info-t\);[\s\S]*?font: 600 11\.5px var\(--font\);/)
+    assert.match(zonesCss, /\.v2-qbtn \{[\s\S]*?color: var\(--text-2\); font: 600 12px var\(--font\);/)
+    assert.match(zonesCss, /\.v2-signal-row \{[\s\S]*?color: var\(--text-1\); font-size: 13px;/)
+    assert.match(zonesCss, /\.v2-chart__range \{[\s\S]*?color: var\(--text-3\); font: 600 11px var\(--font\);/)
   })
 })

@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-08-04T03:09:10.433Z",
+  "startedAt": "2026-08-04T03:39:45.471Z",
   "scenarios": {
     "flag-off": {
       "note": "Production build, VITE_MOS_V2 unset at build time, no runtime override.",
@@ -16,13 +16,13 @@
         "/",
         "/css2",
         "/npm/chart.js@4.4.1/dist/chart.umd.min.js",
-        "/assets/index-CfKci4uR.js",
+        "/assets/index-BK56tEl7.js",
         "/manifest.json",
-        "/assets/index-BTHj68pq.js",
-        "/assets/index-sKBXKzpb.js",
-        "/assets/App-821crOlY.js",
-        "/assets/AuthContext-By09-mSI.js",
-        "/assets/Toast-QBX5gPab.js",
+        "/assets/index-c_bSsPkg.js",
+        "/assets/index-CZMKoUZ-.js",
+        "/assets/App-DCivZIuK.js",
+        "/assets/AuthContext-Dpz0b63j.js",
+        "/assets/Toast-BfGmOsu-.js",
         "/icons/icon-512.png",
         "/icons/icon-192.png",
         "/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K6z9mXg.woff2",
@@ -86,6 +86,21 @@
       "eTogglesExecOn": true,
       "eTogglesExecOff": true,
       "z5KeyboardToast": true,
+      "toastViewportAnchor": {
+        "portaledToBody": true,
+        "rect": {
+          "x": 1138,
+          "y": 832,
+          "right": 1418,
+          "bottom": 878
+        },
+        "viewport": {
+          "innerWidth": 1440,
+          "innerHeight": 900
+        },
+        "scrollY": 0,
+        "atViewportCorner": true
+      },
       "z5ToastAutoDismissed": true,
       "screenshots": [
         "03-palette-open.png",
@@ -140,9 +155,9 @@
     "home-stale-transition": {
       "count": 3,
       "asOfTags": [
-        "as of 23:09",
-        "as of 23:09",
-        "as of 23:09"
+        "as of 23:40",
+        "as of 23:40",
+        "as of 23:40"
       ],
       "contentRetained": true,
       "clsAcrossTransition": {
@@ -208,5 +223,5 @@
       "screenshot": "15-legacy-os.png"
     }
   },
-  "finishedAt": "2026-08-04T03:11:16.957Z"
+  "finishedAt": "2026-08-04T03:41:51.779Z"
 }

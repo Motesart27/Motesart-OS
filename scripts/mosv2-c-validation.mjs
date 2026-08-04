@@ -488,12 +488,22 @@ async function scenarioKeyboard(page) {
     await page.evalJs(`document.querySelectorAll('.v2-qbtn')[2].click(); void 0`)
     await sleep(800)
   }
-  // Defect F7: the toast is anchored to the zone bottom (below the fold when
-  // populated) — scroll it into view for the evidence capture.
-  await page.evalJs(`(() => {
-    const t = document.querySelector('.v2-toast');
-    if (t) window.scrollTo(0, Math.max(0, t.getBoundingClientRect().top + window.scrollY - 620));
-  })(); void 0`)
+  // F7/FR-1 resolution: the toast region is portaled to document.body, so it
+  // anchors to the VIEWPORT corner regardless of scroll position — no scroll
+  // to capture. Record the region rect against the viewport as proof.
+  results.toastViewportAnchor = await page.evalJs(`(() => {
+    const region = document.querySelector('.v2-toast-region');
+    if (!region || !region.querySelector('.v2-toast')) return null;
+    const r = region.getBoundingClientRect();
+    return {
+      portaledToBody: region.parentElement === document.body,
+      rect: { x: r.x, y: r.y, right: r.right, bottom: r.bottom },
+      viewport: { innerWidth: window.innerWidth, innerHeight: window.innerHeight },
+      scrollY: window.scrollY,
+      atViewportCorner: Math.abs(r.right - (window.innerWidth - 22)) < 1
+        && Math.abs(r.bottom - (window.innerHeight - 22)) < 1,
+    };
+  })()`)
   const toastShot = await page.shot('05-z5-toast-success.png', { settleMs: 500 })
   await sleep(3200)
   results.z5ToastAutoDismissed = await page.evalJs(`!document.body.innerText.includes('Brain dump → routed to MYA')`)
