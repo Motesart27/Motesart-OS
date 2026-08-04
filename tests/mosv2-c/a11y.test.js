@@ -288,3 +288,23 @@ describe('reduced motion · every animation/transition collapses', () => {
     assert.match(rmZones, /\.v2-pulse-row:hover \{ transform: none; \}/)
   })
 })
+
+// ─── Runtime-validation regressions — F7 toast anchor + F8 qa grid ──────────
+
+describe('validation regressions · F7 toast containing block + F8 qa grid', () => {
+  it('F7 — the zone entrance fill holds transform: none, so fixed toasts anchor to the viewport', () => {
+    assert.match(shellCss, /@keyframes v2-zone-in \{ to \{ opacity: 1; transform: none; \} \}/)
+    assert.equal(
+      /@keyframes v2-zone-in \{ to \{ opacity: 1; transform: translateY/.test(shellCss), false,
+      'a retained non-none transform makes the zone a containing block for fixed descendants (toast below fold)',
+    )
+  })
+
+  it('F8 — quick actions are 3-up: a span-3 zone never admits five min-content columns', () => {
+    assert.match(zonesCss, /\.v2-qa \{ display: grid; grid-template-columns: repeat\(3, 1fr\); gap: 12px; \}/)
+    assert.equal(
+      /repeat\(5, 1fr\)/.test(zonesCss), false,
+      'five columns clip inside the span-3 zone at every viewport (max zone content ~336px < 384px needed)',
+    )
+  })
+})

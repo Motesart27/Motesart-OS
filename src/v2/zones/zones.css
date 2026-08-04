@@ -202,8 +202,7 @@
    column icon+label tile, --bg-2, --stroke-1, radius --r-m; hover −3px +
    scale(1.02) on --spring with icon tinting ai-t; press scale(.97). Native
    buttons, never disabled (DB-G8 stays Button-only). */
-.v2-qa { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
-@media (max-width: 1380px) { .v2-qa { grid-template-columns: repeat(3, 1fr); } }
+.v2-qa { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .v2-qbtn {
   display: flex; flex-direction: column; align-items: center; gap: 9px;
   min-height: 44px; padding: 18px 8px 14px;

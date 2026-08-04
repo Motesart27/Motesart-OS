@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-08-04T00:40:13.089Z",
+  "startedAt": "2026-08-04T03:09:10.433Z",
   "scenarios": {
     "flag-off": {
       "note": "Production build, VITE_MOS_V2 unset at build time, no runtime override.",
@@ -16,13 +16,13 @@
         "/",
         "/css2",
         "/npm/chart.js@4.4.1/dist/chart.umd.min.js",
-        "/assets/index-E4UZqCDF.js",
+        "/assets/index-CfKci4uR.js",
         "/manifest.json",
-        "/assets/index-C-qcs37a.js",
-        "/assets/index-B-oj91Wn.js",
-        "/assets/App-BICsChuq.js",
-        "/assets/AuthContext-B4nHhUox.js",
-        "/assets/Toast-BGpfU2xo.js",
+        "/assets/index-BTHj68pq.js",
+        "/assets/index-sKBXKzpb.js",
+        "/assets/App-821crOlY.js",
+        "/assets/AuthContext-By09-mSI.js",
+        "/assets/Toast-QBX5gPab.js",
         "/icons/icon-512.png",
         "/icons/icon-192.png",
         "/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K6z9mXg.woff2",
@@ -140,9 +140,9 @@
     "home-stale-transition": {
       "count": 3,
       "asOfTags": [
-        "as of 20:40",
-        "as of 20:40",
-        "as of 20:40"
+        "as of 23:09",
+        "as of 23:09",
+        "as of 23:09"
       ],
       "contentRetained": true,
       "clsAcrossTransition": {
@@ -208,5 +208,5 @@
       "screenshot": "15-legacy-os.png"
     }
   },
-  "finishedAt": "2026-08-04T00:42:19.623Z"
+  "finishedAt": "2026-08-04T03:11:16.957Z"
 }
