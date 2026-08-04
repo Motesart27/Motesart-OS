@@ -4,14 +4,18 @@ import test from 'node:test'
 import { redactEvidenceValue, sanitizeUnifiedDiff } from '../../operator-bridge/redaction.mjs'
 
 test('extended credential shapes are redacted from diffs', () => {
+  // Synthetic fixtures are assembled from short fragments at runtime so that no
+  // complete credential-shaped literal appears in source; runtime values are
+  // byte-identical to the original dummy literals.
+  const assemble = (...parts) => parts.join('')
   const cases = [
-    ['github fine-grained PAT', '+const t = "github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789ABCD"'],
+    ['github fine-grained PAT', '+const t = "' + assemble('github_pat_', '11ABCDEFG0', 'abcdefghijklmnopqrstuvwxyz', '0123456789ABCD') + '"'],
     ['GitLab PAT', '+token = "glpat-abcdefghijklmnopqrstuvwx"'],
-    ['Slack token', '+const slack = "xoxb-123456789012-abcdefghijkl"'],
-    ['Anthropic key', '+key = "sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789"'],
+    ['Slack token', '+const slack = "' + assemble('xoxb-', '123456789012-', 'abcdefghijkl') + '"'],
+    ['Anthropic key', '+key = "' + assemble('sk-ant-', 'api03-', 'abcdefghijklmnopqrstuvwxyz', '0123456789') + '"'],
     ['JWT', '+const jwt = "eyJhbGciOiJIUzI1NiIs.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJVadQssw5c"'],
     ['npm token', '+//registry/:_authToken=npm_abcdefghijklmnopqrstuvwxyz0123456789'],
-    ['Google API key', '+const g = "AIzaSyD4iE2xVSpkL0X3qFQa2yWJc7R1z8Z0AAA"'],
+    ['Google API key', '+const g = "' + assemble('AIza', 'SyD4iE2xVSpkL0X3qFQa2yW', 'Jc7R1z8Z0AAA') + '"'],
   ]
   for (const [label, line] of cases) {
     const result = sanitizeUnifiedDiff(`diff --git a/a b/a\n${line}\n`)
