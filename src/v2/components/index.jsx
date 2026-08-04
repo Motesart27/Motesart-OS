@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react'
+import { createPortal } from 'react-dom'
 import './components.css'
 
 export function Button({ variant = 'pri', children, className = '', ...props }) {
@@ -92,10 +93,17 @@ export function Toast({ visible, tone = 'good', children }) {
     return () => window.clearTimeout(timer)
   }, [visible, mounted])
 
-  return (
+  // The region portals to document.body (like the mockup's body-level
+  // #toasts): position:fixed only anchors to the viewport when no ancestor
+  // carries a containing-block trigger, and the zone entrance animation
+  // (.v2-zone, fill forwards on transform) retains one at runtime — the F7 /
+  // FR-1 defect. Body-level mounting is immune to ancestor CSS by
+  // construction.
+  return createPortal(
     <div className="v2-toast-region" aria-live="polite" aria-atomic="true">
-      {mounted && <div className={`v2-toast v2-toast--${tone}${leaving ? ' v2-toast--leaving' : ''}`}><span className="v2-toast__dot" />{children}</div>}
-    </div>
+      {mounted && <div className={`v2-toast v2-toast--${tone}${leaving ? ' v2-toast--leaving' : ''}`}><span className="v2-toast__dot" aria-hidden="true" />{children}</div>}
+    </div>,
+    document.body,
   )
 }
 

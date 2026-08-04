@@ -68,6 +68,7 @@
 .v2-toast--leaving { animation: v2-toast-out var(--t-med) var(--ease) both; }
 .v2-toast__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good-t); box-shadow: 0 0 9px rgba(69,211,146,.5); }
 .v2-toast--info .v2-toast__dot { background: var(--info-t); box-shadow: 0 0 9px rgba(130,180,255,.5); }
+.v2-toast--crit .v2-toast__dot { background: var(--crit-t); box-shadow: 0 0 9px rgba(248,113,113,.5); }
 
 .v2-kbd { padding: 4px 7px; border: 1px solid var(--stroke-2); border-bottom-color: var(--stroke-3); border-radius: 7px; background: rgba(255,255,255,.06); color: var(--text-2); font: 12px var(--mono); }
 

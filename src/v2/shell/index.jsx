@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate, useParams } from 'react-router-dom'
 import '../tokens.css'
 import './shell.css'
+import Home from '../zones/Home.jsx'
 
 const modules = [
   ['home', 'Home', 'home'],
@@ -190,32 +191,8 @@ export function TopBar({ title = 'Home', focusMode = 'Balanced', onFocusMode = (
 export function Stage({ module = 'home', preview = false }) {
   return (
     <main className={`v2-stage${preview ? ' v2-stage--preview' : ''}`}>
-      {module === 'home' ? <HomeSkeleton /> : <WorkspaceSkeleton module={module} />}
+      {module === 'home' ? <Home /> : <WorkspaceSkeleton module={module} />}
     </main>
-  )
-}
-
-function HomeSkeleton() {
-  const zones = [
-    ['Today', 'Your cockpit is ready'],
-    ['Projects', 'Work in motion'],
-    ['Business', 'Executive signals'],
-    ['Life', 'Personal alignment'],
-    ['Mya', 'Quiet intelligence'],
-  ]
-  return (
-    <section className="v2-home" aria-labelledby="v2-home-title">
-      <header className="v2-stage-heading"><p>THE COCKPIT</p><h1 id="v2-home-title">Good evening, Denarius.</h1><span>Shell ready · live data arrives in Phase C</span></header>
-      <div className="v2-stage-grid">
-        {zones.map(([label, title], index) => (
-          <section className={`v2-zone v2-zone--${index + 1}`} key={label} style={{ '--zone-order': index }}>
-            <div className="v2-zone__label"><span>{label}</span><i /></div>
-            <h2>{title}</h2>
-            <div className="v2-skeleton-lines" aria-hidden="true"><i /><i /><i /></div>
-          </section>
-        ))}
-      </div>
-    </section>
   )
 }
 

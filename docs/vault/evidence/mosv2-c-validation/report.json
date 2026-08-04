@@ -1,0 +1,227 @@
+{
+  "startedAt": "2026-08-04T03:39:45.471Z",
+  "scenarios": {
+    "flag-off": {
+      "note": "Production build, VITE_MOS_V2 unset at build time, no runtime override.",
+      "rootResolvesTo": "/login",
+      "v2homeResolvesTo": "/login",
+      "v2ChunkRequests": [],
+      "apiRequests": [],
+      "thirdParty": [
+        "https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap",
+        "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+        "https://fonts.gstatic.com/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K6z9mXg.woff2"
+      ],
+      "requestPaths": [
+        "/",
+        "/css2",
+        "/npm/chart.js@4.4.1/dist/chart.umd.min.js",
+        "/assets/index-BK56tEl7.js",
+        "/manifest.json",
+        "/assets/index-c_bSsPkg.js",
+        "/assets/index-CZMKoUZ-.js",
+        "/assets/App-DCivZIuK.js",
+        "/assets/AuthContext-Dpz0b63j.js",
+        "/assets/Toast-BfGmOsu-.js",
+        "/icons/icon-512.png",
+        "/icons/icon-192.png",
+        "/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K6z9mXg.woff2",
+        "/v2/home"
+      ],
+      "screenshot": "01-flagoff-login.png"
+    },
+    "home-populated": {
+      "tileStatuses": {
+        "v2-z1__signals": "populated",
+        "v2-z1__agenda": "populated",
+        "v2-z2__projects": "populated",
+        "v2-z2__book": "populated",
+        "v2-z3__pulse": "populated",
+        "v2-z3__revenue": "empty",
+        "v2-z3__fm": "b2-pending",
+        "v2-z3__som": "empty",
+        "v2-z4__tasks": "populated",
+        "v2-z4__calendar": "populated"
+      },
+      "ruledCopiesRendered": {
+        "fm": true,
+        "som": true,
+        "revenue": true
+      },
+      "localStorageKeys": [
+        "som_token",
+        "som_user"
+      ],
+      "apiInventory": [
+        "GET /auth/verify → 200",
+        "GET /api/tasks?limit=200 → 200",
+        "GET /api/mya/calendar/events?days_ahead=1&max_results=20 → 200",
+        "GET /api/mya/audit/handled?limit=3 → 200",
+        "GET /api/tasks?business=Book → 200",
+        "GET /api/tasks?limit=200 → 200",
+        "GET /api/pulse → 200",
+        "GET /api/tasks?business=Personal → 200",
+        "GET /api/mya/calendar/events?days_ahead=1&max_results=20 → 200"
+      ],
+      "fmApiRequests": [],
+      "thirdParty": [
+        "https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap",
+        "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
+      ],
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "clsAfterPopulated": {
+        "cls": 0,
+        "entries": []
+      },
+      "screenshot": "02-home-populated.png"
+    },
+    "keyboard-walkthrough": {
+      "spaceOpensPalette": true,
+      "paletteInputFocused": true,
+      "escClosesPalette": true,
+      "eTogglesExecOn": true,
+      "eTogglesExecOff": true,
+      "z5KeyboardToast": true,
+      "toastViewportAnchor": {
+        "portaledToBody": true,
+        "rect": {
+          "x": 1138,
+          "y": 832,
+          "right": 1418,
+          "bottom": 878
+        },
+        "viewport": {
+          "innerWidth": 1440,
+          "innerHeight": 900
+        },
+        "scrollY": 0,
+        "atViewportCorner": true
+      },
+      "z5ToastAutoDismissed": true,
+      "screenshots": [
+        "03-palette-open.png",
+        "04-exec-on.png",
+        "05-z5-toast-success.png"
+      ]
+    },
+    "home-error": {
+      "assertion": "tiles in ruled error state on 502",
+      "observed": true,
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "cls": 0,
+      "screenshot": "06-home-error.png"
+    },
+    "home-empty": {
+      "assertion": "ruled quiet-empty copy rendered",
+      "observed": true,
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "cls": 0,
+      "screenshot": "07-home-empty.png"
+    },
+    "home-permission": {
+      "assertion": "401 on audit: no redirect, no logout, siblings populated, digest quiet-hidden (9.5/§10)",
+      "observed": true,
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "cls": 0,
+      "screenshot": "08-home-permission.png"
+    },
+    "home-mock-rejection": {
+      "assertion": "\"status\":\"mock\" payload enters error state, never renders (§3.6)",
+      "observed": true,
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "cls": 0,
+      "screenshot": "09-home-mock-rejection.png"
+    },
+    "home-stale-transition": {
+      "count": 3,
+      "asOfTags": [
+        "as of 23:40",
+        "as of 23:40",
+        "as of 23:40"
+      ],
+      "contentRetained": true,
+      "clsAcrossTransition": {
+        "before": 0,
+        "after": 0
+      },
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "10-home-stale.png"
+    },
+    "home-loading": {
+      "assertion": "skeleton loading state visible while sources in flight (6s delayed fulfillment)",
+      "observed": true,
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "cls": 0,
+      "screenshot": "11-home-loading.png"
+    },
+    "gallery": {
+      "apiRequests": [
+        "GET /auth/verify → 200"
+      ],
+      "thirdParty": [
+        "https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&display=swap",
+        "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
+      ],
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "12-gallery-full.png",
+      "note": "Gallery is Phase A/B specimens only — see validation doc deviation on the §12.8 Phase C specimen harness."
+    },
+    "module-route-work": {
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "13-module-work.png"
+    },
+    "reduced-motion": {
+      "bootSequenceSkipped": true,
+      "matchMediaReduce": true,
+      "transitionDuration": "1e-05s",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "14-reduced-motion.png"
+    },
+    "legacy-spot-check": {
+      "osRendered": true,
+      "note": "Byte-identity of legacy surfaces is proven by git diff (only src/v2 files touched); this run confirms /os still boots under the same build.",
+      "screenshot": "15-legacy-os.png"
+    }
+  },
+  "finishedAt": "2026-08-04T03:41:51.779Z"
+}
