@@ -1,4 +1,4 @@
-import { EXECUTOR_ACTIONS } from './constants.mjs'
+import { EXECUTOR_ACTIONS, STAGING_ENVIRONMENT } from './constants.mjs'
 import { createStoredZip } from './zip-package.mjs'
 
 // Forbidden command-like fields, aligned with the canonical staging worker
@@ -19,7 +19,21 @@ function rejectFreeFormCommand(value) {
 }
 
 export class OrcaEdgeWorker {
-  constructor({ workerId, ledger, githubCollector, kimiAdapter, artifactStore, testProfiles = {}, testRunner = null }) {
+  constructor({
+    workerId,
+    ledger,
+    githubCollector,
+    kimiAdapter,
+    artifactStore,
+    testProfiles = {},
+    testRunner = null,
+    environment = STAGING_ENVIRONMENT,
+    executionAllowlist = null,
+  }) {
+    // Explicit environment guard: the edge worker executes only against the
+    // staging environment. Production, development, or an unrecognized
+    // environment is rejected before any action can run.
+    if (environment !== STAGING_ENVIRONMENT) throw new Error('WORKER_ENVIRONMENT_REJECTED')
     this.workerId = workerId
     this.ledger = ledger
     this.githubCollector = githubCollector
@@ -27,7 +41,24 @@ export class OrcaEdgeWorker {
     this.artifactStore = artifactStore
     this.testProfiles = testProfiles
     this.testRunner = testRunner
+    this.environment = environment
+    // Executor-side allowlist: when configured, only the listed task types
+    // and approval classes may be claimed. task_type is never trusted as a
+    // free string, and protected approval classes are never executable.
+    this.executionAllowlist = executionAllowlist
+      ? {
+          taskTypes: new Set(executionAllowlist.taskTypes ?? []),
+          approvalClasses: new Set(executionAllowlist.approvalClasses ?? ['READ_ONLY']),
+        }
+      : null
     this.startedAt = new Date().toISOString()
+  }
+
+  async _assertClaimAllowlisted(workOrderId) {
+    if (!this.executionAllowlist) return
+    const order = await this.ledger.get(workOrderId)
+    if (!this.executionAllowlist.taskTypes.has(order.task_type)) throw new Error('TASK_TYPE_NOT_ALLOWLISTED')
+    if (!this.executionAllowlist.approvalClasses.has(order.approval_class)) throw new Error('APPROVAL_CLASS_NOT_EXECUTABLE')
   }
 
   async execute(request) {
@@ -35,8 +66,9 @@ export class OrcaEdgeWorker {
     rejectFreeFormCommand(request)
     switch (request.action) {
       case 'health':
-        return { ok: true, worker_id: this.workerId, connection_model: 'OUTBOUND_ONLY', started_at: this.startedAt }
+        return { ok: true, worker_id: this.workerId, connection_model: 'OUTBOUND_ONLY', environment: this.environment, started_at: this.startedAt }
       case 'claim_work_order':
+        await this._assertClaimAllowlisted(request.payload.work_order_id)
         return this.ledger.claim(request.payload.work_order_id, { leaseOwner: this.workerId, leaseTtlMs: request.payload.lease_ttl_ms })
       case 'heartbeat':
         return this.ledger.heartbeat(request.payload.work_order_id, {
