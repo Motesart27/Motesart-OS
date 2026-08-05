@@ -10,7 +10,7 @@
     },
     "preview": {
       "mode": "local vite preview (dynamic port)",
-      "url": "http://127.0.0.1:59092"
+      "url": "http://127.0.0.1:59780"
     },
     "chrome": {
       "path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -37,13 +37,13 @@
         "/",
         "/css2",
         "/npm/chart.js@4.4.1/dist/chart.umd.min.js",
-        "/assets/index-CFcJc4qu.js",
+        "/assets/index-DS_O8MRx.js",
         "/manifest.json",
-        "/assets/index-7mccBQ-r.js",
-        "/assets/index-cZbJgg_l.js",
-        "/assets/App-C2Xu0xiU.js",
-        "/assets/AuthContext-CEx9q7Qr.js",
-        "/assets/Toast-CJBWUnx6.js",
+        "/assets/index-AvJNE0A2.js",
+        "/assets/index-C5oLi7XV.js",
+        "/assets/App-fvynzT8m.js",
+        "/assets/AuthContext-DpRX_qLD.js",
+        "/assets/Toast-CY3IK7wK.js",
         "/icons/icon-512.png",
         "/icons/icon-192.png",
         "/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K6z9mXg.woff2",
@@ -333,7 +333,7 @@
     },
     "home-timeout": {
       "pulseError": true,
-      "elapsedMs": 15121,
+      "elapsedMs": 15120,
       "timeoutCeilingMs": 15000,
       "populatedSiblings": 6,
       "note": "apiFetch errorKind \"timeout\" (unit-tested) → ruled error state at the 15s ceiling; other sources populate normally.",

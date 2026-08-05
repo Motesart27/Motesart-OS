@@ -621,7 +621,7 @@ async function scenarioFlagOff(cdp) {
     v2ChunkRequests: allPaths.filter((p) => p.includes('V2App')),
     apiRequests: apiInventory(page),
     thirdParty: thirdPartyRequests(page).map((r) => r.url),
-    requestPaths: [...new Set(rootRequests.concat(allPaths))],
+    requestPathCount: new Set(rootRequests.concat(allPaths)).size,
     console: badConsole(page),
     screenshot: shot,
   })
@@ -963,12 +963,15 @@ async function scenarioTimeout(cdp) {
   const elapsedMs = Date.now() - startedAt
   const siblings = await page.evalJs(`document.querySelectorAll('.v2-tile[data-status="populated"]').length`)
   const shot = await page.shot('18-home-timeout.png')
+  // Deterministic record (CANONICAL report): the raw wall-clock elapsed time
+  // varies run-to-run, so the report records the bounded assertions it proves.
   record('home-timeout', {
     pulseError: true,
-    elapsedMs,
     timeoutCeilingMs: 15000,
+    elapsedAtLeastCeiling: elapsedMs >= 15000,
+    elapsedUnderMs: 25000,
     populatedSiblings: siblings,
-    note: 'apiFetch errorKind "timeout" (unit-tested) → ruled error state at the 15s ceiling; other sources populate normally.',
+    note: 'apiFetch errorKind "timeout" (unit-tested) → ruled error state at the 15s ceiling; other sources populate normally. Raw elapsed ms is intentionally not recorded (wall-clock volatile).',
     console: badConsole(page),
     screenshot: shot,
   })
@@ -1083,6 +1086,8 @@ async function main() {
       : { mode: 'fixed', fixtureNowIso: fixtures.FIXTURE_NOW_ISO, fixtureNowMs: FIXTURE_NOW_MS, timezoneId: TIMEZONE_ID, driftChecks: 0 },
     preview: config.previewUrl
       ? { mode: 'external (PREVIEW_URL)', url: config.previewUrl }
+      // Local ports are OS-assigned per run; recording the concrete port would
+      // make report.json non-deterministic, so local mode records the mode only.
       : { mode: 'local vite preview (dynamic port)', port: 'dynamic' },
     chrome: { path: chrome.path, source: chrome.source },
     viewport: VIEWPORT,
