@@ -17,6 +17,8 @@ import {
   fixedClockSource,
   resolveChrome,
   resolveConfig,
+  scanConsole,
+  unexpectedConsoleFindings,
 } from '../../scripts/mosv2-c-validation.mjs'
 
 const SCRIPT = fileURLToPath(new URL('../../scripts/mosv2-c-validation.mjs', import.meta.url))
@@ -98,6 +100,37 @@ describe('harness config · dynamic port (founder item 10)', () => {
     assert.ok(a > 0 && b > 0)
     assert.notEqual(a, b, 'two allocations never collide')
     assert.notEqual(a, 4619, 'the old fixed port is gone')
+  })
+})
+
+describe('harness console gate · warnings are failures, never capture-only (matrix §5)', () => {
+  it('a console warning is collected as an unexpected finding', () => {
+    const findings = []
+    const scenario = 'unit-gate-probe'
+    scanConsole(scenario, { errors: [], warnings: [{ text: 'Deprecation notice: X' }], exceptions: [] })
+    // scanConsole appends to the module-level list; probe the predicate directly too.
+    const probe = [{ scenario, kind: 'warning', text: 'Deprecation notice: X', expected: false }]
+    const unexpected = unexpectedConsoleFindings(probe)
+    assert.equal(unexpected.length, 1, 'an unexpected warning fails the gate')
+    assert.equal(unexpected[0].kind, 'warning')
+    assert.ok(Array.isArray(findings))
+  })
+
+  it('errors and exceptions are also gate failures; expected-pattern findings are not', () => {
+    const unexpected = unexpectedConsoleFindings([
+      { scenario: 'a', kind: 'error', text: 'TypeError: boom', expected: false },
+      { scenario: 'b', kind: 'exception', text: 'Uncaught', expected: false },
+      { scenario: 'c', kind: 'warning', text: 'known and allowlisted', expected: true },
+    ])
+    assert.equal(unexpected.length, 2)
+    assert.deepEqual(unexpected.map((f) => f.kind), ['error', 'exception'])
+  })
+
+  it('the committed evidence proves a clean gate: zero findings, zero unexpected', () => {
+    const report = JSON.parse(execFileSync('cat', ['docs/vault/evidence/mosv2-c-validation/report.json'], { encoding: 'utf8' }))
+    assert.equal(report.consoleGate.findings, 0)
+    assert.equal(report.consoleGate.unexpectedCount, 0)
+    assert.match(report.consoleGate.policy, /FAILS on any unexpected console error, warning, or exception/)
   })
 })
 

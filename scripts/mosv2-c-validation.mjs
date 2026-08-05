@@ -571,6 +571,13 @@ function scanConsole(scenario, consoleData) {
   }
 }
 
+// Exported for the gate unit tests (harness-config.test.js): the pure
+// unexpected-finding predicate that drives the run's exit code.
+export function unexpectedConsoleFindings(findings) {
+  return findings.filter((finding) => !finding.expected)
+}
+export { scanConsole, consoleFindings }
+
 function record(name, data) {
   report.scenarios[name] = data
   scanConsole(name, data.console)
@@ -1151,7 +1158,7 @@ async function main() {
     await scenarioOfflineRetry(cdp)
   } finally {
     mode.clock.driftChecks = ACTIVE.driftChecks
-    const unexpected = consoleFindings.filter((finding) => !finding.expected)
+    const unexpected = unexpectedConsoleFindings(consoleFindings)
     report.consoleGate = {
       policy: 'The run FAILS on any unexpected console error, warning, or exception (Lane E: warnings are no longer capture-only).',
       findings: consoleFindings.length,
