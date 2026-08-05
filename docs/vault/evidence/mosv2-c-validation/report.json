@@ -10,7 +10,7 @@
     },
     "preview": {
       "mode": "local vite preview (dynamic port)",
-      "url": "http://127.0.0.1:59780"
+      "port": "dynamic"
     },
     "chrome": {
       "path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -33,22 +33,7 @@
         "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",
         "https://fonts.gstatic.com/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K6z9mXg.woff2"
       ],
-      "requestPaths": [
-        "/",
-        "/css2",
-        "/npm/chart.js@4.4.1/dist/chart.umd.min.js",
-        "/assets/index-DS_O8MRx.js",
-        "/manifest.json",
-        "/assets/index-AvJNE0A2.js",
-        "/assets/index-C5oLi7XV.js",
-        "/assets/App-fvynzT8m.js",
-        "/assets/AuthContext-DpRX_qLD.js",
-        "/assets/Toast-CY3IK7wK.js",
-        "/icons/icon-512.png",
-        "/icons/icon-192.png",
-        "/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K6z9mXg.woff2",
-        "/v2/home"
-      ],
+      "requestPathCount": 14,
       "console": {
         "errors": [],
         "warnings": [],
@@ -333,10 +318,11 @@
     },
     "home-timeout": {
       "pulseError": true,
-      "elapsedMs": 15120,
       "timeoutCeilingMs": 15000,
+      "elapsedAtLeastCeiling": true,
+      "elapsedUnderMs": 25000,
       "populatedSiblings": 6,
-      "note": "apiFetch errorKind \"timeout\" (unit-tested) → ruled error state at the 15s ceiling; other sources populate normally.",
+      "note": "apiFetch errorKind \"timeout\" (unit-tested) → ruled error state at the 15s ceiling; other sources populate normally. Raw elapsed ms is intentionally not recorded (wall-clock volatile).",
       "console": {
         "errors": [],
         "warnings": [],

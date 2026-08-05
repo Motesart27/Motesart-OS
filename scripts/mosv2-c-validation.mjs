@@ -1108,7 +1108,6 @@ async function main() {
     ACTIVE.previewUrl = preview.url
     console.log(`Local preview: ${ACTIVE.previewUrl} (dynamic port)`)
   }
-  mode.preview = config.previewUrl ? mode.preview : { mode: 'local vite preview (dynamic port)', url: ACTIVE.previewUrl }
   mkdirSync(EVIDENCE_DIR, { recursive: true })
   report.run = mode
   console.log(`Clock: ${mode.clock.mode}${mode.clock.mode === 'fixed' ? ` (${fixtures.FIXTURE_NOW_ISO}, ${TIMEZONE_ID})` : ''} · Chrome: ${chrome.path} (${chrome.source})`)
