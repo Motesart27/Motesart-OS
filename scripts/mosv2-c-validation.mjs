@@ -431,10 +431,25 @@ class Page {
             } else {
               if (rule.delayMs) await sleep(rule.delayMs)
               const rawBody = rule.raw !== undefined ? rule.raw : JSON.stringify(rule.body ?? {})
+              // CORS-complete fulfillment. When the built app points at an
+              // absolute cross-origin API base (e.g. VITE_API_URL on a Netlify
+              // deploy preview), the browser preflights/blocks intercepted
+              // responses unless they carry CORS headers — the request then
+              // escapes the zero-network law (observed: /auth/verify reaching
+              // the real backend). Fulfill with the headers a CORS-enabled
+              // backend would send so interception behaves identically for
+              // same-origin and cross-origin API URLs.
+              const requestedHeaders = request.headers?.['Access-Control-Request-Headers']
+                ?? request.headers?.['access-control-request-headers']
               await page.send('Fetch.fulfillRequest', {
                 requestId,
                 responseCode: rule.status ?? 200,
-                responseHeaders: [{ name: 'Content-Type', value: 'application/json' }],
+                responseHeaders: [
+                  { name: 'Content-Type', value: 'application/json' },
+                  { name: 'Access-Control-Allow-Origin', value: '*' },
+                  { name: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, PATCH, DELETE, OPTIONS' },
+                  { name: 'Access-Control-Allow-Headers', value: requestedHeaders ?? 'Authorization, Content-Type' },
+                ],
                 body: Buffer.from(rawBody).toString('base64'),
               })
             }

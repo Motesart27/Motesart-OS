@@ -8,7 +8,7 @@
 
 | # | Item | Result | Evidence |
 |---|---|---|---|
-| 1 | Phase C suite green | **PASS — 291/291** (247 baseline + 44 new) | `node --test tests/mosv2-c/*.test.js` |
+| 1 | Phase C suite green | **PASS — 294/294** (247 baseline + 47 new) | `node --test tests/mosv2-c/*.test.js` |
 | 2 | Operator-bridge regression fence | **PASS — 160/160**, normal (non-sandboxed) environment, suite untouched | `npm run test:operator-bridge` |
 | 3 | npm alias | **PASS** — `"test:mosv2-c": "node --test tests/mosv2-c/*.test.js"` is the ONLY package.json change | `scope.test.js` (alias-shape assertion) |
 | 4 | Fixed-clock harness | **PASS** — fixed clock is the default; page `Date` pinned to `FIXTURE_NOW_ISO` + America/New_York emulated; 12 per-scenario drift assertions per run; real clock only via `--real-clock` / `MOSV2_REAL_CLOCK=1`; CLI tests cover both modes. Ran green on wall date 2026-08-05 (≠ 2026-08-02) | `scripts/mosv2-c-validation.mjs`, `harness-config.test.js`, `report.json → run.clock` |
@@ -16,7 +16,7 @@
 | 6 | D1 Gallery specimen harness | **PASS** — Gallery mounts all 12 `fixtureTileStates` sets × 9 canonical states (108 specimens) + §3.6 mock rejection + 3 Z5 dispatch outcomes through the production `Tile`; `Z3RevenueChart`/`Z3FMStatsView`/`Z3SOMCountView` render in every content state. DOM test mounts every fixture state with **zero console errors and zero warnings**; browser scenario enforces the same counts in the production build | `src/v2/Gallery.jsx`, `gallery.test.js`, `report.json → scenarios.gallery.coverage` (112/109/4/12/4) |
 | 7 | Evidence hashes | **PASS** — `manifest.json` records sha256 for every artifact; `report.json` is CANONICAL (no wall-clock fields; byte-reproduction test re-hashes the committed file); PNGs carry a written NON-CANONICAL classification (compositor frame timing; assertions live in report.json) | `manifest.json`, `evidence-hash.test.js` |
 | 8 | Boundary scans | **PASS** — secret scan (added lines, high-signal shapes) clean; protected-boundary scan clean (lockfile, netlify.toml, operator-bridge, staging-control-plane, scripts/tests outside scope); scripted diff-confinement green | `scope.test.js` |
-| 9 | D2 deploy-preview evidence | **PASS (mechanism + PR output)** — `PREVIEW_URL` env override implemented and CLI-tested; port is dynamically allocated; browser discovered via env → well-known paths → PATH. At draft-PR time the harness is re-run against the Netlify deploy preview and the output is attached to the PR | `harness-config.test.js`, PR body/comment |
+| 9 | D2 deploy-preview evidence | **PASS** — `PREVIEW_URL` env override implemented and CLI-tested; local port dynamically allocated; Chrome discovered via env → well-known paths → PATH. Re-run against the Netlify deploy preview (draft PR #27) at the final head: **17/17 scenarios, console gate 0 findings / 0 unexpected, 12 drift checks, zero drift**; output attached as a PR comment. The first preview run surfaced one harness defect — interception fulfillments carried no CORS headers, so the cross-origin `VITE_API_URL` `/auth/verify` call escaped the zero-network law on deploy previews (real-backend contact, page-level warning); fixed by fulfilling with CORS-complete headers so cross-origin API bases are served from fixtures exactly like same-origin | `harness-config.test.js`, PR #27 body/comment |
 | 10 | D4 Z5 failure evidence | **PASS (injection)** — mounted injection harness, call-counted: typed failure result AND throwing dispatcher ⇒ exactly one ruled crit toast ("couldn't route — try again"), **zero retries** (no call without a click), one toast per dispatch (never stacked), no disabled state, auto-dismiss ~3 s | `z5-dispatch-injection.test.js` (5 tests) |
 | 11 | D3 hidden-tab cadence | **PASS (instrumented + written classification)** — mounted instrumentation drives real `visibilitychange` cycles through the production hook: ZERO fetches while hidden, EXACTLY ONE catch-up on show, no burst, listener removed on unmount; injected-timer pure tests retained | `visibility-cadence.test.js`, classification below |
 | 12 | Permission/lifecycle coverage | **PASS** — see the per-lifecycle table below; every row implemented in the browser harness (no out-of-scope rows) | `report.json → scenarios.home-{permission,permission-broad,parse-failure,timeout,offline-retry}` |
@@ -54,12 +54,13 @@ Phase C cumulative baseline 23.39 kB gz → **Lane E cumulative: 28.65 kB gz vs 
 
 | Check | Result |
 |---|---|
-| Phase C suite `node --test tests/mosv2-c/*.test.js` | **291/291 pass** |
+| Phase C suite `node --test tests/mosv2-c/*.test.js` | **294/294 pass** |
 | `npm run test:mosv2-c` (alias) | identical suite, green |
 | Operator-bridge suite | **160/160 pass** |
 | Production build | vite ✓, zero warnings |
 | Deterministic build ×2 | byte-identical dist trees |
 | Runtime harness (fixed clock, dynamic port) | **17/17 scenarios**, console gate 0 findings / 0 unexpected, 12 drift checks, zero drift |
+| Runtime harness vs Netlify deploy preview (PR #27, `PREVIEW_URL`) | **17/17 scenarios**, console gate 0 findings / 0 unexpected, 12 drift checks — output attached as PR comment |
 | Accessibility + reduced motion | `a11y.test.js` green; `reduced-motion` scenario green (boot skipped, media matched, motion collapsed) |
 | Secret scan + protected-boundary scan | clean (`scope.test.js`) |
 | Real Z5 action | **none** — fixtures/injection only; static no-live-submission scans (`z5.test.js`) still green |
@@ -69,7 +70,7 @@ Phase C cumulative baseline 23.39 kB gz → **Lane E cumulative: 28.65 kB gz vs 
 
 ```
 npm ci
-node --test tests/mosv2-c/*.test.js        # 291/291
+node --test tests/mosv2-c/*.test.js        # 294/294
 npm run test:mosv2-c                        # alias, identical
 npm run test:operator-bridge                # 160/160
 npm run build                               # zero warnings
