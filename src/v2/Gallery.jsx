@@ -3,6 +3,16 @@ import './tokens.css'
 import './gallery.css'
 import { Button, Card, Chip, Kbd, Panel, ProgressBar, ProgressRing, Sparkline, StatCard, Toast } from './components/index.jsx'
 import { MyaBar, PaletteShell, RailNav, Stage, TopBar } from './shell/index.jsx'
+import { Tile } from './zones/Tile.jsx'
+import { Z3FMStatsView, Z3RevenueChart, Z3SOMCountView } from './zones/Z3Business.jsx'
+import { FIXTURE_LABEL, fixtureTileStates } from './data/fixtures.js'
+import { TILE_STATUS, rankSignals } from './data/tileMachine.js'
+import { mapDispatchResponse, mapDispatchResult } from './data/adapters/dispatch.js'
+import { QUICK_ACTIONS, dispatchToast } from './zones/z5QuickActions.js'
+import { SIGNAL_SEVERITY_LABELS } from './zones/z1Signals.js'
+import { formatEventTime } from './zones/z1Agenda.js'
+import { groupTasksByBusiness, summarizeBookLane } from './zones/z2Projects.js'
+import { pulseRows } from './zones/z3Business.js'
 
 const chipTones = ['info', 'good', 'warn', 'crit', 'ai', 'exec']
 const buttonVariants = [
@@ -46,9 +56,9 @@ export default function Gallery() {
     <main className="v2-gallery">
       <header className="v2-gallery__hero">
         <div>
-          <p className="v2-gallery__eyebrow">Graphite Design System · Phase A</p>
+          <p className="v2-gallery__eyebrow">Graphite Design System · Phases A–C</p>
           <h1>Foundation gallery</h1>
-          <p className="v2-gallery__lede">The production primitives for Motes OS v2, shown together as a permanent visual regression surface.</p>
+          <p className="v2-gallery__lede">The production primitives for Motes OS v2, shown together as a permanent visual regression surface — now including the Phase C specimen harness: every fixture tile state mounted through the production Tile renderer.</p>
         </div>
         <Chip tone="good">MOS_V2 enabled</Chip>
       </header>
@@ -158,6 +168,50 @@ export default function Gallery() {
         <PaletteShell preview />
       </Panel>
 
+      <Panel aria-labelledby="phase-c-title">
+        <GalleryHeading
+          id="phase-c-title"
+          title="Phase C specimen harness"
+          description={`Every specimen from src/v2/data/fixtures.js mounted through the production Tile renderer: all fixtureTileStates states (loading / populated / empty / partial / stale / error / permission-denied / offline / b2-pending) for all twelve tiles, the §3.6 mock rejection, and the Z5 dispatch outcomes. ${FIXTURE_LABEL}.`}
+        />
+        {SPECIMEN_GROUPS.map(({ key, title }) => (
+          <section className="v2-gallery__specimen-group" key={key} aria-label={title}>
+            <h3>{title}</h3>
+            <div className="v2-gallery__specimen-grid">
+              {Object.entries(fixtureTileStates[key]).map(([stateName, specimen]) => (
+                <SpecimenTile key={stateName} tileKey={key} title={title} stateName={stateName} specimen={specimen} />
+              ))}
+            </div>
+          </section>
+        ))}
+        <section className="v2-gallery__specimen-group" aria-label="Mock rejection and dispatch outcomes">
+          <h3>§3.6 mock rejection · Z5 dispatch outcomes</h3>
+          <div className="v2-gallery__specimen-grid">
+            <figure className="v2-gallery__specimen" data-specimen="z3FmMockRejection" data-specimen-state="error">
+              <Tile
+                title="Z3 · Financial summary"
+                status={TILE_STATUS.ERROR}
+                error={fixtureTileStates.z3FmMockRejection.resultingState.error}
+                onRetry={noopRetry}
+              />
+              <figcaption><Chip tone="info">FIXTURE</Chip> a &quot;status&quot;:&quot;mock&quot; payload enters error, never populated (§3.6)</figcaption>
+            </figure>
+          </div>
+          <div className="v2-gallery__dispatch-specimens" data-specimen="z5Dispatch">
+            {DISPATCH_SPECIMENS.map(({ name, outcome }) => {
+              const toast = dispatchToast(outcome, QUICK_ACTIONS[0])
+              return (
+                <span className="v2-gallery__dispatch-specimen" data-specimen-state={name} key={name}>
+                  <Chip tone={toast.tone}>{name}</Chip>
+                  <span>{toast.copy}</span>
+                </span>
+              )
+            })}
+          </div>
+          <p className="v2-gallery__specimen-note">Z5 dispatch outcomes — exactly one toast per dispatch; failure is the ruled crit line with zero auto-retries (§10). Injection proof: tests/mosv2-c/z5-dispatch-injection.test.js.</p>
+        </section>
+      </Panel>
+
       <Toast visible={toastVisible}>Foundation proof recorded.</Toast>
     </main>
   )
@@ -170,4 +224,146 @@ function GalleryHeading({ id, title, description }) {
       <p>{description}</p>
     </div>
   )
+}
+
+// ─── Phase C specimen harness (§12.8) ────────────────────────────────────────
+// Every fixtureTileStates state set rendered through the production Tile
+// component with FIXTURE-only bodies. Zero network by construction — the
+// fixtures module never imports anything that touches network, and these
+// renderers are pure presentations of it. The DOM proof lives in
+// tests/mosv2-c/gallery.test.js (mounts every fixture state, zero console
+// errors); the browser proof is the harness gallery scenario.
+
+const noopRetry = () => {}
+
+const SPECIMEN_GROUPS = Object.freeze([
+  { key: 'z1Signals', title: 'Z1 · Signals' },
+  { key: 'z1Agenda', title: 'Z1 · Today agenda' },
+  { key: 'z1HandledLog', title: 'Z1 · Handled log' },
+  { key: 'z2Projects', title: 'Z2 · Projects' },
+  { key: 'z2Book', title: 'Z2 · Book' },
+  { key: 'z2Countdowns', title: 'Z2 · Countdowns' },
+  { key: 'z3RevenueChart', title: 'Z3 · Revenue trend' },
+  { key: 'z3FmStats', title: 'Z3 · Financial summary' },
+  { key: 'z3Pulse', title: 'Z3 · Business pulse' },
+  { key: 'z3SomCount', title: 'Z3 · SOM students' },
+  { key: 'z4PersonalTasks', title: 'Z4 · Personal tasks' },
+  { key: 'z4PersonalCalendar', title: 'Z4 · Personal calendar' },
+])
+
+const DISPATCH_SPECIMENS = Object.freeze([
+  { name: 'success', outcome: mapDispatchResponse(fixtureTileStates.z5Dispatch.success) },
+  { name: 'deduped', outcome: mapDispatchResponse(fixtureTileStates.z5Dispatch.deduped) },
+  { name: 'failure', outcome: mapDispatchResult(fixtureTileStates.z5Dispatch.failure) },
+])
+
+// States that render the tile body content (stale/offline keep last-good
+// content on screen — the §9 fallback law).
+const CONTENT_STATES = new Set(['populated', 'partial', 'stale', 'offline'])
+const RETRY_STATES = new Set(['error', 'permission-denied', 'offline'])
+
+function SpecimenTile({ tileKey, title, stateName, specimen }) {
+  const hasContent = specimen.data != null && CONTENT_STATES.has(stateName)
+  return (
+    <figure className="v2-gallery__specimen" data-specimen={tileKey} data-specimen-state={stateName}>
+      <Tile
+        title={title}
+        status={stateName}
+        error={specimen.error}
+        updatedAt={specimen.updatedAt}
+        emptyCopy={specimen.copy ?? undefined}
+        unavailableCopy={specimen.copy ?? undefined}
+        onRetry={RETRY_STATES.has(stateName) ? noopRetry : undefined}
+      >
+        {hasContent ? <SpecimenBody tileKey={tileKey} data={specimen.data} /> : null}
+      </Tile>
+      <figcaption><Chip tone="info">FIXTURE</Chip> {title} · {stateName}</figcaption>
+    </figure>
+  )
+}
+
+// FIXTURE body per tile: the same view models the live tiles derive, fed by
+// the frozen fixture payloads (and the three Z3 FIXTURE demonstration views).
+function SpecimenBody({ tileKey, data }) {
+  switch (tileKey) {
+    case 'z1Signals':
+      return (
+        <ul className="v2-gallery__specimen-list">
+          {rankSignals(data.signals).map((signal) => (
+            <li key={signal.id}><Chip tone={signal.severity}>{SIGNAL_SEVERITY_LABELS[signal.severity] || signal.severity}</Chip> {signal.summary}</li>
+          ))}
+        </ul>
+      )
+    case 'z1Agenda':
+    case 'z4PersonalCalendar':
+      return (
+        <ul className="v2-gallery__specimen-list">
+          {data.events.map((event, index) => (
+            <li key={`${event.start}-${index}`}><strong>{formatEventTime(event.start)}</strong> {event.title}</li>
+          ))}
+        </ul>
+      )
+    case 'z1HandledLog': {
+      const latest = data.items[0] ?? null
+      return latest
+        ? <p className="v2-gallery__specimen-list">Handled quietly: {latest.result_summary ?? latest.response_text}</p>
+        : null
+    }
+    case 'z2Projects':
+      return (
+        <ul className="v2-gallery__specimen-list">
+          {groupTasksByBusiness(data.tasks).map((group) => (
+            <li key={group.business}><strong>{group.business}</strong> · {group.done}/{group.total} done</li>
+          ))}
+        </ul>
+      )
+    case 'z2Book': {
+      const info = summarizeBookLane(data.tasks)
+      return (
+        <ul className="v2-gallery__specimen-list">
+          <li><strong>{info.count} Book {info.count === 1 ? 'task' : 'tasks'}</strong> on the board</li>
+          {info.topTitles.map((item, index) => <li key={item.id != null ? item.id : index}>{item.title}</li>)}
+        </ul>
+      )
+    }
+    case 'z2Countdowns':
+      // Frozen-clock derivation: `expected` is the fixture's recorded
+      // countdown at FIXTURE_NOW_ISO, so the gallery never drifts with the
+      // wall clock.
+      return (
+        <ul className="v2-gallery__specimen-list">
+          {data.countdowns.map((item) => (
+            <li key={item.id}>{item.label} <strong>{item.expected.days}d {item.expected.hours}h</strong></li>
+          ))}
+        </ul>
+      )
+    case 'z3RevenueChart':
+      return <Z3RevenueChart seriesByRange={data} label="FIXTURE" />
+    case 'z3FmStats':
+      return <Z3FMStatsView ytd={data.ytd} />
+    case 'z3Pulse': {
+      const counts = Object.fromEntries(
+        Object.entries(data.pulse).map(([bucket, tasks]) => [bucket, Array.isArray(tasks) ? tasks.length : 0]),
+      )
+      return (
+        <ul className="v2-gallery__specimen-list">
+          {pulseRows(counts).map((row) => (
+            <li key={row.key}><Chip tone={row.tone}>{row.label}</Chip> {row.count}</li>
+          ))}
+        </ul>
+      )
+    }
+    case 'z3SomCount':
+      return <Z3SOMCountView activeStudents={data.activeStudents} />
+    case 'z4PersonalTasks':
+      return (
+        <ul className="v2-gallery__specimen-list">
+          {data.tasks.map((task, index) => (
+            <li key={task.id != null ? task.id : index}>{task.title}{task.due_date ? ` · due ${task.due_date}` : ''}</li>
+          ))}
+        </ul>
+      )
+    default:
+      return null
+  }
 }

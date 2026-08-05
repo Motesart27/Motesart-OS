@@ -1,0 +1,133 @@
+{
+  "suite": "mosv2-c-validation",
+  "algorithm": "sha256",
+  "note": "Every artifact is either byte-reproduced on re-run (CANONICAL, with a reproduction path) or carries a written NON-CANONICAL classification with a reason.",
+  "artifacts": [
+    {
+      "file": "report.json",
+      "sha256": "06567e03f524fa60cad1c2eb944da2d20b0ebab65515b6a41e0c612466d91237",
+      "classification": "CANONICAL",
+      "reproduction": "Byte-reproduced on re-run at the same head: the report carries no wall-clock fields and fixed-clock mode pins the browser clock to FIXTURE_NOW_ISO with the America/New_York timezone emulated. Reproduction test: tests/mosv2-c/evidence-hash.test.js."
+    },
+    {
+      "file": "01-flagoff-login.png",
+      "sha256": "42fc1c086aee89fc7494bfb4bb618d89d122f1bbb7f0c8753c1536d3ba541da3",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "02-home-populated.png",
+      "sha256": "b2c4b2c4cd75c899ceb2daba1f0d26bceb65ef96c925e79eb1df2d53f509cefc",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "03-palette-open.png",
+      "sha256": "8a67579369c69cd5ece60c1d17d5293be77a771ecc2fe6caabe286ad4c430e57",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "04-exec-on.png",
+      "sha256": "f53f6689319831e134c0bcdd927dbfd707e4c7287717a28ae5d153390d2fce0e",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "05-z5-toast-success.png",
+      "sha256": "091bffe3ea2ba33d881a58f41ce074bc2567060e5edaf0e3804f374da9f8f560",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "06-home-error.png",
+      "sha256": "f7fc809996150cad5220f110f81ec1eb6e5ae9e490d2a43621d6c076330fe10d",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "07-home-empty.png",
+      "sha256": "7e92706810187d6360d00bf870bf3aa92205007bcfa09a1fca85957365935fcd",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "08-home-permission.png",
+      "sha256": "cdefe23166673f3681b97cdae69592f178535705f34b375bb22bb6ffb31ab502",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "09-home-mock-rejection.png",
+      "sha256": "43caf36f8b57d0f954960458030b55ddf7073cee8f88dca66b68709b380eadb2",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "10-home-stale.png",
+      "sha256": "d95eeb0a1d33bad813c4cd785c706d621795b95bb230a25953fef87467d6fd13",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "11-home-loading.png",
+      "sha256": "cb1c59c9d1e22f5a7d692ea1e426850845ef1ca66288e2b8349bfe410ffd60c2",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "12-gallery-full.png",
+      "sha256": "f1dcfd950b3c98e3725341e1b7552ef21c4aa7e6f44e4fdf7ef279a4f3ae92d8",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "13-module-work.png",
+      "sha256": "684c4dd35ca394b128e8e1918bda8dc2418c24123e955c9a22f275297fbe4340",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "14-reduced-motion.png",
+      "sha256": "cefe68bd9668c21d3ea47cd0a31ca8133dfce2873fc93b7290b44e581478d032",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "15-legacy-os.png",
+      "sha256": "d5cd4ba9fb4641761acb58af4e2e37ce6d096ee722599c696d7282b57259b7d0",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "16-home-permission-broad.png",
+      "sha256": "1c0f184b3955c449897b1a1e1c5d57654250daf079fd14f350fdc3877510aa79",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "17-home-parse-failure.png",
+      "sha256": "97072e73b9f296ef2c0b169419a5b5dd546f29d65242279988839afaf9d118c6",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "18-home-timeout.png",
+      "sha256": "e73918581f66a3e40d599c10288b7dced42e1b44601f26d484a81325394c1b68",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "19-home-offline.png",
+      "sha256": "ed3a596f8f674c7b4f5d90dedfec8db33fae4116f2a9502105307397890774e0",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    },
+    {
+      "file": "20-home-offline-retried.png",
+      "sha256": "dc22f36ff9e7e77ab5acd98671c7a80daf9c5c7d01af4a7b6d1bf4c35bd34d5e",
+      "classification": "NON-CANONICAL",
+      "reason": "Visual corroboration only: headless compositor frame timing can alter PNG bytes run-to-run. Every machine-checkable assertion lives in report.json; the PNG bytes are hashed for this run but are not reproduction-gated."
+    }
+  ]
+}
