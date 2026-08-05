@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "start": "node server.js",
     "test:operator-bridge": "node --test tests/operator-bridge/*.test.mjs",
+    "test:mosv2-c": "node --test tests/mosv2-c/*.test.js",
     "pilot:operator-bridge": "node scripts/run-operator-bridge-pilot.mjs",
     "qualify:operator-bridge-verifier": "node scripts/run-verifier-qualification.mjs"
   },

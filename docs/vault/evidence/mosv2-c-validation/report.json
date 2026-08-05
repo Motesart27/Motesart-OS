@@ -1,5 +1,26 @@
 {
-  "startedAt": "2026-08-04T03:39:45.471Z",
+  "suite": "mosv2-c-validation",
+  "run": {
+    "clock": {
+      "mode": "fixed",
+      "fixtureNowIso": "2026-08-02T20:00:00-04:00",
+      "fixtureNowMs": 1785715200000,
+      "timezoneId": "America/New_York",
+      "driftChecks": 12
+    },
+    "preview": {
+      "mode": "local vite preview (dynamic port)",
+      "url": "http://127.0.0.1:59092"
+    },
+    "chrome": {
+      "path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+      "source": "well-known"
+    },
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    }
+  },
   "scenarios": {
     "flag-off": {
       "note": "Production build, VITE_MOS_V2 unset at build time, no runtime override.",
@@ -16,18 +37,23 @@
         "/",
         "/css2",
         "/npm/chart.js@4.4.1/dist/chart.umd.min.js",
-        "/assets/index-BK56tEl7.js",
+        "/assets/index-CFcJc4qu.js",
         "/manifest.json",
-        "/assets/index-c_bSsPkg.js",
-        "/assets/index-CZMKoUZ-.js",
-        "/assets/App-DCivZIuK.js",
-        "/assets/AuthContext-Dpz0b63j.js",
-        "/assets/Toast-BfGmOsu-.js",
+        "/assets/index-7mccBQ-r.js",
+        "/assets/index-cZbJgg_l.js",
+        "/assets/App-C2Xu0xiU.js",
+        "/assets/AuthContext-CEx9q7Qr.js",
+        "/assets/Toast-CJBWUnx6.js",
         "/icons/icon-512.png",
         "/icons/icon-192.png",
         "/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K6z9mXg.woff2",
         "/v2/home"
       ],
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
       "screenshot": "01-flagoff-login.png"
     },
     "home-populated": {
@@ -102,6 +128,11 @@
         "atViewportCorner": true
       },
       "z5ToastAutoDismissed": true,
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
       "screenshots": [
         "03-palette-open.png",
         "04-exec-on.png",
@@ -155,9 +186,9 @@
     "home-stale-transition": {
       "count": 3,
       "asOfTags": [
-        "as of 23:40",
-        "as of 23:40",
-        "as of 23:40"
+        "as of 20:00",
+        "as of 20:00",
+        "as of 20:00"
       ],
       "contentRetained": true,
       "clsAcrossTransition": {
@@ -183,6 +214,43 @@
       "screenshot": "11-home-loading.png"
     },
     "gallery": {
+      "note": "D1 Phase C specimen harness: every fixtureTileStates state of every tile mounts in the production build with zero console errors (gate-enforced).",
+      "coverage": {
+        "specimenCount": 112,
+        "tileCount": 109,
+        "groups": {
+          "z1Signals": 9,
+          "z1Agenda": 9,
+          "z1HandledLog": 9,
+          "z2Projects": 9,
+          "z2Book": 9,
+          "z2Countdowns": 9,
+          "z3RevenueChart": 9,
+          "z3FmStats": 9,
+          "z3Pulse": 9,
+          "z3SomCount": 9,
+          "z4PersonalTasks": 9,
+          "z4PersonalCalendar": 9,
+          "z3FmMockRejection": 1,
+          "unknown": 3
+        },
+        "statuses": [
+          "b2-pending",
+          "empty",
+          "error",
+          "loading",
+          "offline",
+          "partial",
+          "permission-denied",
+          "populated",
+          "stale"
+        ],
+        "charts": 4,
+        "fmStats": 12,
+        "somCounts": 4,
+        "mockRejectionError": true,
+        "dispatchOutcomes": 3
+      },
       "apiRequests": [
         "GET /auth/verify → 200"
       ],
@@ -195,8 +263,7 @@
         "warnings": [],
         "exceptions": []
       },
-      "screenshot": "12-gallery-full.png",
-      "note": "Gallery is Phase A/B specimens only — see validation doc deviation on the §12.8 Phase C specimen harness."
+      "screenshot": "12-gallery-full.png"
     },
     "module-route-work": {
       "console": {
@@ -220,8 +287,85 @@
     "legacy-spot-check": {
       "osRendered": true,
       "note": "Byte-identity of legacy surfaces is proven by git diff (only src/v2 files touched); this run confirms /os still boots under the same build.",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
       "screenshot": "15-legacy-os.png"
+    },
+    "home-permission-broad": {
+      "path": "/v2/home",
+      "permissionDenied": 7,
+      "retryControls": 7,
+      "handledLogHidden": true,
+      "signedIn": true,
+      "copy": true,
+      "note": "401 on EVERY tile source (tasks/pulse/calendar/audit): tile-local permission-denied, no redirect, no logout, session retained, retry offered.",
+      "apiInventory": [
+        "GET /auth/verify → 200",
+        "GET /api/tasks?limit=200 → 401",
+        "GET /api/mya/calendar/events?days_ahead=1&max_results=20 → 401",
+        "GET /api/mya/audit/handled?limit=3 → 401",
+        "GET /api/tasks?business=Book → 401",
+        "GET /api/tasks?limit=200 → 401",
+        "GET /api/pulse → 401",
+        "GET /api/tasks?business=Personal → 401",
+        "GET /api/mya/calendar/events?days_ahead=1&max_results=20 → 401"
+      ],
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "16-home-permission-broad.png"
+    },
+    "home-parse-failure": {
+      "pulseError": true,
+      "populatedSiblings": 6,
+      "note": "Unparseable /api/pulse body → apiFetch errorKind \"parse\" (unit-tested in apiFetch.test.js) → ruled error state; other sources populate normally.",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "17-home-parse-failure.png"
+    },
+    "home-timeout": {
+      "pulseError": true,
+      "elapsedMs": 15121,
+      "timeoutCeilingMs": 15000,
+      "populatedSiblings": 6,
+      "note": "apiFetch errorKind \"timeout\" (unit-tested) → ruled error state at the 15s ceiling; other sources populate normally.",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "18-home-timeout.png"
+    },
+    "home-offline-retry": {
+      "offlineTiles": 7,
+      "offlineCopy": true,
+      "skeletons": 0,
+      "populatedAfterRetry": 1,
+      "stillOffline": 6,
+      "note": "Fetch.failRequest(InternetDisconnected) → ruled offline state (zero skeleton replay); after restore, the tile-local Retry recovers populated — the retry lifecycle end-to-end.",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshots": [
+        "19-home-offline.png",
+        "20-home-offline-retried.png"
+      ]
     }
   },
-  "finishedAt": "2026-08-04T03:41:51.779Z"
+  "consoleGate": {
+    "policy": "The run FAILS on any unexpected console error, warning, or exception (Lane E: warnings are no longer capture-only).",
+    "findings": 0,
+    "unexpectedCount": 0,
+    "unexpected": []
+  }
 }
