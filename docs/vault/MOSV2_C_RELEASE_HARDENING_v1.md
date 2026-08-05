@@ -42,9 +42,11 @@ Build at the Lane E head (two consecutive builds byte-identical; `build-repro.te
 
 | Asset | Raw | gzip (`gzip -c`, measured) | sha256 (first 16) |
 |---|---|---|---|
-| `dist/assets/V2App-C3EJTrbf.js` | 73,958 B | 21,523 B | `a9e7cca476fa9ad2` |
+| `dist/assets/V2App-kpPOizOX.js` | 73,958 B | 21,523 B | `f7ed3458f337aca7` |
 | `dist/assets/V2App-Dd2XY4UL.css` | 38,310 B | 7,819 B | `9c6779e98335af32` |
 | **Combined v2 JS+CSS** | | **29,342 B (28.65 kB)** | |
+
+(Chunk file names are content-addressed and embed the build-time `__OPERATOR_BRIDGE_BUILD_HEAD__`, so the JS chunk name shifts with each head while raw/gzip stay constant — the reproduction gate is `build-repro.test.js`: two builds at the same head are byte-identical.)
 
 Phase C cumulative baseline 23.39 kB gz → **Lane E cumulative: 28.65 kB gz vs ≤ 80 kB ceiling → 51.35 kB headroom (64% unused).** Budget holds. (Growth is the D1 specimen harness, which lives in the Gallery route inside the measured V2App chunk.)
 
