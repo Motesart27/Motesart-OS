@@ -1,0 +1,223 @@
+/* founder.css — Founder Home phone-first styles (branch feat/founder-home-mobile).
+   Mobile-first: designed at 390px, enhances upward. Hard laws: no horizontal
+   overflow ever; interactive targets ≥44px; safe-area aware; long copy wraps,
+   never truncates away information; truth chips read as TEXT, never color-only. */
+
+.fh-root {
+  min-height: 100dvh;
+  background: var(--bg-0);
+  color: var(--text-1);
+  font-family: var(--font);
+  padding:
+    calc(16px + env(safe-area-inset-top))
+    16px
+    calc(24px + env(safe-area-inset-bottom));
+  max-width: 480px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.fh-root *, .fh-root *::before, .fh-root *::after { box-sizing: border-box; }
+
+.fh-header { margin-bottom: 18px; }
+.fh-wordmark {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.fh-header h1 { margin: 0; font-size: 26px; font-weight: 700; line-height: 1.15; }
+.fh-date { margin: 4px 0 0; color: var(--text-2); font-size: 14px; }
+
+/* ── Sections ─────────────────────────────────────────────────────── */
+.fh-section {
+  background: var(--bg-2);
+  border: 1px solid var(--stroke-1);
+  border-radius: var(--r-l);
+  padding: 14px 14px 16px;
+  margin-bottom: 12px;
+  min-width: 0; /* grid/flex children can shrink — overflow defense */
+}
+.fh-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.fh-section__head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+/* ── Truth chips (founder law: LIVE / STAGED / UNVERIFIED / UNAVAILABLE) ── */
+.fh-chip {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.fh-chip--live { color: var(--good-t); border-color: var(--good-d); background: var(--good-d); }
+.fh-chip--staged { color: var(--warn-t); border-color: var(--warn-d); background: var(--warn-d); }
+.fh-chip--unverified { color: var(--info-t); border-color: var(--info-d); background: var(--info-d); }
+.fh-chip--unavailable { color: var(--text-3); border-color: var(--stroke-2); background: var(--bg-3); }
+.fh-chip--pending { color: var(--text-3); border-color: var(--stroke-1); }
+
+/* ── Quiet state lines ────────────────────────────────────────────── */
+.fh-quiet { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 14px; color: var(--text-2); }
+.fh-quiet--good { color: var(--good-t); }
+.fh-quiet--warn { color: var(--warn-t); }
+.fh-quiet--crit { color: var(--crit-t); }
+.fh-retry {
+  min-height: 44px;
+  padding: 0 14px;
+  margin-left: 8px;
+  border-radius: var(--r-m);
+  border: 1px solid var(--stroke-2);
+  background: var(--bg-3);
+  color: var(--text-1);
+  font-size: 13px;
+}
+
+/* ── Skeleton ─────────────────────────────────────────────────────── */
+.fh-skeleton i {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--bg-3);
+  margin: 10px 0;
+}
+.fh-skeleton i:nth-child(2) { width: 72%; }
+.fh-skeleton i:nth-child(3) { width: 48%; }
+
+/* ── Briefing / Required action ───────────────────────────────────── */
+.fh-briefing__line { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.35; }
+.fh-briefing__mya { margin: 10px 0 0; font-size: 13px; color: var(--text-2); line-height: 1.4; overflow-wrap: anywhere; }
+.fh-action { border-color: var(--stroke-2); }
+.fh-action__card {
+  background: var(--bg-3);
+  border: 1px solid var(--stroke-2);
+  border-radius: var(--r-m);
+  padding: 14px;
+}
+.fh-action__reason {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--exec-t);
+  background: var(--exec-d);
+  padding: 3px 8px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+.fh-action__title { margin: 0 0 6px; font-size: 18px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+
+/* ── Events / tasks ───────────────────────────────────────────────── */
+.fh-events, .fh-tasks, .fh-health, .fh-launchers { list-style: none; margin: 0; padding: 0; }
+.fh-event {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--stroke-1);
+  font-size: 15px;
+}
+.fh-event:first-child { border-top: none; padding-top: 2px; }
+.fh-event__time { flex-shrink: 0; width: 96px; color: var(--text-2); font-family: var(--mono); font-size: 13px; padding-top: 1px; }
+.fh-event__title { min-width: 0; overflow-wrap: anywhere; line-height: 1.35; }
+
+.fh-task { padding: 12px 0; border-top: 1px solid var(--stroke-1); }
+.fh-task:first-child { border-top: none; padding-top: 2px; }
+.fh-task__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.fh-task__title { min-width: 0; font-size: 15px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.fh-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  border: 1px solid var(--stroke-2);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+.fh-task__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.fh-task__next, .fh-task__update {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* ── Health / launchers ───────────────────────────────────────────── */
+.fh-health li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-top: 1px solid var(--stroke-1);
+  font-size: 14px;
+}
+.fh-health li:first-child { border-top: none; }
+
+.fh-launcher {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px; /* touch law */
+  padding: 8px 0;
+  border-top: 1px solid var(--stroke-1);
+  color: var(--text-1);
+  text-decoration: none;
+}
+.fh-launchers li:first-child .fh-launcher { border-top: none; }
+.fh-launcher__tile {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-m);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: #0a0a0f;
+}
+.fh-launcher__label { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; }
+.fh-launcher__label small { display: block; font-size: 12px; font-weight: 400; color: var(--text-3); margin-top: 2px; }
+
+.fh-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* ── Wider viewports: keep the phone measure, never stretch content ── */
+@media (min-width: 481px) {
+  .fh-root { border-left: 1px solid var(--stroke-1); border-right: 1px solid var(--stroke-1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fh-root * { animation: none !important; transition: none !important; }
+}
