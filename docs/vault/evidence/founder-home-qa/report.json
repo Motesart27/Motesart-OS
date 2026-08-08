@@ -1,0 +1,1231 @@
+{
+  "suite": "founder-home-qa",
+  "run": {
+    "note": "Branch-only QA evidence for feat/founder-home-mobile. Not production evidence.",
+    "preview": "local vite preview (dynamic port)",
+    "clock": {
+      "mode": "fixed",
+      "fixtureNowIso": "2026-08-02T20:00:00-04:00",
+      "timezoneId": "America/New_York"
+    },
+    "chrome": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "viewports": [
+      {
+        "name": "390x844",
+        "width": 390,
+        "height": 844
+      },
+      {
+        "name": "393x852",
+        "width": 393,
+        "height": 852
+      }
+    ]
+  },
+  "scenarios": {
+    "390x844/populated": {
+      "metrics": {
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "LIVE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Today",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "LIVE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 0,
+        "taskRows": 10,
+        "events": 5
+      },
+      "textHits": {
+        "MYA BRIEFING": true,
+        "ONE REQUIRED ACTION": true,
+        "TODAY": true,
+        "TOP PRIORITIES": true,
+        "APPROVALS WAITING": true,
+        "BLOCKERS": true,
+        "ACTIVE WORK": true,
+        "RECENT COMPLETIONS": true,
+        "SYSTEM HEALTH": true,
+        "LAUNCHERS": true,
+        "Mix revisions — single 3": true,
+        "1 approval waiting": true,
+        "APPROVAL NEEDED": true,
+        "Curriculum outline — level 2": true,
+        "Chapter 7 second pass": true,
+        "Pay studio invoice": true,
+        "MYA last handled: Task routed to E7A Executive": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "390x844-populated.png"
+    },
+    "390x844/loading": {
+      "metrics": {
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "pending"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "pending"
+          },
+          {
+            "section": "Today",
+            "truth": "pending"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "pending"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "pending"
+          },
+          {
+            "section": "Blockers",
+            "truth": "pending"
+          },
+          {
+            "section": "Active Work",
+            "truth": "pending"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "pending"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 8,
+        "retries": 0,
+        "taskRows": 0,
+        "events": 0
+      },
+      "textHits": null,
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "390x844-loading.png"
+    },
+    "390x844/error": {
+      "metrics": {
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Today",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "UNAVAILABLE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 8,
+        "taskRows": 0,
+        "events": 0
+      },
+      "textHits": {
+        "Source unreachable": true,
+        "Retry": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "390x844-error.png"
+    },
+    "390x844/empty": {
+      "metrics": {
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "LIVE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Today",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "LIVE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 0,
+        "taskRows": 0,
+        "events": 0
+      },
+      "textHits": {
+        "No fires": true,
+        "No single action required right now.": true,
+        "Nothing scheduled today.": true,
+        "No urgent or high-priority tasks open.": true,
+        "Nothing waiting on your approval.": true,
+        "No blockers or overdue work.": true,
+        "No work in progress.": true,
+        "Nothing completed yet today.": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "390x844-empty.png"
+    },
+    "390x844/permission": {
+      "metrics": {
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "LIVE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Today",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "LIVE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 0,
+        "taskRows": 10,
+        "events": 5
+      },
+      "textHits": {
+        "MYA log: sign-in needed.": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "390x844-permission.png"
+    },
+    "390x844/broad-permission": {
+      "metrics": {
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Today",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "UNAVAILABLE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 8,
+        "taskRows": 0,
+        "events": 0
+      },
+      "textHits": {
+        "Sign-in needed": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "390x844-broad-permission.png"
+    },
+    "390x844/offline": {
+      "metrics": {
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Today",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "UNAVAILABLE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 8,
+        "taskRows": 0,
+        "events": 0
+      },
+      "textHits": {
+        "You appear to be offline.": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "390x844-offline.png"
+    },
+    "390x844/long-copy": {
+      "metrics": {
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "LIVE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Today",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "LIVE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [
+          {
+            "wrap": "anywhere",
+            "chars": 300
+          },
+          {
+            "wrap": "anywhere",
+            "chars": 300
+          },
+          {
+            "wrap": "anywhere",
+            "chars": 300
+          },
+          {
+            "wrap": "anywhere",
+            "chars": 300
+          }
+        ],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 0,
+        "taskRows": 6,
+        "events": 1
+      },
+      "textHits": {
+        "Board packet: confirm the autumn touring": true,
+        "Pull the consolidated Friday operating numbers": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "390x844-long-copy.png"
+    },
+    "393x852/populated": {
+      "metrics": {
+        "innerWidth": 393,
+        "scrollWidth": 393,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "LIVE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Today",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "LIVE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 0,
+        "taskRows": 10,
+        "events": 5
+      },
+      "textHits": {
+        "MYA BRIEFING": true,
+        "ONE REQUIRED ACTION": true,
+        "TODAY": true,
+        "TOP PRIORITIES": true,
+        "APPROVALS WAITING": true,
+        "BLOCKERS": true,
+        "ACTIVE WORK": true,
+        "RECENT COMPLETIONS": true,
+        "SYSTEM HEALTH": true,
+        "LAUNCHERS": true,
+        "Mix revisions — single 3": true,
+        "1 approval waiting": true,
+        "APPROVAL NEEDED": true,
+        "Curriculum outline — level 2": true,
+        "Chapter 7 second pass": true,
+        "Pay studio invoice": true,
+        "MYA last handled: Task routed to E7A Executive": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "393x852-populated.png"
+    },
+    "393x852/loading": {
+      "metrics": {
+        "innerWidth": 393,
+        "scrollWidth": 393,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "pending"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "pending"
+          },
+          {
+            "section": "Today",
+            "truth": "pending"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "pending"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "pending"
+          },
+          {
+            "section": "Blockers",
+            "truth": "pending"
+          },
+          {
+            "section": "Active Work",
+            "truth": "pending"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "pending"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 8,
+        "retries": 0,
+        "taskRows": 0,
+        "events": 0
+      },
+      "textHits": null,
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "393x852-loading.png"
+    },
+    "393x852/error": {
+      "metrics": {
+        "innerWidth": 393,
+        "scrollWidth": 393,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Today",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "UNAVAILABLE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 8,
+        "taskRows": 0,
+        "events": 0
+      },
+      "textHits": {
+        "Source unreachable": true,
+        "Retry": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "393x852-error.png"
+    },
+    "393x852/empty": {
+      "metrics": {
+        "innerWidth": 393,
+        "scrollWidth": 393,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "LIVE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Today",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "LIVE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 0,
+        "taskRows": 0,
+        "events": 0
+      },
+      "textHits": {
+        "No fires": true,
+        "No single action required right now.": true,
+        "Nothing scheduled today.": true,
+        "No urgent or high-priority tasks open.": true,
+        "Nothing waiting on your approval.": true,
+        "No blockers or overdue work.": true,
+        "No work in progress.": true,
+        "Nothing completed yet today.": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "393x852-empty.png"
+    },
+    "393x852/permission": {
+      "metrics": {
+        "innerWidth": 393,
+        "scrollWidth": 393,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "LIVE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Today",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "LIVE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 0,
+        "taskRows": 10,
+        "events": 5
+      },
+      "textHits": {
+        "MYA log: sign-in needed.": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "393x852-permission.png"
+    },
+    "393x852/broad-permission": {
+      "metrics": {
+        "innerWidth": 393,
+        "scrollWidth": 393,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Today",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "UNAVAILABLE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 8,
+        "taskRows": 0,
+        "events": 0
+      },
+      "textHits": {
+        "Sign-in needed": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "393x852-broad-permission.png"
+    },
+    "393x852/offline": {
+      "metrics": {
+        "innerWidth": 393,
+        "scrollWidth": 393,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Today",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "UNAVAILABLE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "UNAVAILABLE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 8,
+        "taskRows": 0,
+        "events": 0
+      },
+      "textHits": {
+        "You appear to be offline.": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "393x852-offline.png"
+    },
+    "393x852/long-copy": {
+      "metrics": {
+        "innerWidth": 393,
+        "scrollWidth": 393,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "LIVE"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Today",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Blockers",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Active Work",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "LIVE"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [
+          {
+            "wrap": "anywhere",
+            "chars": 300
+          },
+          {
+            "wrap": "anywhere",
+            "chars": 300
+          },
+          {
+            "wrap": "anywhere",
+            "chars": 300
+          },
+          {
+            "wrap": "anywhere",
+            "chars": 300
+          }
+        ],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 0,
+        "taskRows": 6,
+        "events": 1
+      },
+      "textHits": {
+        "Board packet: confirm the autumn touring": true,
+        "Pull the consolidated Friday operating numbers": true
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "393x852-long-copy.png"
+    },
+    "390x844/stale-unverified": {
+      "metrics": {
+        "innerWidth": 390,
+        "scrollWidth": 390,
+        "hOverflow": false,
+        "sections": 10,
+        "chips": [
+          {
+            "section": "MYA Briefing",
+            "truth": "UNVERIFIED"
+          },
+          {
+            "section": "One Required Action",
+            "truth": "UNVERIFIED"
+          },
+          {
+            "section": "Today",
+            "truth": "LIVE"
+          },
+          {
+            "section": "Top Priorities",
+            "truth": "UNVERIFIED"
+          },
+          {
+            "section": "Approvals Waiting",
+            "truth": "UNVERIFIED"
+          },
+          {
+            "section": "Blockers",
+            "truth": "UNVERIFIED"
+          },
+          {
+            "section": "Active Work",
+            "truth": "UNVERIFIED"
+          },
+          {
+            "section": "Recent Completions",
+            "truth": "UNVERIFIED"
+          }
+        ],
+        "launcherChips": [
+          "LIVE",
+          "STAGED",
+          "STAGED",
+          "LIVE",
+          "STAGED"
+        ],
+        "smallTargets": [],
+        "nextActions": [],
+        "rootPaddingBottom": "24px",
+        "skeletons": 0,
+        "retries": 0,
+        "taskRows": 10,
+        "events": 5
+      },
+      "pathname": "/v2/founder",
+      "console": {
+        "errors": [],
+        "warnings": [],
+        "exceptions": []
+      },
+      "screenshot": "390x844-stale-unverified.png",
+      "note": "Network dropped after populated load; 60s cadence refresh failed with last-good retained (STALE)."
+    }
+  },
+  "gates": {
+    "policy": "Fail on: any horizontal overflow, any interactive target under 44px, any console error/exception, any missing required copy, any wrong truth chip.",
+    "failures": []
+  }
+}
