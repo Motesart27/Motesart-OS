@@ -53,6 +53,43 @@ export function resolveDeliveryDecision(review) {
   return { settle: 'complete' }
 }
 
+// Exact intake binding (MOS-ORCA-TRANSPORT-BINDING-C1-01). intakeOne() only
+// runs with a complete expected-order binding: the claim names the exact
+// remote work-order id, and the claimed order must match the binding on every
+// field below or the lease is released immediately and intake fails closed.
+export const INTAKE_BINDING_FIELDS = Object.freeze([
+  'work_order_id',
+  'task_type',
+  'approval_class',
+  'repository',
+  'pull_request',
+])
+
+export function assertIntakeBinding(binding) {
+  if (!binding || typeof binding !== 'object') {
+    throw new OrcaTransportBridgeError('INTAKE_BINDING_REQUIRED', 'intakeOne requires an exact expected-order binding')
+  }
+  for (const field of ['work_order_id', 'task_type', 'approval_class', 'repository']) {
+    if (typeof binding[field] !== 'string' || binding[field].trim() === '') {
+      throw new OrcaTransportBridgeError('INTAKE_BINDING_REQUIRED', `Binding field ${field} must be a non-empty string`)
+    }
+  }
+  if (!Number.isSafeInteger(binding.pull_request) || binding.pull_request <= 0) {
+    throw new OrcaTransportBridgeError('INTAKE_BINDING_REQUIRED', 'Binding field pull_request must be a positive integer')
+  }
+}
+
+export function bindingMismatches(binding, remoteOrder) {
+  const scope = remoteOrder?.scope ?? {}
+  const mismatches = []
+  if (remoteOrder?.work_order_id !== binding.work_order_id) mismatches.push('work_order_id')
+  if (remoteOrder?.task_type !== binding.task_type) mismatches.push('task_type')
+  if (remoteOrder?.approval_class !== binding.approval_class) mismatches.push('approval_class')
+  if (scope.repository !== binding.repository) mismatches.push('scope.repository')
+  if (scope.pull_request !== binding.pull_request) mismatches.push('scope.pull_request')
+  return mismatches
+}
+
 export class OrcaTransportBridge {
   constructor({
     transport,
@@ -94,21 +131,54 @@ export class OrcaTransportBridge {
     this.logger?.info?.({ event, ...metadata })
   }
 
-  // Claim at most one order from the staging control plane and mirror it into
-  // the local ledger so the bounded loop can pick it up through its normal
-  // eligibility, claim, and clock machinery. Mirroring is idempotent: the
-  // remote work-order id is reused verbatim and doubles as the idempotency
-  // key, so a re-claimed or re-seen order can never create a duplicate.
-  async intakeOne() {
+  // Claim exactly the bound order from the staging control plane and mirror
+  // it into the local ledger so the bounded loop can pick it up through its
+  // normal eligibility, claim, and clock machinery. Mirroring is idempotent:
+  // the remote work-order id is reused verbatim and doubles as the
+  // idempotency key, so a re-claimed or re-seen order can never create a
+  // duplicate. Guards, in order and all fail-closed:
+  //   1. A complete binding is required before any network or ledger access.
+  //   2. The local ledger may hold no order other than the bound one — a
+  //      stale locally queued order would otherwise be picked up by the
+  //      bounded loop in place of the claimed remote order.
+  //   3. A claimed order that does not match the binding exactly is released
+  //      back to the control plane immediately and intake throws; it is never
+  //      mirrored and never heartbeated.
+  // An empty claim is null — never a substitute order.
+  async intakeOne(binding) {
+    assertIntakeBinding(binding)
+    const existing = await this.ledger.list()
+    const stale = existing.filter((order) => order.work_order_id !== binding.work_order_id)
+    if (stale.length > 0) {
+      throw new OrcaTransportBridgeError(
+        'LOCAL_LEDGER_NOT_ISOLATED',
+        `Local ledger already holds ${stale.length} unrelated order(s); each run requires a fresh isolated ledger`,
+      )
+    }
     const claim = await this.transport.execute({
       action: 'claim',
-      payload: { capabilities: this.capabilities, lease_ttl_seconds: this.leaseTtlSeconds },
+      payload: { work_order_id: binding.work_order_id, capabilities: this.capabilities, lease_ttl_seconds: this.leaseTtlSeconds },
     })
     if (!claim?.claim) return null
     const remoteOrder = claim.claim.work_order
     const leaseToken = claim.claim.lease_token
     if (typeof remoteOrder?.work_order_id !== 'string' || typeof leaseToken !== 'string') {
       throw new OrcaTransportBridgeError('TRANSPORT_CLAIM_MALFORMED', 'Claim response missing work order or lease token')
+    }
+    const mismatches = bindingMismatches(binding, remoteOrder)
+    if (mismatches.length > 0) {
+      try {
+        await this.transport.execute({
+          action: 'release',
+          payload: { work_order_id: remoteOrder.work_order_id, lease_token: leaseToken },
+        })
+      } catch (error) {
+        this._log('transport_mismatch_release_failed', { work_order_id: remoteOrder.work_order_id, error_code: error?.code ?? 'UNKNOWN' })
+      }
+      throw new OrcaTransportBridgeError(
+        'TRANSPORT_CLAIM_BINDING_MISMATCH',
+        `Claimed order does not match the expected binding: ${mismatches.join(', ')}`,
+      )
     }
     const mirrored = await this.ledger.create({
       work_order_id: remoteOrder.work_order_id,

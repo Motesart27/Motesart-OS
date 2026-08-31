@@ -6,6 +6,8 @@ import test from 'node:test'
 
 import { LocalArtifactStore } from '../../operator-bridge/artifact-store.mjs'
 import {
+  assertIntakeBinding,
+  bindingMismatches,
   OrcaTransportBridge,
   OrcaTransportBridgeError,
   resolveDeliveryDecision,
@@ -51,6 +53,18 @@ function remoteClaim(workOrderId, overrides = {}) {
       executor: 'ORCA',
       ...overrides,
     },
+  }
+}
+
+// Exact intake binding matching remoteClaim()'s canned order shape.
+function bindingFor(workOrderId, overrides = {}) {
+  return {
+    work_order_id: workOrderId,
+    task_type: 'github_pr_read_only_review',
+    approval_class: 'READ_ONLY',
+    repository: 'Motesart27/Motesart-OS',
+    pull_request: 27,
+    ...overrides,
   }
 }
 
@@ -117,14 +131,72 @@ test('constructor rejects non-staging environments and malformed transports', as
   }
 })
 
-test('intakeOne mirrors a remote claim into the local ledger as QUEUED', async () => {
+test('assertIntakeBinding rejects every incomplete or malformed binding', () => {
+  const complete = bindingFor('wo-binding')
+  assertIntakeBinding(complete)
+  for (const bad of [
+    null,
+    undefined,
+    'wo-binding',
+    {},
+    { ...complete, work_order_id: '' },
+    { ...complete, work_order_id: '   ' },
+    { ...complete, task_type: undefined },
+    { ...complete, approval_class: 42 },
+    { ...complete, repository: '' },
+    { ...complete, pull_request: undefined },
+    { ...complete, pull_request: 0 },
+    { ...complete, pull_request: -3 },
+    { ...complete, pull_request: 27.5 },
+    { ...complete, pull_request: '27' },
+  ]) {
+    assert.throws(
+      () => assertIntakeBinding(bad),
+      (error) => error instanceof OrcaTransportBridgeError && error.code === 'INTAKE_BINDING_REQUIRED',
+      `binding ${JSON.stringify(bad)} must be rejected`,
+    )
+  }
+})
+
+test('bindingMismatches reports every diverging bound field', () => {
+  const binding = bindingFor('wo-mm')
+  assert.deepEqual(bindingMismatches(binding, remoteClaim('wo-mm').work_order), [])
+  assert.deepEqual(bindingMismatches(binding, remoteClaim('wo-other').work_order), ['work_order_id'])
+  assert.deepEqual(
+    bindingMismatches(binding, remoteClaim('wo-mm', { task_type: 'staging_smoke_test' }).work_order),
+    ['task_type'],
+  )
+  assert.deepEqual(
+    bindingMismatches(binding, remoteClaim('wo-mm', { scope: { repository: 'Motesart27/other-repo', pull_request: 99 } }).work_order),
+    ['scope.repository', 'scope.pull_request'],
+  )
+})
+
+test('intake without a binding fails closed before any network access', async () => {
+  const transport = mockTransport({ claims: [remoteClaim('wo-unbound')] })
+  const { bridge, ledger, cleanup } = await fixture({ transport })
+  try {
+    await assert.rejects(bridge.intakeOne(), (error) => error.code === 'INTAKE_BINDING_REQUIRED')
+    await assert.rejects(bridge.intakeOne({ work_order_id: 'wo-unbound' }), (error) => error.code === 'INTAKE_BINDING_REQUIRED')
+    assert.equal(transport.calls.length, 0)
+    assert.deepEqual(await ledger.list(), [])
+  } finally {
+    await cleanup()
+  }
+})
+
+test('intakeOne claims the exact bound order id and mirrors it as QUEUED', async () => {
   const transport = mockTransport({ claims: [remoteClaim('wo-transport-1')] })
   const { bridge, ledger, cleanup } = await fixture({ transport })
   try {
-    const intake = await bridge.intakeOne()
+    const intake = await bridge.intakeOne(bindingFor('wo-transport-1'))
     assert.equal(intake.order.work_order_id, 'wo-transport-1')
     assert.equal(intake.order.status, 'QUEUED')
     assert.equal(intake.leaseToken, 'lease-wo-transport-1')
+    // The claim itself must name the exact target — never an open claim.
+    const claimCalls = transport.calls.filter((call) => call.action === 'claim')
+    assert.equal(claimCalls.length, 1)
+    assert.equal(claimCalls[0].payload.work_order_id, 'wo-transport-1')
     const mirrored = await ledger.get('wo-transport-1')
     assert.equal(mirrored.task_type, 'github_pr_read_only_review')
     assert.equal(mirrored.approval_class, 'READ_ONLY')
@@ -135,12 +207,14 @@ test('intakeOne mirrors a remote claim into the local ledger as QUEUED', async (
   }
 })
 
-test('intakeOne returns null on an empty queue and never touches the ledger', async () => {
+test('an unclaimable bound order yields null with no fallback claim attempt', async () => {
   const transport = mockTransport({ claims: [] })
   const { bridge, ledger, cleanup } = await fixture({ transport })
   try {
-    assert.equal(await bridge.intakeOne(), null)
+    assert.equal(await bridge.intakeOne(bindingFor('wo-empty')), null)
     assert.deepEqual(await ledger.list(), [])
+    assert.equal(transport.calls.filter((call) => call.action === 'claim').length, 1)
+    assert.equal(transport.calls.length, 1)
   } finally {
     await cleanup()
   }
@@ -150,8 +224,8 @@ test('a re-claimed remote order deduplicates instead of duplicating', async () =
   const transport = mockTransport({ claims: [remoteClaim('wo-dedup'), remoteClaim('wo-dedup')] })
   const { bridge, ledger, cleanup } = await fixture({ transport })
   try {
-    await bridge.intakeOne()
-    await bridge.intakeOne()
+    await bridge.intakeOne(bindingFor('wo-dedup'))
+    await bridge.intakeOne(bindingFor('wo-dedup'))
     const orders = await ledger.list()
     assert.equal(orders.length, 1)
     assert.equal(orders[0].work_order_id, 'wo-dedup')
@@ -160,11 +234,80 @@ test('a re-claimed remote order deduplicates instead of duplicating', async () =
   }
 })
 
+test('a stale local order blocks intake before any network access', async () => {
+  const transport = mockTransport({ claims: [remoteClaim('wo-fresh')] })
+  const { bridge, ledger, cleanup } = await fixture({ transport })
+  try {
+    await ledger.create({
+      work_order_id: 'wo-stale-leftover',
+      requested_by: 'previous-run',
+      originating_surface: 'staging-control-plane',
+      task_type: 'github_pr_read_only_review',
+      scope: { repository: 'Motesart27/Motesart-OS', pull_request: 9 },
+      approval_class: 'READ_ONLY',
+      executor: 'ORCA',
+      idempotency_key: 'orca-transport:wo-stale-leftover',
+      status: 'QUEUED',
+    })
+    await assert.rejects(
+      bridge.intakeOne(bindingFor('wo-fresh')),
+      (error) => error.code === 'LOCAL_LEDGER_NOT_ISOLATED',
+    )
+    assert.equal(transport.calls.length, 0)
+  } finally {
+    await cleanup()
+  }
+})
+
+test('a substitute claimed order is released immediately and intake fails closed', async () => {
+  const transport = mockTransport({ claims: [remoteClaim('wo-substitute')] })
+  const { bridge, ledger, cleanup } = await fixture({ transport })
+  try {
+    await assert.rejects(
+      bridge.intakeOne(bindingFor('wo-wanted')),
+      (error) => error.code === 'TRANSPORT_CLAIM_BINDING_MISMATCH',
+    )
+    const release = transport.calls.find((call) => call.action === 'release')
+    assert.equal(release.payload.work_order_id, 'wo-substitute')
+    assert.equal(release.payload.lease_token, 'lease-wo-substitute')
+    // Never mirrored, never heartbeated.
+    assert.deepEqual(await ledger.list(), [])
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    assert.equal(transport.calls.filter((call) => call.action === 'heartbeat').length, 0)
+  } finally {
+    await cleanup()
+  }
+})
+
+test('every mismatched bound field releases the claim and fails closed', async () => {
+  const cases = [
+    ['task_type', remoteClaim('wo-field', { task_type: 'staging_smoke_test' })],
+    ['approval_class', remoteClaim('wo-field', { approval_class: 'LOCAL_WRITE' })],
+    ['repository', remoteClaim('wo-field', { scope: { repository: 'Motesart27/other-repo', pull_request: 27 } })],
+    ['pull_request', remoteClaim('wo-field', { scope: { repository: 'Motesart27/Motesart-OS', pull_request: 28 } })],
+  ]
+  for (const [label, claim] of cases) {
+    const transport = mockTransport({ claims: [claim] })
+    const { bridge, ledger, cleanup } = await fixture({ transport })
+    try {
+      await assert.rejects(
+        bridge.intakeOne(bindingFor('wo-field')),
+        (error) => error.code === 'TRANSPORT_CLAIM_BINDING_MISMATCH',
+        `mismatched ${label} must fail intake`,
+      )
+      assert.equal(transport.calls.filter((call) => call.action === 'release').length, 1, `mismatched ${label} must release`)
+      assert.deepEqual(await ledger.list(), [], `mismatched ${label} must not mirror`)
+    } finally {
+      await cleanup()
+    }
+  }
+})
+
 test('heartbeats flow while the lease is held and stop after settlement', async () => {
   const transport = mockTransport({ claims: [remoteClaim('wo-heartbeat')] })
   const { bridge, putLocalArtifact, cleanup } = await fixture({ transport })
   try {
-    await bridge.intakeOne()
+    await bridge.intakeOne(bindingFor('wo-heartbeat'))
     await new Promise((resolve) => setTimeout(resolve, 60))
     const beats = transport.calls.filter((call) => call.action === 'heartbeat').length
     assert.ok(beats >= 2, `expected at least 2 heartbeats, saw ${beats}`)
@@ -190,7 +333,7 @@ test('deliver uploads real artifact bytes and completes only a resolved PASS', a
   const transport = mockTransport({ claims: [remoteClaim('wo-complete')] })
   const { bridge, putLocalArtifact, cleanup } = await fixture({ transport })
   try {
-    await bridge.intakeOne()
+    await bridge.intakeOne(bindingFor('wo-complete'))
     const result = await putLocalArtifact('wo-complete', 'model_response', 'bounded review output')
     const evidence = await putLocalArtifact('wo-complete', 'evidence_report', '{"transport":{"github_writes":0}}')
     const card = await putLocalArtifact('wo-complete', 'decision_card', '{"banner":"SUPERVISED STAGING"}')
@@ -217,7 +360,7 @@ test('deliver settles an unresolved review as block — never complete', async (
   const transport = mockTransport({ claims: [remoteClaim('wo-blocked')] })
   const { bridge, putLocalArtifact, cleanup } = await fixture({ transport })
   try {
-    await bridge.intakeOne()
+    await bridge.intakeOne(bindingFor('wo-blocked'))
     const result = await putLocalArtifact('wo-blocked', 'model_response', 'result')
     const evidence = await putLocalArtifact('wo-blocked', 'evidence_report', '{}')
     const card = await putLocalArtifact('wo-blocked', 'decision_card', '{}')
@@ -245,7 +388,7 @@ test('a lost remote lease makes delivery refuse to settle', async () => {
   const transport = mockTransport({ claims: [remoteClaim('wo-lost')], failHeartbeat: true })
   const { bridge, putLocalArtifact, cleanup } = await fixture({ transport })
   try {
-    await bridge.intakeOne()
+    await bridge.intakeOne(bindingFor('wo-lost'))
     await new Promise((resolve) => setTimeout(resolve, 40))
     const result = await putLocalArtifact('wo-lost', 'model_response', 'result')
     await assert.rejects(
@@ -268,7 +411,7 @@ test('releaseRemote returns an aborted order to the control plane', async () => 
   const transport = mockTransport({ claims: [remoteClaim('wo-release')] })
   const { bridge, cleanup } = await fixture({ transport })
   try {
-    await bridge.intakeOne()
+    await bridge.intakeOne(bindingFor('wo-release'))
     const released = await bridge.releaseRemote('wo-release')
     assert.equal(released.released, true)
     const release = transport.calls.find((call) => call.action === 'release')
@@ -280,16 +423,33 @@ test('releaseRemote returns an aborted order to the control plane', async () => 
   }
 })
 
-test('close releases every outstanding lease exactly once', async () => {
-  const transport = mockTransport({ claims: [remoteClaim('wo-a'), remoteClaim('wo-b')] })
-  const { bridge, cleanup } = await fixture({ transport })
+test('close releases the outstanding lease exactly once', async () => {
+  const transport = mockTransport({ claims: [remoteClaim('wo-a')] })
+  const { bridge, ledger, cleanup } = await fixture({ transport })
   try {
-    await bridge.intakeOne()
-    await bridge.intakeOne()
+    await bridge.intakeOne(bindingFor('wo-a'))
     const closed = await bridge.close()
-    assert.equal(closed.length, 2)
-    assert.equal(transport.calls.filter((call) => call.action === 'release').length, 2)
+    assert.equal(closed.length, 1)
+    assert.equal(closed[0].work_order_id, 'wo-a')
+    assert.equal(transport.calls.filter((call) => call.action === 'release').length, 1)
     assert.deepEqual(await bridge.close(), [])
+  } finally {
+    await cleanup()
+  }
+})
+
+test('the ledger isolation guard blocks a second differently-bound intake on the same ledger', async () => {
+  const transport = mockTransport({ claims: [remoteClaim('wo-a'), remoteClaim('wo-b')] })
+  const { bridge, ledger, cleanup } = await fixture({ transport })
+  try {
+    await bridge.intakeOne(bindingFor('wo-a'))
+    await assert.rejects(
+      bridge.intakeOne(bindingFor('wo-b')),
+      (error) => error.code === 'LOCAL_LEDGER_NOT_ISOLATED',
+    )
+    // Only the first order was ever claimed or mirrored.
+    assert.equal(transport.calls.filter((call) => call.action === 'claim').length, 1)
+    assert.equal((await ledger.list()).length, 1)
   } finally {
     await cleanup()
   }

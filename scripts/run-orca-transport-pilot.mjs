@@ -14,7 +14,15 @@
 // session (maxOrdersPerSession=1), READ_ONLY approval class only, staging
 // host pin only, and an explicit activation gate — without
 // --confirm-staging-pilot the script prints the gate and exits 3 without
-// touching the network or the keychain. An unresolved independent review is
+// touching the network or the keychain.
+//
+// MOS-ORCA-TRANSPORT-BINDING-C1-01 correction: the pilot claims only an
+// EXACTLY named order (--work-order-id/--repository/--pull-request, bound to
+// the allowlisted task type and READ_ONLY) — there is no oldest-queued
+// fallback; each run uses a fresh isolated local ledger so stale locally
+// queued orders can never reach the bounded loop; and
+// --deterministic-local-canary runs the first canary at zero model cost (no
+// gateway secret read, no model call, byte-reproducible local analysis). An unresolved independent review is
 // always settled as `block`, never `complete`.
 //
 // Exit codes: 0 = bounded exit after the one order (or clean idle), 2 = the
@@ -22,6 +30,7 @@
 // 130/143 = SIGINT/SIGTERM, 1 = abnormal exit.
 
 import { execFile } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -31,6 +40,7 @@ import { LocalArtifactStore } from '../operator-bridge/artifact-store.mjs'
 import { BoundedWorkerSession } from '../operator-bridge/bounded-worker-session.mjs'
 import { DEFAULT_EXECUTION_ALLOWLIST } from '../operator-bridge/constants.mjs'
 import { createDecisionCard } from '../operator-bridge/decision-card.mjs'
+import { buildDeterministicCanaryReview, DETERMINISTIC_CANARY_MODEL } from '../operator-bridge/deterministic-local-canary.mjs'
 import { FableAdapter } from '../operator-bridge/fable-adapter.mjs'
 import { GitHubReadOnlyCollector } from '../operator-bridge/github-collector.mjs'
 import { KimiStreamingAdapter } from '../operator-bridge/kimi-streaming-adapter.mjs'
@@ -44,10 +54,21 @@ const execFileAsync = promisify(execFile)
 const STAGING_BASE_URL = 'https://operator-bridge-control-plane-staging.up.railway.app'
 
 function parseArguments(argv) {
-  const result = { root: path.resolve('.operator-bridge/orca-transport-pilot'), confirmed: false }
+  const result = {
+    root: path.resolve('.operator-bridge/orca-transport-pilot'),
+    confirmed: false,
+    workOrderId: null,
+    repository: null,
+    pullRequest: null,
+    deterministicLocalCanary: false,
+  }
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === '--root') result.root = path.resolve(argv[++index])
     if (argv[index] === '--confirm-staging-pilot') result.confirmed = true
+    if (argv[index] === '--work-order-id') result.workOrderId = argv[++index]
+    if (argv[index] === '--repository') result.repository = argv[++index]
+    if (argv[index] === '--pull-request') result.pullRequest = Number(argv[++index])
+    if (argv[index] === '--deterministic-local-canary') result.deterministicLocalCanary = true
   }
   return result
 }
@@ -98,7 +119,8 @@ function reviewPrompt(collection) {
 }
 
 async function main() {
-  const { root, confirmed } = parseArguments(process.argv.slice(2))
+  const args = parseArguments(process.argv.slice(2))
+  const { root, confirmed } = args
   if (!confirmed) {
     process.stdout.write(
       `${JSON.stringify(
@@ -117,14 +139,50 @@ async function main() {
     process.exitCode = 3
     return
   }
+  // Exact order binding gate: the pilot never claims "whatever is queued".
+  // Without a complete binding it exits 3 before any network or keychain use.
+  const binding = {
+    work_order_id: typeof args.workOrderId === 'string' ? args.workOrderId.trim() : '',
+    task_type: DEFAULT_EXECUTION_ALLOWLIST.taskTypes[0],
+    approval_class: 'READ_ONLY',
+    repository: typeof args.repository === 'string' ? args.repository.trim() : '',
+    pull_request: args.pullRequest,
+  }
+  if (
+    binding.work_order_id === ''
+    || binding.repository === ''
+    || !Number.isSafeInteger(binding.pull_request)
+    || binding.pull_request <= 0
+  ) {
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          status: 'ACTIVATION_GATE',
+          gate: 'EXACT_ORDER_BINDING_REQUIRED',
+          detail:
+            'This pilot claims only an exactly named remote order. Re-run with --work-order-id <id> --repository <owner/repo> --pull-request <n>. There is no fallback claim.',
+          network_calls_made: 0,
+          keychain_reads_made: 0,
+        },
+        null,
+        2,
+      )}\n`,
+    )
+    process.exitCode = 3
+    return
+  }
 
   const registry = new ResourceRegistry()
   const artifactStore = await new LocalArtifactStore({ root: path.join(root, 'artifacts') }).init()
+  // Fresh isolated local ledger per run: stale queued orders from any prior
+  // run can never leak into this session's bounded loop.
   const ledger = await new FileWorkOrderLedger({
-    root: path.join(root, 'control-plane'),
+    root: path.join(root, 'control-plane', 'runs', randomUUID()),
     artifactVerifier: (workOrderId) => artifactStore.listArtifacts(workOrderId),
   }).init()
-  const gateway = await loadGatewayConfig()
+  // Deterministic-local canary mode is zero model cost: the gateway secrets
+  // file is never read and no model adapter is constructed.
+  const gateway = args.deterministicLocalCanary ? null : await loadGatewayConfig()
   const transport = new OrcaStagingWorker({
     baseUrl: STAGING_BASE_URL,
     workerId: 'orca-transport-pilot',
@@ -134,19 +192,22 @@ async function main() {
   await transport.authenticate()
   const bridge = new OrcaTransportBridge({ transport, ledger, artifactStore })
 
-  // Intake exactly one remote order before the bounded loop starts. An empty
-  // staging queue is a clean, evidenced idle exit — nothing is fabricated.
-  const intake = await bridge.intakeOne()
+  // Intake exactly the bound remote order before the bounded loop starts. A
+  // null claim (order not claimable) is a clean, evidenced idle exit —
+  // nothing is fabricated and nothing else is ever claimed in its place.
+  const intake = await bridge.intakeOne(binding)
 
   const githubCollector = new GitHubReadOnlyCollector({ artifactStore, processRegistry: registry })
-  const kimiAdapter = new KimiStreamingAdapter({
-    artifactStore,
-    baseUrl: gateway.baseUrl,
-    model: 'kimi-k3',
-    timeoutMs: 240_000,
-    maxOutputTokens: 1600,
-    maxAttempts: 1,
-  })
+  const kimiAdapter = args.deterministicLocalCanary
+    ? null
+    : new KimiStreamingAdapter({
+        artifactStore,
+        baseUrl: gateway.baseUrl,
+        model: 'kimi-k3',
+        timeoutMs: 240_000,
+        maxOutputTokens: 1600,
+        maxAttempts: 1,
+      })
   const worker = new OrcaEdgeWorker({
     workerId: 'orca-transport-pilot',
     ledger,
@@ -161,6 +222,11 @@ async function main() {
 
   const runOrder = async ({ order, worker: edgeWorker, leaseToken, attempt, signal, record }) => {
     const scope = order.scope ?? {}
+    // Belt-and-suspenders: even with the fresh per-run ledger, refuse to
+    // execute any order other than the one this run is bound to.
+    if (order.work_order_id !== binding.work_order_id) {
+      throw Object.assign(new Error('ORDER_BINDING_VIOLATION'), { code: 'ORDER_BINDING_VIOLATION' })
+    }
     if (typeof scope.repository !== 'string' || !Number.isSafeInteger(scope.pull_request)) {
       throw Object.assign(new Error('ORDER_SCOPE_INVALID'), { code: 'ORDER_SCOPE_INVALID' })
     }
@@ -180,21 +246,39 @@ async function main() {
       head_sha: collection.head_sha,
       changed_file_count: collection.changed_file_count,
     })
-    const kimiResult = await edgeWorker.execute({
-      action: 'invoke_kimi_analysis',
-      payload: {
+    let kimiResult
+    if (args.deterministicLocalCanary) {
+      const assembled = await artifactStore.putArtifact({
         workOrderId: order.work_order_id,
-        sections: [
-          {
-            id: 'bounded-status',
-            title: `${scope.repository} PR #${scope.pull_request} bounded status review`,
-            prompt: reviewPrompt(collection),
-          },
-        ],
-        apiKey: gateway.apiKey,
+        artifactType: 'model_response',
+        content: buildDeterministicCanaryReview(collection),
+        producingExecutor: 'orca-transport-pilot',
         attempt,
-      },
-    })
+        sensitivity: 'public',
+      })
+      kimiResult = {
+        model: DETERMINISTIC_CANARY_MODEL,
+        streaming: false,
+        assembled_artifact: assembled,
+        response_byte_count: assembled.byte_count,
+      }
+    } else {
+      kimiResult = await edgeWorker.execute({
+        action: 'invoke_kimi_analysis',
+        payload: {
+          workOrderId: order.work_order_id,
+          sections: [
+            {
+              id: 'bounded-status',
+              title: `${scope.repository} PR #${scope.pull_request} bounded status review`,
+              prompt: reviewPrompt(collection),
+            },
+          ],
+          apiKey: gateway.apiKey,
+          attempt,
+        },
+      })
+    }
     if (signal.aborted) throw new Error('ORDER_ABORTED')
     await edgeWorker.execute({
       action: 'return_result',
@@ -328,6 +412,14 @@ async function main() {
     exit_detail: result.exit_detail,
     session_id: result.session_id,
     remote_intake: intake ? intake.order.work_order_id : null,
+    exact_order_binding: {
+      work_order_id: binding.work_order_id,
+      task_type: binding.task_type,
+      approval_class: binding.approval_class,
+      repository: binding.repository,
+      pull_request: binding.pull_request,
+    },
+    deterministic_local_canary: args.deterministicLocalCanary,
     orders_attempted: result.orders_attempted,
     settlements,
     evidence_path: result.evidence_path,

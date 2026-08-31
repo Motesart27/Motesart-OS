@@ -72,7 +72,7 @@ async function blockedOrder(store, suffix, blockerCode = 'KIMI_RESPONSE_UNAVAILA
     executor: 'ORCA',
     idempotency_key: `manual-retry-create:${suffix}`,
   })
-  const claimed = await store.claim({ leaseOwner: 'orca-synthetic', leaseTtlMs: 60_000 })
+  const claimed = await store.claim({ workOrderId: created.work_order.work_order_id, leaseOwner: 'orca-synthetic', leaseTtlMs: 60_000 })
   const bytes = Buffer.from(`artifact-${suffix}`)
   await store.uploadArtifact(created.work_order.work_order_id, {
     leaseOwner: 'orca-synthetic',
@@ -151,7 +151,7 @@ test('eligible retry preserves ID, artifacts, history, and execution attempt unt
   assert.equal(second.response.status, 409)
   assert.equal(second.payload.error.code, 'MANUAL_RETRY_LIMIT_REACHED')
 
-  const claimed = await f.store.claim({ leaseOwner: 'orca-retry', leaseTtlMs: 60_000 })
+  const claimed = await f.store.claim({ workOrderId: id, leaseOwner: 'orca-retry', leaseTtlMs: 60_000 })
   assert.equal(claimed.work_order.work_order_id, id)
   assert.equal(claimed.work_order.attempt_count, before.attempt_count + 1)
 })
@@ -194,7 +194,7 @@ test('active leases, nonallowlisted blockers, non-BLOCKED states, and write scop
     requested_by: 'owner', originating_surface: 'motesart-os-netlify-preview', instruction: 'Synthetic active lease.',
     task_type: 'github_pr_read_only_review', scope: { read_only: true }, priority: 'normal', approval_class: 'READ_ONLY', executor: 'ORCA', idempotency_key: 'manual-retry-active-create',
   })
-  await f.store.claim({ leaseOwner: 'orca-active', leaseTtlMs: 60_000 })
+  await f.store.claim({ workOrderId: active.work_order.work_order_id, leaseOwner: 'orca-active', leaseTtlMs: 60_000 })
   await assert.rejects(f.store.manualRetry(active.work_order.work_order_id, { actor: 'owner', idempotencyKey: 'manual-retry:active:test' }), (error) => error.code === 'MANUAL_RETRY_ACTIVE_LEASE')
 
   const wrongBlocker = await blockedOrder(f.store, 'wrong-blocker', 'FABLE_ADAPTER_UNAVAILABLE')

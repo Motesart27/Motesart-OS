@@ -408,14 +408,24 @@ export class StagingStore {
     })
   }
 
-  async claim({ leaseOwner, leaseTtlMs = 60_000 }) {
+  // Exact-target atomic claim (MOS-ORCA-TRANSPORT-BINDING-C1-01): the worker
+  // must name the precise work order it intends to execute. There is no
+  // oldest-queued fallback — an unnamed target is rejected before the ledger
+  // is read, an unknown target is a 404, and a target that is not currently a
+  // QUEUED ORCA order yields a null claim rather than a substitute order.
+  async claim({ workOrderId, leaseOwner, leaseTtlMs = 60_000 }) {
     return this._exclusive(async () => {
+      if (typeof workOrderId !== 'string' || workOrderId.trim() === '') {
+        throw new StagingStoreError('CLAIM_TARGET_REQUIRED', 400)
+      }
       const state = await this._readVerified()
       this._reconcileExpired(state)
-      const order = Object.values(state.work_orders)
-        .filter((candidate) => candidate.status === 'QUEUED' && candidate.executor === 'ORCA')
-        .sort((a, b) => a.created_at.localeCompare(b.created_at))[0]
+      const order = state.work_orders[workOrderId]
       if (!order) {
+        await this._write(state)
+        throw new StagingStoreError('WORK_ORDER_NOT_FOUND', 404)
+      }
+      if (order.executor !== 'ORCA' || order.status !== 'QUEUED') {
         await this._write(state)
         return null
       }

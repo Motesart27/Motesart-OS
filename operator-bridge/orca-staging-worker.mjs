@@ -68,8 +68,13 @@ export class OrcaStagingWorker {
     if (!ALLOWED_ACTIONS.has(action)) throw new OrcaStagingWorkerError('UNSUPPORTED_STAGING_ACTION')
     rejectForbidden(payload)
     if (action === 'health') return { ok: true, connection_model: 'OUTBOUND_ONLY', worker_id: this.workerId, environment: this.environment, typed_actions_only: true }
+    // Exact-target claim only: an unnamed claim is rejected locally before
+    // any network access — there is no oldest-queued fallback.
+    if (action === 'claim' && (typeof payload.work_order_id !== 'string' || payload.work_order_id.trim() === '')) {
+      throw new OrcaStagingWorkerError('CLAIM_TARGET_REQUIRED')
+    }
     if (!this.sessionToken) await this.authenticate()
-    if (action === 'claim') return this._request('/v1/executors/orca/claim', { body: { capabilities: payload.capabilities ?? [], lease_ttl_seconds: payload.lease_ttl_seconds ?? 60 } })
+    if (action === 'claim') return this._request('/v1/executors/orca/claim', { body: { work_order_id: payload.work_order_id, capabilities: payload.capabilities ?? [], lease_ttl_seconds: payload.lease_ttl_seconds ?? 60 } })
     if (!payload.work_order_id || !payload.lease_token) throw new OrcaStagingWorkerError('WORK_ORDER_AND_LEASE_REQUIRED')
     const base = `/v1/executors/orca/work-orders/${encodeURIComponent(payload.work_order_id)}`
     if (action === 'heartbeat') return this._request(`${base}/heartbeat`, { body: { lease_ttl_seconds: payload.lease_ttl_seconds ?? 60 }, leaseToken: payload.lease_token })

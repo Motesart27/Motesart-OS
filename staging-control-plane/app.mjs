@@ -274,9 +274,10 @@ export function createStagingApi({ store, config, logger = console }) {
     if (request.method === 'POST' && pathname === '/v1/executors/orca/claim') {
       const identity = requireRole(request, 'orca', 'claim')
       const body = await bodyJson(request, 8_000)
-      exactFields(body, new Set(['capabilities', 'lease_ttl_seconds']))
+      exactFields(body, new Set(['work_order_id', 'capabilities', 'lease_ttl_seconds']))
       if (!Array.isArray(body.capabilities) || body.capabilities.some((item) => typeof item !== 'string')) throw new StagingApiError('INVALID_CAPABILITIES')
-      const claim = await store.claim({ leaseOwner: identity.sub, leaseTtlMs: Math.min(Math.max(Number(body.lease_ttl_seconds ?? 60), 15), 300) * 1000 })
+      if (typeof body.work_order_id !== 'string' || !/^[A-Za-z0-9._:-]+$/.test(body.work_order_id)) throw new StagingApiError('CLAIM_TARGET_REQUIRED')
+      const claim = await store.claim({ workOrderId: body.work_order_id, leaseOwner: identity.sub, leaseTtlMs: Math.min(Math.max(Number(body.lease_ttl_seconds ?? 60), 15), 300) * 1000 })
       send(response, 200, { claim })
       return
     }

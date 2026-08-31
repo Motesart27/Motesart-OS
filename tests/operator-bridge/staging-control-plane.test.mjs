@@ -163,12 +163,12 @@ test('isolated staging control-plane security, failure, and return-channel contr
   const orca = await orcaLogin(f.baseUrl)
   assert.equal(orca.response.status, 200)
   const orcaToken = orca.payload.token
-  const claim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: ['run_local_tests'], lease_ttl_seconds: 60 } })
+  const claim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: workOrderId, capabilities: ['run_local_tests'], lease_ttl_seconds: 60 } })
   const leaseToken = claim.payload.claim.lease_token
 
   await t.test('atomic claim prevents a duplicate claim', async () => {
     assert.equal(claim.payload.claim.work_order.work_order_id, workOrderId)
-    const duplicateClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+    const duplicateClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: workOrderId, capabilities: [], lease_ttl_seconds: 60 } })
     assert.equal(duplicateClaim.payload.claim, null)
   })
 
@@ -193,10 +193,10 @@ test('isolated staging control-plane security, failure, and return-channel contr
     const offlineId = offline.payload.work_order.work_order_id
     const queued = await call(f.baseUrl, `/v1/work-orders/${offlineId}`, { token: ownerToken })
     assert.equal(queued.payload.work_order.status, 'QUEUED')
-    const claimed = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+    const claimed = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: offlineId, capabilities: [], lease_ttl_seconds: 60 } })
     const released = await call(f.baseUrl, `/v1/executors/orca/work-orders/${offlineId}/release`, { method: 'POST', origin: null, head: null, token: orcaToken, leaseToken: claimed.payload.claim.lease_token, body: {} })
     assert.equal(released.payload.work_order.status, 'QUEUED')
-    const reclaimed = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+    const reclaimed = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: offlineId, capabilities: [], lease_ttl_seconds: 60 } })
     assert.equal(reclaimed.payload.claim.work_order.work_order_id, offlineId)
     const unavailable = await call(f.baseUrl, `/v1/executors/orca/work-orders/${offlineId}/block`, { method: 'POST', origin: null, head: null, token: orcaToken, leaseToken: reclaimed.payload.claim.lease_token, body: { blocker_code: 'FABLE_ADAPTER_UNAVAILABLE', next_action: 'RESUME_WHEN_VERIFIER_AVAILABLE' } })
     assert.equal(unavailable.payload.work_order.status, 'BLOCKED')
@@ -206,7 +206,7 @@ test('isolated staging control-plane security, failure, and return-channel contr
   await t.test('missing return-channel artifacts block completion', async () => {
     const missing = await createOrder(f.baseUrl, ownerToken, 'missing')
     const missingId = missing.payload.work_order.work_order_id
-    const missingClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+    const missingClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: missingId, capabilities: [], lease_ttl_seconds: 60 } })
     const blocked = await call(f.baseUrl, `/v1/executors/orca/work-orders/${missingId}/complete`, { method: 'POST', origin: null, head: null, token: orcaToken, leaseToken: missingClaim.payload.claim.lease_token, body: { result_artifact_id: 'missing', evidence_artifact_id: 'missing', decision_card_artifact_id: 'missing' } })
     assert.equal(blocked.response.status, 409)
     const order = await call(f.baseUrl, `/v1/work-orders/${missingId}`, { token: ownerToken })
@@ -217,7 +217,7 @@ test('isolated staging control-plane security, failure, and return-channel contr
   await t.test('valid artifacts complete idempotently and publish a disabled-control decision card', async () => {
     const valid = await createOrder(f.baseUrl, ownerToken, 'valid')
     const validId = valid.payload.work_order.work_order_id
-    const validClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+    const validClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: validId, capabilities: [], lease_ttl_seconds: 60 } })
     const validLease = validClaim.payload.claim.lease_token
     await call(f.baseUrl, `/v1/executors/orca/work-orders/${validId}/heartbeat`, { method: 'POST', origin: null, head: null, token: orcaToken, leaseToken: validLease, body: { lease_ttl_seconds: 60 } })
     const log = await upload(f.baseUrl, orcaToken, validId, validLease, 'test_log', '{"passed":true}')
@@ -237,7 +237,7 @@ test('isolated staging control-plane security, failure, and return-channel contr
   await t.test('executor self-approval is rejected and blocks the work order', async () => {
     const invalid = await createOrder(f.baseUrl, ownerToken, 'self-approval')
     const invalidId = invalid.payload.work_order.work_order_id
-    const invalidClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+    const invalidClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: invalidId, capabilities: [], lease_ttl_seconds: 60 } })
     const invalidLease = invalidClaim.payload.claim.lease_token
     const log = await upload(f.baseUrl, orcaToken, invalidId, invalidLease, 'test_log', '{"passed":true}')
     const unsafeCard = await upload(f.baseUrl, orcaToken, invalidId, invalidLease, 'decision_card', JSON.stringify({ work_order_id: invalidId, controls: { approve: { enabled: true } } }))
@@ -277,11 +277,11 @@ test('expired lease is reclaimed with a fresh fencing token', async () => {
   const f = await fixture({ clock: () => now })
   try {
     const created = await f.store.createWorkOrder({ ...workOrderBody('expiry'), requested_by: 'synthetic-owner' })
-    const first = await f.store.claim({ leaseOwner: 'orca-one', leaseTtlMs: 1_000 })
+    const first = await f.store.claim({ workOrderId: created.work_order.work_order_id, leaseOwner: 'orca-one', leaseTtlMs: 1_000 })
     now += 2_000
     const orders = await f.store.listWorkOrders()
     assert.equal(orders.find((order) => order.work_order_id === created.work_order.work_order_id).status, 'QUEUED')
-    const second = await f.store.claim({ leaseOwner: 'orca-two', leaseTtlMs: 1_000 })
+    const second = await f.store.claim({ workOrderId: created.work_order.work_order_id, leaseOwner: 'orca-two', leaseTtlMs: 1_000 })
     assert.notEqual(second.lease_token, first.lease_token)
     assert.equal(second.work_order.attempt_count, 2)
   } finally {
@@ -312,6 +312,7 @@ test('outbound staging worker rejects unsupported and free-form commands before 
   })
   await assert.rejects(worker.execute({ action: 'execute_shell', payload: {} }), (error) => error.code === 'UNSUPPORTED_STAGING_ACTION')
   await assert.rejects(worker.execute({ action: 'claim', payload: { command: 'SENSITIVE_COMMAND' } }), (error) => error.code === 'ARBITRARY_COMMAND_REJECTED')
+  await assert.rejects(worker.execute({ action: 'claim', payload: { capabilities: [] } }), (error) => error.code === 'CLAIM_TARGET_REQUIRED')
   assert.equal(networkCalls, 0)
 })
 
@@ -334,7 +335,7 @@ test('block obeys the canonical transition contract and terminal states are immu
 
   const created = await createOrder(f.baseUrl, ownerToken, 'terminal-immutability')
   const workOrderId = created.payload.work_order.work_order_id
-  const claim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+  const claim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: workOrderId, capabilities: [], lease_ttl_seconds: 60 } })
   const leaseToken = claim.payload.claim.lease_token
   await call(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/heartbeat`, { method: 'POST', origin: null, head: null, token: orcaToken, leaseToken, body: { lease_ttl_seconds: 60 } })
   const log = await upload(f.baseUrl, orcaToken, workOrderId, leaseToken, 'test_log', '{"passed":true}')
@@ -363,7 +364,7 @@ test('block obeys the canonical transition contract and terminal states are immu
   await t.test('re-blocking a BLOCKED order is rejected by the same deny-by-default contract', async () => {
     const second = await createOrder(f.baseUrl, ownerToken, 'reblock-rejected')
     const secondId = second.payload.work_order.work_order_id
-    const secondClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+    const secondClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: secondId, capabilities: [], lease_ttl_seconds: 60 } })
     const first = await call(f.baseUrl, `/v1/executors/orca/work-orders/${secondId}/block`, { method: 'POST', origin: null, head: null, token: orcaToken, leaseToken: secondClaim.payload.claim.lease_token, body: { blocker_code: 'FABLE_ADAPTER_UNAVAILABLE', next_action: 'RESUME_WHEN_VERIFIER_AVAILABLE' } })
     assert.equal(first.payload.work_order.status, 'BLOCKED')
     const eventsAfterFirst = await f.store.getEvents(secondId)
@@ -379,7 +380,7 @@ test('block obeys the canonical transition contract and terminal states are immu
   await t.test('stale fencing token remains rejected and a valid leased block still works', async () => {
     const third = await createOrder(f.baseUrl, ownerToken, 'valid-block')
     const thirdId = third.payload.work_order.work_order_id
-    const thirdClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+    const thirdClaim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: thirdId, capabilities: [], lease_ttl_seconds: 60 } })
     const thirdLease = thirdClaim.payload.claim.lease_token
     const stale = await call(f.baseUrl, `/v1/executors/orca/work-orders/${thirdId}/block`, { method: 'POST', origin: null, head: null, token: orcaToken, leaseToken: 'STALE_TOKEN', body: { blocker_code: 'FABLE_ADAPTER_UNAVAILABLE', next_action: 'RESUME_WHEN_VERIFIER_AVAILABLE' } })
     assert.equal(stale.response.status, 409)
@@ -447,9 +448,47 @@ test('JWT expiration must be a valid future integer', async (t) => {
     assert.equal((await list(ownerToken)).response.status, 200)
     const orca = await orcaLogin(f.baseUrl)
     assert.equal(orca.response.status, 200)
-    await createOrder(f.baseUrl, ownerToken, 'jwt-regression')
-    const claim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orca.payload.token, body: { capabilities: [], lease_ttl_seconds: 60 } })
+    const regression = await createOrder(f.baseUrl, ownerToken, 'jwt-regression')
+    const claim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orca.payload.token, body: { work_order_id: regression.payload.work_order.work_order_id, capabilities: [], lease_ttl_seconds: 60 } })
     assert.equal(claim.response.status, 200)
     assert.notEqual(claim.payload.claim, null)
+  })
+})
+
+test('claim requires an exact target and never serves a substitute order', async (t) => {
+  const f = await fixture()
+  t.after(f.close)
+  const ownerToken = await login(f.baseUrl)
+  const orca = await orcaLogin(f.baseUrl)
+  const orcaToken = orca.payload.token
+  const older = await createOrder(f.baseUrl, ownerToken, 'exact-older')
+  const olderId = older.payload.work_order.work_order_id
+  const newer = await createOrder(f.baseUrl, ownerToken, 'exact-newer')
+  const newerId = newer.payload.work_order.work_order_id
+
+  await t.test('an unnamed claim is rejected — no oldest-queued fallback exists', async () => {
+    const unnamed = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+    assert.equal(unnamed.response.status, 400)
+    assert.equal(unnamed.payload.error.code, 'CLAIM_TARGET_REQUIRED')
+  })
+
+  await t.test('claim serves exactly the named order even when an older order is queued', async () => {
+    const claim = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: newerId, capabilities: [], lease_ttl_seconds: 60 } })
+    assert.equal(claim.response.status, 200)
+    assert.equal(claim.payload.claim.work_order.work_order_id, newerId)
+    const untouched = await f.store.getWorkOrder(olderId)
+    assert.equal(untouched.status, 'QUEUED')
+  })
+
+  await t.test('claiming an unknown order id is a 404, never a substitute', async () => {
+    const unknown = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: 'wo-does-not-exist', capabilities: [], lease_ttl_seconds: 60 } })
+    assert.equal(unknown.response.status, 404)
+    assert.equal(unknown.payload.error.code, 'WORK_ORDER_NOT_FOUND')
+  })
+
+  await t.test('claiming an already-claimed order yields a null claim, not another order', async () => {
+    const again = await call(f.baseUrl, '/v1/executors/orca/claim', { method: 'POST', origin: null, head: null, token: orcaToken, body: { work_order_id: newerId, capabilities: [], lease_ttl_seconds: 60 } })
+    assert.equal(again.response.status, 200)
+    assert.equal(again.payload.claim, null)
   })
 })

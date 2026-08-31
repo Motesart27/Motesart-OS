@@ -326,7 +326,7 @@ test('E: ORCA scopes are least-privilege per action', async (t) => {
   const workOrderId = orders.payload.work_orders[0].work_order_id
 
   const claimOnly = mintOrca(f.config, ['claim'])
-  const claimed = await post(f.baseUrl, '/v1/executors/orca/claim', { token: claimOnly, body: { capabilities: [], lease_ttl_seconds: 60 } })
+  const claimed = await post(f.baseUrl, '/v1/executors/orca/claim', { token: claimOnly, body: { work_order_id: workOrderId, capabilities: [], lease_ttl_seconds: 60 } })
   assert.equal(claimed.response.status, 200)
   assert.notEqual(claimed.payload.claim, null)
 
@@ -339,10 +339,10 @@ test('E: ORCA scopes are least-privilege per action', async (t) => {
   assert.equal(uploadDenied.response.status, 403)
   assert.equal(uploadDenied.payload.error.code, 'INSUFFICIENT_SCOPE')
 
-  const unknownScope = await post(f.baseUrl, '/v1/executors/orca/claim', { token: mintOrca(f.config, ['claim', 'shell:exec']), body: { capabilities: [], lease_ttl_seconds: 60 } })
+  const unknownScope = await post(f.baseUrl, '/v1/executors/orca/claim', { token: mintOrca(f.config, ['claim', 'shell:exec']), body: { work_order_id: workOrderId, capabilities: [], lease_ttl_seconds: 60 } })
   assert.equal(unknownScope.response.status, 401)
 
-  const wrongKey = await post(f.baseUrl, '/v1/executors/orca/claim', { token: mintOrca(f.config, ['claim'], 'SYNTHETIC_WRONG_KEY'), body: { capabilities: [], lease_ttl_seconds: 60 } })
+  const wrongKey = await post(f.baseUrl, '/v1/executors/orca/claim', { token: mintOrca(f.config, ['claim'], 'SYNTHETIC_WRONG_KEY'), body: { work_order_id: workOrderId, capabilities: [], lease_ttl_seconds: 60 } })
   assert.equal(wrongKey.response.status, 401)
 })
 
@@ -354,7 +354,7 @@ test('E: complete, release, and retry scopes are independently enforced', async 
   const orders = await get(f.baseUrl, '/v1/work-orders', { token: ownerToken })
   const workOrderId = orders.payload.work_orders[0].work_order_id
   const claimToken = mintOrca(f.config, ['claim'])
-  const claimed = await post(f.baseUrl, '/v1/executors/orca/claim', { token: claimToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+  const claimed = await post(f.baseUrl, '/v1/executors/orca/claim', { token: claimToken, body: { work_order_id: workOrderId, capabilities: [], lease_ttl_seconds: 60 } })
   const leaseToken = claimed.payload.claim.lease_token
 
   for (const action of ['complete', 'release', 'block', 'heartbeat', 'artifacts']) {
@@ -498,7 +498,7 @@ async function completableOrder(f, suffix, card) {
   await post(f.baseUrl, '/v1/work-orders', { token: ownerToken, body: workOrderBody(suffix) })
   const orders = await get(f.baseUrl, '/v1/work-orders', { token: ownerToken })
   const workOrderId = orders.payload.work_orders.find((order) => order.idempotency_key === `hardening-test:${suffix}`).work_order_id
-  const claimed = await post(f.baseUrl, '/v1/executors/orca/claim', { token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+  const claimed = await post(f.baseUrl, '/v1/executors/orca/claim', { token: orcaToken, body: { work_order_id: workOrderId, capabilities: [], lease_ttl_seconds: 60 } })
   const leaseToken = claimed.payload.claim.lease_token
   await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/heartbeat`, { token: orcaToken, leaseToken, body: { lease_ttl_seconds: 60 } })
   const upload = async (type, content) => {
@@ -583,7 +583,7 @@ test('G: replay compares the complete canonical completion identity', async (t) 
   await post(f.baseUrl, '/v1/work-orders', { token: ownerToken, body: workOrderBody('replay-identity') })
   const orders = await get(f.baseUrl, '/v1/work-orders', { token: ownerToken })
   const workOrderId = orders.payload.work_orders[0].work_order_id
-  const claimed = await post(f.baseUrl, '/v1/executors/orca/claim', { token: orcaToken, body: { capabilities: [], lease_ttl_seconds: 60 } })
+  const claimed = await post(f.baseUrl, '/v1/executors/orca/claim', { token: orcaToken, body: { work_order_id: workOrderId, capabilities: [], lease_ttl_seconds: 60 } })
   const leaseToken = claimed.payload.claim.lease_token
   await post(f.baseUrl, `/v1/executors/orca/work-orders/${workOrderId}/heartbeat`, { token: orcaToken, leaseToken, body: { lease_ttl_seconds: 60 } })
   const upload = async (type, content) => {

@@ -93,7 +93,7 @@ async function main() {
     environment: 'staging',
   })
   const identity = await worker.authenticate()
-  const claim = await worker.execute({ action: 'claim', payload: { capabilities: ['run_local_tests', 'package_artifacts', 'return_result'], lease_ttl_seconds: 60 } })
+  const claim = await worker.execute({ action: 'claim', payload: { work_order_id: created.work_order.work_order_id, capabilities: ['run_local_tests', 'package_artifacts', 'return_result'], lease_ttl_seconds: 60 } })
   if (!claim.claim || claim.claim.work_order.work_order_id !== created.work_order.work_order_id) throw new Error('STAGING_CLAIM_MISMATCH')
   const workOrderId = claim.claim.work_order.work_order_id
   const leaseToken = claim.claim.lease_token
